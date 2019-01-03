@@ -208,6 +208,12 @@ func NewWeaviateAPI(spec *loads.Document) *WeaviateAPI {
 		KnowledgeToolsWeaviateToolsMapHandler: knowledge_tools.WeaviateToolsMapHandlerFunc(func(params knowledge_tools.WeaviateToolsMapParams, principal interface{}) middleware.Responder {
 			return middleware.NotImplemented("operation KnowledgeToolsWeaviateToolsMap has not yet been implemented")
 		}),
+		WeaviateWellknownLivenessHandler: WeaviateWellknownLivenessHandlerFunc(func(params WeaviateWellknownLivenessParams, principal interface{}) middleware.Responder {
+			return middleware.NotImplemented("operation WeaviateWellknownLiveness has not yet been implemented")
+		}),
+		WeaviateWellknownReadinessHandler: WeaviateWellknownReadinessHandlerFunc(func(params WeaviateWellknownReadinessParams, principal interface{}) middleware.Responder {
+			return middleware.NotImplemented("operation WeaviateWellknownReadiness has not yet been implemented")
+		}),
 
 		// Applies when the "X-API-KEY" header is set
 		APIKeyAuth: func(token string) (interface{}, error) {
@@ -362,6 +368,10 @@ type WeaviateAPI struct {
 	ThingsWeaviateThingsValidateHandler things.WeaviateThingsValidateHandler
 	// KnowledgeToolsWeaviateToolsMapHandler sets the operation handler for the weaviate tools map operation
 	KnowledgeToolsWeaviateToolsMapHandler knowledge_tools.WeaviateToolsMapHandler
+	// WeaviateWellknownLivenessHandler sets the operation handler for the weaviate wellknown liveness operation
+	WeaviateWellknownLivenessHandler WeaviateWellknownLivenessHandler
+	// WeaviateWellknownReadinessHandler sets the operation handler for the weaviate wellknown readiness operation
+	WeaviateWellknownReadinessHandler WeaviateWellknownReadinessHandler
 
 	// ServeError is called when an error is received, there is a default handler
 	// but you can set your own with this
@@ -631,6 +641,14 @@ func (o *WeaviateAPI) Validate() error {
 
 	if o.KnowledgeToolsWeaviateToolsMapHandler == nil {
 		unregistered = append(unregistered, "knowledge_tools.WeaviateToolsMapHandler")
+	}
+
+	if o.WeaviateWellknownLivenessHandler == nil {
+		unregistered = append(unregistered, "WeaviateWellknownLivenessHandler")
+	}
+
+	if o.WeaviateWellknownReadinessHandler == nil {
+		unregistered = append(unregistered, "WeaviateWellknownReadinessHandler")
 	}
 
 	if len(unregistered) > 0 {
@@ -994,6 +1012,16 @@ func (o *WeaviateAPI) initHandlerCache() {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
 	o.handlers["POST"]["/tools/map"] = knowledge_tools.NewWeaviateToolsMap(o.context, o.KnowledgeToolsWeaviateToolsMapHandler)
+
+	if o.handlers["GET"] == nil {
+		o.handlers["GET"] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/.well-known/live"] = NewWeaviateWellknownLiveness(o.context, o.WeaviateWellknownLivenessHandler)
+
+	if o.handlers["GET"] == nil {
+		o.handlers["GET"] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/.well-known/ready"] = NewWeaviateWellknownReadiness(o.context, o.WeaviateWellknownReadinessHandler)
 
 }
 

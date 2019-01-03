@@ -248,6 +248,7 @@ func configureAPI(api *operations.WeaviateAPI) http.Handler {
 
 	api.JSONConsumer = runtime.JSONConsumer()
 
+	setupWellKnownHandlers(api)
 	setupSchemaHandlers(api)
 	setupThingsHandlers(api)
 	setupActionsHandlers(api)
