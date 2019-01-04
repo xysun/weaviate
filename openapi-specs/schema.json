@@ -14,15 +14,45 @@
             "creationTimeUnix": {
               "description": "Timestamp of creation of this Action in milliseconds since epoch UTC.",
               "format": "int64",
-              "type": "integer"
+              "type": "integer",
+              "example": 1546435366
             },
             "key": {
-              "$ref": "#/definitions/SingleRef"
+              "$ref": "#/definitions/ActionSingleRef"
             },
             "lastUpdateTimeUnix": {
               "description": "Timestamp of the last update made to the Action since epoch UTC.",
               "format": "int64",
-              "type": "integer"
+              "type": "integer",
+              "example": 1546435366
+            }
+          },
+          "type": "object"
+        }
+      ],
+      "type": "object"
+    },
+    "UpdatedAction": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/UpdatedActionCreate"
+        },
+        {
+          "properties": {
+            "creationTimeUnix": {
+              "description": "Timestamp of creation of this Action in milliseconds since epoch UTC.",
+              "format": "int64",
+              "type": "integer",
+              "example": 1546435366
+            },
+            "key": {
+              "$ref": "#/definitions/ActionSingleRef"
+            },
+            "lastUpdateTimeUnix": {
+              "description": "Timestamp of the last update made to the Action since epoch UTC.",
+              "format": "int64",
+              "type": "integer",
+              "example": 1546514517
             }
           },
           "type": "object"
@@ -34,17 +64,137 @@
       "properties": {
         "@class": {
           "description": "Type of the Action, defined in the schema.",
-          "type": "string"
+          "type": "string",
+          "example": "Purchase"
         },
         "@context": {
           "description": "Available context schema.",
-          "type": "string"
+          "type": "string",
+          "example": "local"
         },
         "schema": {
-          "$ref": "#/definitions/Schema"
+          "$ref": "#/definitions/ActionSchema"
         }
       },
       "type": "object"
+    },
+    "UpdatedActionCreate": {
+      "properties": {
+        "@class": {
+          "description": "Type of the Action, defined in the schema.",
+          "type": "string",
+          "example": "Purchase"
+        },
+        "@context": {
+          "description": "Available context schema.",
+          "type": "string",
+          "example": "local"
+        },
+        "schema": {
+          "$ref": "#/definitions/UpdatedActionSchema"
+        }
+      },
+      "type": "object"
+    },
+    "ActionSchema": {
+      "description": "This is an open object, with OpenAPI Specification 3.0 this will be more detailed. See Weaviate docs for more info. In the future this will become a key/value OR a SingleRef definition.",
+      "type": "object",
+      "example": {
+        "purchaseID": 22983,
+        "time": "2019-01-02T13:22:46",
+        "customer": {
+          "locationUrl": "weaviate://localhost/",
+          "type": "Thing",
+          "$cref": "1b40be0d-fe13-41c1-a7f2-c703f8d8a647"
+        },
+        "item": {
+          "locationUrl": "weaviate://localhost/",
+          "type": "Thing",
+          "$cref": "ae60e71c-2c20-46dc-b953-cbed9e08dab6"
+        },
+        "price": 24.99
+      }
+    },
+    "UpdatedActionSchema": {
+      "description": "This is an open object, with OpenAPI Specification 3.0 this will be more detailed. See Weaviate docs for more info. In the future this will become a key/value OR a SingleRef definition.",
+      "type": "object",
+      "example": {
+        "purchaseID": 22983,
+        "time": "2019-01-02T13:22:46",
+        "customer": {
+          "locationUrl": "weaviate://localhost/",
+          "type": "Thing",
+          "$cref": "1b40be0d-fe13-41c1-a7f2-c703f8d8a647"
+        },
+        "item": {
+          "locationUrl": "weaviate://localhost/",
+          "type": "Thing",
+          "$cref": "ae60e71c-2c20-46dc-b953-cbed9e08dab6"
+        },
+        "price": 24.99,
+        "revenue": 9.99
+      }
+    },
+    "ActionSingleRef": {
+      "properties": {
+        "$cref": {
+          "description": "Location of the cross reference.",
+          "format": "uuid",
+          "type": "string",
+          "example": "cbe185f9-5a74-4c11-a734-82cde5ce15a2"
+        },
+        "locationUrl": {
+          "default": "http://localhost/",
+          "description": "Url of location. Http://localhost means this database. This option can be used to refer to other databases.",
+          "format": "url",
+          "type": "string",
+          "example": "weaviate://localhost/"
+        },
+        "type": {
+          "description": "Type should be Thing, Action or Key.",
+          "enum": [
+            "Thing",
+            "Action",
+            "Key"
+          ],
+          "type": "string",
+          "example": "Action"
+        }
+      }
+    },
+    "ActionSingleAddRef": {
+      "properties": {
+        "$cref": {
+          "description": "Location of the cross reference.",
+          "format": "uuid",
+          "type": "string",
+          "example": "17f12b45-e1c9-4d2d-9ec6-eb2be6d42d42"
+        },
+        "locationUrl": {
+          "default": "http://localhost/",
+          "description": "Url of location. Http://localhost means this database. This option can be used to refer to other databases.",
+          "format": "url",
+          "type": "string",
+          "example": "weaviate://localhost/"
+        },
+        "type": {
+          "description": "Type should be Thing, Action or Key.",
+          "enum": [
+            "Thing",
+            "Action",
+            "Key"
+          ],
+          "type": "string",
+          "example": "Thing"
+        }
+      }
+    },
+    "ActionMultipleAddRef": {
+      "description": "Multiple instances of references to other objects.",
+      "items": {
+        "$ref": "#/definitions/ActionSingleAddRef"
+      },
+      "type": "array"
     },
     "ActionGetHistoryResponse": {
       "allOf": [
@@ -55,7 +205,8 @@
           "properties": {
             "actionId": {
               "format": "uuid",
-              "type": "string"
+              "type": "string",
+              "example": "cbe185f9-5a74-4c11-a734-82cde5ce15a2"
             }
           },
           "type": "object"
@@ -72,7 +223,26 @@
             "actionId": {
               "description": "ID of the Action.",
               "format": "uuid",
-              "type": "string"
+              "type": "string",
+              "example": "cbe185f9-5a74-4c11-a734-82cde5ce15a2"
+            }
+          }
+        }
+      ],
+      "type": "object"
+    },
+    "UpdatedActionGetResponse": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/UpdatedAction"
+        },
+        {
+          "properties": {
+            "actionId": {
+              "description": "ID of the Action.",
+              "format": "uuid",
+              "type": "string",
+              "example": "cbe185f9-5a74-4c11-a734-82cde5ce15a2"
             }
           }
         }
@@ -121,7 +291,7 @@
           "type": "boolean"
         },
         "key": {
-          "$ref": "#/definitions/SingleRef"
+          "$ref": "#/definitions/ActionSingleRef"
         },
         "propertyHistory": {
           "description": "An array with the history of the Action.",
@@ -143,7 +313,8 @@
             "creationTimeUnix": {
               "description": "Timestamp of creation of this Action history in milliseconds since epoch UTC.",
               "format": "int64",
-              "type": "integer"
+              "type": "integer",
+              "example": 1546435366
             }
           },
           "type": "object"
@@ -153,7 +324,7 @@
     "ActionUpdate": {
       "allOf": [
         {
-          "$ref": "#/definitions/Action"
+          "$ref": "#/definitions/UpdatedAction"
         },
         {
           "type": "object"
@@ -181,10 +352,47 @@
         "totalResults": {
           "description": "The total number of Actions for the query. The number of items in a response may be smaller due to paging.",
           "format": "int64",
-          "type": "integer"
+          "type": "integer",
+          "example": 1
         }
       },
       "type": "object"
+    },
+    "ActionPatchDocument": {
+      "description": "A JSONPatch document as defined by RFC 6902.",
+      "properties": {
+        "from": {
+          "description": "A string containing a JSON Pointer value.",
+          "type": "string"
+        },
+        "op": {
+          "description": "The operation to be performed.",
+          "enum": [
+            "add",
+            "remove",
+            "replace",
+            "move",
+            "copy",
+            "test"
+          ],
+          "type": "string",
+          "example": "add"
+        },
+        "path": {
+          "description": "A JSON-Pointer.",
+          "type": "string",
+          "example": "/schema/revenue"
+        },
+        "value": {
+          "description": "The value to be used within the operations.",
+          "type": "object",
+          "example": "9,99"
+        }
+      },
+      "required": [
+        "op",
+        "path"
+      ]
     },
     "ErrorResponse": {
       "description": "An error response given by Weaviate end-points.",
@@ -296,7 +504,7 @@
         {
           "properties": {
             "parent": {
-              "$ref": "#/definitions/SingleRef"
+              "$ref": "#/definitions/ParentKeySingleRef"
             }
           }
         }
@@ -305,7 +513,7 @@
     "KeyChildrenGetResponse": {
       "properties": {
         "children": {
-          "$ref": "#/definitions/MultipleRef"
+          "$ref": "#/definitions/ChildrenKeyMultipleRef"
         }
       }
     },
@@ -317,7 +525,8 @@
         },
         "email": {
           "description": "Email associated with this account.",
-          "type": "string"
+          "type": "string",
+          "example": "hello@example.nl"
         },
         "execute": {
           "description": "Is user allowed to execute?",
@@ -326,7 +535,8 @@
         "ipOrigin": {
           "description": "Origin of the IP using CIDR notation.",
           "items": {
-            "type": "string"
+            "type": "string",
+            "example": "127.0.0.0/24"
           },
           "type": "array"
         },
@@ -360,7 +570,8 @@
             "keyId": {
               "description": "Id of the key.",
               "format": "uuid",
-              "type": "string"
+              "type": "string",
+              "example": "d917e66e-6685-4cde-bc50-7041bf9a6884"
             }
           }
         }
@@ -376,25 +587,87 @@
             "token": {
               "description": "Key for the user to use.",
               "format": "uuid",
-              "type": "string"
+              "type": "string",
+              "example": "51df965b-f0cd-4f4e-9c50-171daa71ef8c"
             }
           }
         }
       ]
     },
+    "ParentKeySingleRef": {
+      "properties": {
+        "$cref": {
+          "description": "Location of the cross reference.",
+          "format": "uuid",
+          "type": "string",
+          "example": "d3f9d50e-eb6f-4441-8753-d698f990ead0"
+        },
+        "locationUrl": {
+          "default": "http://localhost/",
+          "description": "Url of location. Http://localhost means this database. This option can be used to refer to other databases.",
+          "format": "url",
+          "type": "string",
+          "example": "http://localhost/"
+        },
+        "type": {
+          "description": "Type should be Thing, Action or Key.",
+          "enum": [
+            "Thing",
+            "Action",
+            "Key"
+          ],
+          "type": "string",
+          "example": "Key"
+        }
+      }
+    },
+    "ChildrenKeySingleRef": {
+      "properties": {
+        "$cref": {
+          "description": "Location of the cross reference.",
+          "format": "uuid",
+          "type": "string",
+          "example": "c832aed2-8515-4d79-80ea-97a14817a01b"
+        },
+        "locationUrl": {
+          "default": "http://localhost/",
+          "description": "Url of location. Http://localhost means this database. This option can be used to refer to other databases.",
+          "format": "url",
+          "type": "string",
+          "example": "http://localhost/"
+        },
+        "type": {
+          "description": "Type should be Thing, Action or Key.",
+          "enum": [
+            "Thing",
+            "Action",
+            "Key"
+          ],
+          "type": "string",
+          "example": "Key"
+        }
+      }
+    },
+    "ChildrenKeyMultipleRef": {
+      "description": "Multiple instances of references to other objects.",
+      "items": {
+        "$ref": "#/definitions/ChildrenKeySingleRef"
+      }
+    },
     "Meta": {
       "description": "Contains meta information of the current Weaviate instance.",
       "properties": {
         "actionsSchema": {
-          "$ref": "#/definitions/SemanticSchema"
+          "$ref": "#/definitions/SemanticActionSchema"
         },
         "hostname": {
           "description": "The url of the host.",
           "format": "url",
-          "type": "string"
+          "type": "string",
+          "example": "http://localhost/"
         },
         "thingsSchema": {
-          "$ref": "#/definitions/SemanticSchema"
+          "$ref": "#/definitions/SemanticThingSchema"
         }
       },
       "type": "object"
@@ -406,7 +679,14 @@
       },
       "type": "array"
     },
-    "PatchDocument": {
+    "ThingMultipleAddRef": {
+      "description": "Multiple instances of references to other objects.",
+      "items": {
+        "$ref": "#/definitions/ThingSingleAddRef"
+      },
+      "type": "array"
+    },
+    "ThingPatchDocument": {
       "description": "A JSONPatch document as defined by RFC 6902.",
       "properties": {
         "from": {
@@ -423,15 +703,22 @@
             "copy",
             "test"
           ],
-          "type": "string"
+          "type": "string",
+          "example": "add"
         },
         "path": {
           "description": "A JSON-Pointer.",
-          "type": "string"
+          "type": "string",
+          "example": "/schema/ticketNumber"
         },
         "value": {
           "description": "The value to be used within the operations.",
-          "type": "object"
+          "type": "object",
+          "example": {
+            "locationUrl": "weaviate://localhost/",
+            "type": "Thing",
+            "$cref": "ae60e71c-2c20-46dc-b953-cbed9e08dab6"
+          }
         }
       },
       "required": [
@@ -477,18 +764,19 @@
       "description": "This is an open object, with OpenAPI Specification 3.0 this will be more detailed. See Weaviate docs for more info. In the future this will become a key/value OR a SingleRef definition.",
       "type": "object"
     },
-    "SemanticSchema": {
+    "SemanticThingSchema": {
       "description": "Definitions of semantic schemas (also see: https://github.com/creativesoftwarefdn/weaviate-semantic-schemas).",
       "properties": {
         "@context": {
           "description": "URL of the context.",
           "format": "uri",
-          "type": "string"
+          "type": "string",
+          "example": "local"
         },
         "classes": {
           "description": "Semantic classes that are available.",
           "items": {
-            "$ref": "#/definitions/SemanticSchemaClass"
+            "$ref": "#/definitions/SemanticThingSchemaClass"
           },
           "type": "array"
         },
@@ -499,7 +787,8 @@
         },
         "name": {
           "description": "Name of the schema.",
-          "type": "string"
+          "type": "string",
+          "example": "Example-thing-schema"
         },
         "type": {
           "description": "Type of schema, should be \"thing\" or \"action\".",
@@ -507,58 +796,66 @@
             "thing",
             "action"
           ],
-          "type": "string"
+          "type": "string",
+          "example": "thing"
         }
       },
       "type": "object"
     },
-    "SemanticSchemaClass": {
+    "SemanticThingSchemaClass": {
       "properties": {
         "class": {
           "description": "Name of the class as URI relative to the schema URL.",
-          "type": "string"
+          "type": "string",
+          "example": "Visitor"
         },
         "keywords": {
-          "$ref": "#/definitions/SemanticSchemaKeywords"
+          "$ref": "#/definitions/SemanticThingSchemaKeywords"
         },
         "description": {
           "description": "Description of the class.",
-          "type": "string"
+          "type": "string",
+          "example": "Person who visits the zoo"
         },
         "properties": {
           "description": "The properties of the class.",
           "items": {
-            "$ref": "#/definitions/SemanticSchemaClassProperty"
+            "$ref": "#/definitions/SemanticThingSchemaClassProperty"
           },
           "type": "array"
         }
       },
       "type": "object"
     },
-    "SemanticSchemaKeywords": {
+    "SemanticThingSchemaKeywords": {
       "description": "Describes a class or property using multiple weighted words.",
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "keyword": {
-            "type": "string"
+            "type": "string",
+            "example": "visitor"
           },
           "weight": {
             "type": "number",
-            "format": "float"
+            "format": "float",
+            "example": 1
           }
         }
       }
     },
-    "SemanticSchemaClassProperty": {
+    "SemanticThingSchemaClassProperty": {
       "properties": {
         "@dataType": {
           "description": "Can be a reference ($cref) to another type when it starts with a capital (for example Person), otherwise \"string\" or \"int\".",
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "example": [
+            "string"
+          ]
         },
         "cardinality": {
           "description": "The cardinality of this property. If you want to store more than one value in a property, set this to 'many'. Defaults to 'atMostOne'. Note that by default properties can be empty in Weaviate.",
@@ -571,17 +868,173 @@
         },
         "description": {
           "description": "Description of the property.",
-          "type": "string"
+          "type": "string",
+          "example": "Unique ticket number of the visitor."
         },
         "name": {
           "description": "Name of the property as URI relative to the schema URL.",
-          "type": "string"
+          "type": "string",
+          "example": "name"
         },
         "keywords": {
-          "$ref": "#/definitions/SemanticSchemaKeywords"
+          "$ref": "#/definitions/SemanticThingPropSchemaKeywords"
         }
       },
       "type": "object"
+    },
+    "SemanticThingPropSchemaKeywords": {
+      "description": "Describes a class or property using multiple weighted words.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "example": "name"
+          },
+          "weight": {
+            "type": "number",
+            "format": "float",
+            "example": 1
+          }
+        }
+      }
+    },
+    "SemanticActionSchema": {
+      "description": "Definitions of semantic schemas (also see: https://github.com/creativesoftwarefdn/weaviate-semantic-schemas).",
+      "properties": {
+        "@context": {
+          "description": "URL of the context.",
+          "format": "uri",
+          "type": "string",
+          "example": "local"
+        },
+        "classes": {
+          "description": "Semantic classes that are available.",
+          "items": {
+            "$ref": "#/definitions/SemanticActionSchemaClass"
+          },
+          "type": "array"
+        },
+        "maintainer": {
+          "description": "Email of the maintainer.",
+          "format": "email",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the schema.",
+          "type": "string",
+          "example": "Example-action-schema"
+        },
+        "type": {
+          "description": "Type of schema, should be \"thing\" or \"action\".",
+          "enum": [
+            "thing",
+            "action"
+          ],
+          "type": "string",
+          "example": "action"
+        }
+      },
+      "type": "object"
+    },
+    "SemanticActionSchemaClass": {
+      "properties": {
+        "class": {
+          "description": "Name of the class as URI relative to the schema URL.",
+          "type": "string",
+          "example": "Purchase"
+        },
+        "keywords": {
+          "$ref": "#/definitions/SemanticActionSchemaKeywords"
+        },
+        "description": {
+          "description": "Description of the class.",
+          "type": "string",
+          "example": "Purchase action."
+        },
+        "properties": {
+          "description": "The properties of the class.",
+          "items": {
+            "$ref": "#/definitions/SemanticActionSchemaClassProperty"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "SemanticActionSchemaKeywords": {
+      "description": "Describes a class or property using multiple weighted words.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "example": "purchase"
+          },
+          "weight": {
+            "type": "number",
+            "format": "float",
+            "example": 1
+          }
+        }
+      }
+    },
+    "SemanticActionSchemaClassProperty": {
+      "properties": {
+        "@dataType": {
+          "description": "Can be a reference ($cref) to another type when it starts with a capital (for example Person), otherwise \"string\" or \"int\".",
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "example": [
+            "Visitor"
+          ]
+        },
+        "cardinality": {
+          "description": "The cardinality of this property. If you want to store more than one value in a property, set this to 'many'. Defaults to 'atMostOne'. Note that by default properties can be empty in Weaviate.",
+          "type": "string",
+          "enum": [
+            "atMostOne",
+            "many"
+          ],
+          "default": "atMostOne"
+        },
+        "description": {
+          "description": "Description of the property.",
+          "type": "string",
+          "example": "Buyer of the product, should be a visitor"
+        },
+        "name": {
+          "description": "Name of the property as URI relative to the schema URL.",
+          "type": "string",
+          "example": "customer"
+        },
+        "keywords": {
+          "$ref": "#/definitions/SemanticActionPropSchemaKeywords"
+        }
+      },
+      "type": "object"
+    },
+    "SemanticActionPropSchemaKeywords": {
+      "description": "Describes a class or property using multiple weighted words.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "example": "customer"
+          },
+          "weight": {
+            "type": "number",
+            "format": "float",
+            "example": 1
+          }
+        }
+      }
     },
     "SingleRef": {
       "properties": {
@@ -607,6 +1060,60 @@
         }
       }
     },
+    "ThingSingleRef": {
+      "properties": {
+        "$cref": {
+          "description": "Location of the cross reference.",
+          "format": "uuid",
+          "type": "string",
+          "example": "ae60e71c-2c20-46dc-b953-cbed9e08dab6"
+        },
+        "locationUrl": {
+          "default": "http://localhost/",
+          "description": "Url of location. Http://localhost means this database. This option can be used to refer to other databases.",
+          "format": "url",
+          "type": "string",
+          "example": "weaviate://localhost/"
+        },
+        "type": {
+          "description": "Type should be Thing, Action or Key.",
+          "enum": [
+            "Thing",
+            "Action",
+            "Key"
+          ],
+          "type": "string",
+          "example": "Thing"
+        }
+      }
+    },
+    "ThingSingleAddRef": {
+      "properties": {
+        "$cref": {
+          "description": "Location of the cross reference.",
+          "format": "uuid",
+          "type": "string",
+          "example": "05ffb3de-e22e-47df-a816-95f22fd12942"
+        },
+        "locationUrl": {
+          "default": "http://localhost/",
+          "description": "Url of location. Http://localhost means this database. This option can be used to refer to other databases.",
+          "format": "url",
+          "type": "string",
+          "example": "weaviate://localhost/"
+        },
+        "type": {
+          "description": "Type should be Thing, Action or Key.",
+          "enum": [
+            "Thing",
+            "Action",
+            "Key"
+          ],
+          "type": "string",
+          "example": "Thing"
+        }
+      }
+    },
     "Thing": {
       "allOf": [
         {
@@ -617,33 +1124,130 @@
             "creationTimeUnix": {
               "description": "Timestamp of creation of this Thing in milliseconds since epoch UTC.",
               "format": "int64",
-              "type": "integer"
+              "type": "integer",
+              "example": 1546255621
             },
             "key": {
-              "$ref": "#/definitions/SingleRef"
+              "$ref": "#/definitions/ThingKeySchema"
             },
             "lastUpdateTimeUnix": {
               "description": "Timestamp of the last Thing update in milliseconds since epoch UTC.",
               "format": "int64",
-              "type": "integer"
+              "type": "integer",
+              "example": 1546255621
             }
           },
           "type": "object"
         }
       ]
     },
+    "UpdatedThing": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/UpdatedThingCreate"
+        },
+        {
+          "properties": {
+            "creationTimeUnix": {
+              "description": "Timestamp of creation of this Thing in milliseconds since epoch UTC.",
+              "format": "int64",
+              "type": "integer",
+              "example": 1546255621
+            },
+            "key": {
+              "$ref": "#/definitions/ThingKeySchema"
+            },
+            "lastUpdateTimeUnix": {
+              "description": "Timestamp of the last Thing update in milliseconds since epoch UTC.",
+              "format": "int64",
+              "type": "integer",
+              "example": 1546435366
+            }
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "ThingKeySchema": {
+      "properties": {
+        "$cref": {
+          "description": "Location of the cross reference.",
+          "format": "uuid",
+          "type": "string",
+          "example": "1b40be0d-fe13-41c1-a7f2-c703f8d8a647"
+        },
+        "locationUrl": {
+          "default": "http://localhost/",
+          "description": "Url of location. Http://localhost means this database. This option can be used to refer to other databases.",
+          "format": "url",
+          "type": "string",
+          "example": "http://localhost/"
+        },
+        "type": {
+          "description": "Type should be Thing, Action or Key.",
+          "enum": [
+            "Thing",
+            "Action",
+            "Key"
+          ],
+          "type": "string",
+          "example": "Thing"
+        }
+      }
+    },
+    "ThingSchema": {
+      "description": "This is an open object, with OpenAPI Specification 3.0 this will be more detailed. See Weaviate docs for more info. In the future this will become a key/value OR a SingleRef definition.",
+      "type": "object",
+      "example": {
+        "name": "John Doe",
+        "id": "27dec2018-222"
+      }
+    },
+    "UpdatedThingSchema": {
+      "description": "This is an open object, with OpenAPI Specification 3.0 this will be more detailed. See Weaviate docs for more info. In the future this will become a key/value OR a SingleRef definition.",
+      "type": "object",
+      "example": {
+        "name": "John Doe",
+        "id": "27dec2018-222",
+        "ticketNumber": {
+          "locationUrl": "weaviate://localhost/",
+          "type": "Thing",
+          "$cref": "ae60e71c-2c20-46dc-b953-cbed9e08dab6"
+        }
+      }
+    },
     "ThingCreate": {
       "properties": {
         "@class": {
           "description": "Class of the Thing, defined in the schema.",
-          "type": "string"
+          "type": "string",
+          "example": "Things"
         },
         "@context": {
           "description": "Available context schema.",
-          "type": "string"
+          "type": "string",
+          "example": "local"
         },
         "schema": {
-          "$ref": "#/definitions/Schema"
+          "$ref": "#/definitions/ThingSchema"
+        }
+      },
+      "type": "object"
+    },
+    "UpdatedThingCreate": {
+      "properties": {
+        "@class": {
+          "description": "Class of the Thing, defined in the schema.",
+          "type": "string",
+          "example": "Things"
+        },
+        "@context": {
+          "description": "Available context schema.",
+          "type": "string",
+          "example": "local"
+        },
+        "schema": {
+          "$ref": "#/definitions/UpdatedThingSchema"
         }
       },
       "type": "object"
@@ -657,7 +1261,8 @@
           "properties": {
             "thingId": {
               "format": "uuid",
-              "type": "string"
+              "type": "string",
+              "example": "1b40be0d-fe13-41c1-a7f2-c703f8d8a647"
             }
           },
           "type": "object"
@@ -673,7 +1278,8 @@
           "properties": {
             "thingId": {
               "format": "uuid",
-              "type": "string"
+              "type": "string",
+              "example": "1b40be0d-fe13-41c1-a7f2-c703f8d8a647"
             }
           },
           "type": "object"
@@ -715,21 +1321,38 @@
       ],
       "type": "object"
     },
+    "UpdatedThingGetResponse": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/UpdatedThing"
+        },
+        {
+          "properties": {
+            "thingId": {
+              "format": "uuid",
+              "type": "string",
+              "example": "1b40be0d-fe13-41c1-a7f2-c703f8d8a647"
+            }
+          },
+          "type": "object"
+        }
+      ]
+    },
     "ThingHistory": {
       "properties": {
         "deleted": {
           "description": "Indication whether the Action is deleted.",
-          "type": "boolean"
+          "type": "boolean",
+          "example": false
         },
         "key": {
-          "$ref": "#/definitions/SingleRef"
+          "$ref": "#/definitions/ThingKeySchema"
         },
         "propertyHistory": {
           "description": "An array with the history of the Things.",
           "items": {
             "$ref": "#/definitions/ThingHistoryObject"
-          },
-          "type": "array"
+          }
         }
       },
       "type": "object"
@@ -744,7 +1367,8 @@
             "creationTimeUnix": {
               "description": "Timestamp of creation of this Thing history in milliseconds since epoch UTC.",
               "format": "int64",
-              "type": "integer"
+              "type": "integer",
+              "example": 1546255621
             }
           },
           "type": "object"
@@ -767,14 +1391,15 @@
         "things": {
           "description": "The actual list of Things.",
           "items": {
-            "$ref": "#/definitions/ThingGetResponse"
+            "$ref": "#/definitions/ThingsGetResponse"
           },
           "type": "array"
         },
         "totalResults": {
           "description": "The total number of Things for the query. The number of items in a response may be smaller due to paging.",
           "format": "int64",
-          "type": "integer"
+          "type": "integer",
+          "example": 1
         }
       },
       "type": "object"
@@ -880,7 +1505,7 @@
                 "type": "string"
               },
               "concept": {
-                "$ref": "#/definitions/SemanticSchemaClass"
+                "$ref": "#/definitions/SemanticThingSchemaClass"
               }
             }
           }
@@ -910,7 +1535,7 @@
     },
     "description": "Decentralised Knowledge Graph",
     "title": "Weaviate - Decentralised Knowledge Graph",
-    "version": "0.12.2"
+    "version": "0.12.5"
   },
   "parameters": {
     "CommonMaxResultsParameterQuery": {
@@ -1159,7 +1784,7 @@
             "required": true,
             "schema": {
               "items": {
-                "$ref": "#/definitions/PatchDocument"
+                "$ref": "#/definitions/ActionPatchDocument"
               },
               "type": "array"
             }
@@ -1169,13 +1794,13 @@
           "200": {
             "description": "Successfully applied.",
             "schema": {
-              "$ref": "#/definitions/ActionGetResponse"
+              "$ref": "#/definitions/UpdatedActionGetResponse"
             }
           },
           "202": {
             "description": "Successfully received.",
             "schema": {
-              "$ref": "#/definitions/ActionGetResponse"
+              "$ref": "#/definitions/UpdatedActionGetResponse"
             }
           },
           "400": {
@@ -1229,7 +1854,7 @@
           "202": {
             "description": "Successfully received.",
             "schema": {
-              "$ref": "#/definitions/ActionGetResponse"
+              "$ref": "#/definitions/UpdatedActionGetResponse"
             }
           },
           "401": {
@@ -1304,7 +1929,7 @@
         "operationId": "weaviate.actions.properties.create",
         "parameters": [
           {
-            "description": "Unique ID of the Action.",
+            "description": "Unique ID of the Action. e.g. \"cbe185f9-5a74-4c11-a734-82cde5ce15a2\"",
             "format": "uuid",
             "in": "path",
             "name": "actionId",
@@ -1312,7 +1937,7 @@
             "type": "string"
           },
           {
-            "description": "Unique name of the property related to the Action.",
+            "description": "Unique name of the property related to the Action. e.g. \"item\"",
             "in": "path",
             "name": "propertyName",
             "required": true,
@@ -1323,7 +1948,7 @@
             "name": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/SingleRef"
+              "$ref": "#/definitions/ActionSingleAddRef"
             }
           }
         ],
@@ -1356,7 +1981,7 @@
         "operationId": "weaviate.actions.properties.update",
         "parameters": [
           {
-            "description": "Unique ID of the Action.",
+            "description": "Unique ID of the Action. e.g. \"cbe185f9-5a74-4c11-a734-82cde5ce15a2\"",
             "format": "uuid",
             "in": "path",
             "name": "actionId",
@@ -1364,7 +1989,7 @@
             "type": "string"
           },
           {
-            "description": "Unique name of the property related to the Action.",
+            "description": "Unique name of the property related to the Action. e.g. \"item\"",
             "in": "path",
             "name": "propertyName",
             "required": true,
@@ -1375,7 +2000,7 @@
             "name": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/MultipleRef"
+              "$ref": "#/definitions/ActionMultipleAddRef"
             }
           }
         ],
@@ -1408,7 +2033,7 @@
         "operationId": "weaviate.actions.properties.delete",
         "parameters": [
           {
-            "description": "Unique ID of the Action.",
+            "description": "Unique ID of the Action. e.g \"cbe185f9-5a74-4c11-a734-82cde5ce15a2\"",
             "format": "uuid",
             "in": "path",
             "name": "actionId",
@@ -1416,7 +2041,7 @@
             "type": "string"
           },
           {
-            "description": "Unique name of the property related to the Action.",
+            "description": "Unique name of the property related to the Action. e.g. \"item\"",
             "in": "path",
             "name": "propertyName",
             "required": true,
@@ -1427,7 +2052,7 @@
             "name": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/SingleRef"
+              "$ref": "#/definitions/ActionSingleAddRef"
             }
           }
         ],
@@ -2050,10 +2675,10 @@
               "type": "object",
               "properties": {
                 "things": {
-                  "$ref": "#/definitions/SemanticSchema"
+                  "$ref": "#/definitions/SemanticThingSchema"
                 },
                 "actions": {
-                  "$ref": "#/definitions/SemanticSchema"
+                  "$ref": "#/definitions/SemanticActionSchema"
                 }
               }
             }
@@ -2074,10 +2699,11 @@
         "parameters": [
           {
             "name": "actionClass",
+            "description": "Schema of the Action to be added to the Actions",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/SemanticSchemaClass"
+              "$ref": "#/definitions/SemanticActionSchemaClass"
             }
           }
         ],
@@ -2107,6 +2733,7 @@
         "parameters": [
           {
             "name": "className",
+            "description": "Classname to be removed from the Actions. e.g. 'Purchase'",
             "in": "path",
             "required": true,
             "type": "string"
@@ -2136,12 +2763,14 @@
         "parameters": [
           {
             "name": "className",
+            "description": "The name of the class which should be modified. e.g. 'Purchase'",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "body",
+            "description": "An object with the new name or keywords of the class",
             "in": "body",
             "required": true,
             "schema": {
@@ -2152,7 +2781,7 @@
                   "type": "string"
                 },
                 "keywords": {
-                  "$ref": "#/definitions/SemanticSchemaKeywords"
+                  "$ref": "#/definitions/SemanticActionSchemaKeywords"
                 }
               }
             }
@@ -2187,16 +2816,18 @@
         "parameters": [
           {
             "name": "className",
+            "description": "The name of the class where a property should be added to. e.g. 'Purchase'",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "body",
+            "description": "An object containing the new property",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/SemanticSchemaClassProperty"
+              "$ref": "#/definitions/SemanticActionSchemaClassProperty"
             }
           }
         ],
@@ -2229,12 +2860,14 @@
         "parameters": [
           {
             "name": "className",
+            "description": "The name of the class of where a property should be removed. e.g. 'Purchase'",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "propertyName",
+            "description": "The name of the property that should be removed from the class. e.g. 'customer'",
             "in": "path",
             "required": true,
             "type": "string"
@@ -2261,18 +2894,21 @@
         "parameters": [
           {
             "name": "className",
+            "description": "The name of the class of which a property should be updated. e.g. 'Purchase'",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "propertyName",
+            "description": "The name of the property to be updated. e.g. 'customer'",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "body",
+            "description": "An object with the new name or keywords of the property",
             "in": "body",
             "required": true,
             "schema": {
@@ -2280,10 +2916,11 @@
               "properties": {
                 "newName": {
                   "description": "The new name of the property.",
-                  "type": "string"
+                  "type": "string",
+                  "example": "customer"
                 },
                 "keywords": {
-                  "$ref": "#/definitions/SemanticSchemaKeywords"
+                  "$ref": "#/definitions/SemanticActionPropSchemaKeywords"
                 }
               }
             }
@@ -2318,10 +2955,11 @@
         "parameters": [
           {
             "name": "thingClass",
+            "description": "Schema of the Thing to be added to the Thing",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/SemanticSchemaClass"
+              "$ref": "#/definitions/SemanticThingSchemaClass"
             }
           }
         ],
@@ -2351,6 +2989,7 @@
         "parameters": [
           {
             "name": "className",
+            "description": "Classname to be removed from the Things. e.g. 'Visitor'",
             "in": "path",
             "required": true,
             "type": "string"
@@ -2380,12 +3019,14 @@
         "parameters": [
           {
             "name": "className",
+            "description": "The name of the class which should be modified. e.g. 'Visitor'",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "body",
+            "description": "An object with the new name or keywords of the class",
             "in": "body",
             "required": true,
             "schema": {
@@ -2396,7 +3037,7 @@
                   "type": "string"
                 },
                 "keywords": {
-                  "$ref": "#/definitions/SemanticSchemaKeywords"
+                  "$ref": "#/definitions/SemanticThingSchemaKeywords"
                 }
               }
             }
@@ -2431,16 +3072,18 @@
         "parameters": [
           {
             "name": "className",
+            "description": "The name of the class where a property should be added to. e.g. 'Visitor'",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "body",
+            "description": "An object containing the new property",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/SemanticSchemaClassProperty"
+              "$ref": "#/definitions/SemanticThingSchemaClassProperty"
             }
           }
         ],
@@ -2473,12 +3116,14 @@
         "parameters": [
           {
             "name": "className",
+            "description": "The name of the class of where a property should be removed. e.g. 'Visitor'",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "propertyName",
+            "description": "The name of the property that should be removed from the class. e.g. 'name'",
             "in": "path",
             "required": true,
             "type": "string"
@@ -2505,18 +3150,21 @@
         "parameters": [
           {
             "name": "className",
+            "description": "The name of the class of which a property should be updated. e.g. 'Visitor'",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "propertyName",
+            "description": "The name of the property to be updated. e.g. 'name'",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "body",
+            "description": "An object with the new name or keywords of the property",
             "in": "body",
             "required": true,
             "schema": {
@@ -2527,7 +3175,7 @@
                   "type": "string"
                 },
                 "keywords": {
-                  "$ref": "#/definitions/SemanticSchemaKeywords"
+                  "$ref": "#/definitions/SemanticThingPropSchemaKeywords"
                 }
               }
             }
@@ -2780,7 +3428,7 @@
             "required": true,
             "schema": {
               "items": {
-                "$ref": "#/definitions/PatchDocument"
+                "$ref": "#/definitions/ThingPatchDocument"
               },
               "type": "array"
             }
@@ -2790,13 +3438,13 @@
           "200": {
             "description": "Successfully applied.",
             "schema": {
-              "$ref": "#/definitions/ThingGetResponse"
+              "$ref": "#/definitions/UpdatedThingGetResponse"
             }
           },
           "202": {
             "description": "Successfully received.",
             "schema": {
-              "$ref": "#/definitions/ThingGetResponse"
+              "$ref": "#/definitions/UpdatedThingGetResponse"
             }
           },
           "400": {
@@ -2842,7 +3490,7 @@
             "name": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/ThingUpdate"
+              "$ref": "#/definitions/UpdatedThing"
             }
           }
         ],
@@ -2850,7 +3498,7 @@
           "202": {
             "description": "Successfully received.",
             "schema": {
-              "$ref": "#/definitions/ThingGetResponse"
+              "$ref": "#/definitions/UpdatedThingGetResponse"
             }
           },
           "401": {
@@ -2925,7 +3573,7 @@
         "operationId": "weaviate.things.properties.create",
         "parameters": [
           {
-            "description": "Unique ID of the Thing.",
+            "description": "Unique ID of the Thing. e.g. \"1b40be0d-fe13-41c1-a7f2-c703f8d8a647\"",
             "format": "uuid",
             "in": "path",
             "name": "thingId",
@@ -2933,7 +3581,7 @@
             "type": "string"
           },
           {
-            "description": "Unique name of the property related to the Thing.",
+            "description": "Unique name of the property related to the Thing. e.g. \"ticketNumber\"",
             "in": "path",
             "name": "propertyName",
             "required": true,
@@ -2944,7 +3592,7 @@
             "name": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/SingleRef"
+              "$ref": "#/definitions/ThingSingleAddRef"
             }
           }
         ],
@@ -2977,7 +3625,7 @@
         "operationId": "weaviate.things.properties.update",
         "parameters": [
           {
-            "description": "Unique ID of the Thing.",
+            "description": "Unique ID of the Thing. e.g. \"1b40be0d-fe13-41c1-a7f2-c703f8d8a647\"",
             "format": "uuid",
             "in": "path",
             "name": "thingId",
@@ -2985,7 +3633,7 @@
             "type": "string"
           },
           {
-            "description": "Unique name of the property related to the Thing.",
+            "description": "Unique name of the property related to the Thing. e.g. \"ticketNumber\"",
             "in": "path",
             "name": "propertyName",
             "required": true,
@@ -2996,7 +3644,7 @@
             "name": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/MultipleRef"
+              "$ref": "#/definitions/ThingMultipleAddRef"
             }
           }
         ],
@@ -3029,7 +3677,7 @@
         "operationId": "weaviate.things.properties.delete",
         "parameters": [
           {
-            "description": "Unique ID of the Thing.",
+            "description": "Unique ID of the Thing. e.g. \"1b40be0d-fe13-41c1-a7f2-c703f8d8a647\"",
             "format": "uuid",
             "in": "path",
             "name": "thingId",
@@ -3037,7 +3685,7 @@
             "type": "string"
           },
           {
-            "description": "Unique name of the property related to the Thing.",
+            "description": "Unique name of the property related to the Thing. e.g. \"ticketNumber\"",
             "in": "path",
             "name": "propertyName",
             "required": true,
@@ -3048,7 +3696,7 @@
             "name": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/SingleRef"
+              "$ref": "#/definitions/ThingSingleAddRef"
             }
           }
         ],
