@@ -248,5 +248,12 @@ func decodeJanusPrimitiveType(dataType schema.DataType, value gremlin.PropertyVa
 }
 
 func pluralizeKindName(k string) string {
-	return strings.ToLower(k) + "s"
+	switch k {
+	case "NetworkAction":
+		return "actions"
+	case "NetworkThing":
+		return "things"
+	default:
+		return strings.ToLower(k) + "s"
+	}
 }

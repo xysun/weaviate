@@ -15,11 +15,13 @@ package test
 // Acceptance tests for actions
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/creativesoftwarefdn/weaviate/client/actions"
 	"github.com/creativesoftwarefdn/weaviate/models"
 	"github.com/creativesoftwarefdn/weaviate/test/acceptance/helper"
+	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -61,13 +63,11 @@ func TestCanReplaceAllProperties(t *testing.T) {
 	toPointToUuidFirst := assertCreateAction(t, "TestAction", map[string]interface{}{})
 	toPointToUuidLater := assertCreateAction(t, "TestAction", map[string]interface{}{})
 
-	wurl := "http://localhost"
 	uuid := assertCreateAction(t, "TestActionTwo", map[string]interface{}{
 		"testCrefs": &models.MultipleRef{
 			&models.SingleRef{
-				NrDollarCref: toPointToUuidFirst,
-				LocationURL:  &wurl,
-				Type:         "Action",
+				NrDollarCref: strfmt.UUID(fmt.Sprintf("weaviate://localhost/actions/%s",
+					toPointToUuidFirst)),
 			},
 		},
 	})
@@ -83,9 +83,8 @@ func TestCanReplaceAllProperties(t *testing.T) {
 		WithPropertyName("testCrefs").
 		WithBody(models.MultipleRef{
 			&models.SingleRef{
-				NrDollarCref: toPointToUuidLater,
-				LocationURL:  &wurl,
-				Type:         "Action",
+				NrDollarCref: strfmt.UUID(fmt.Sprintf("weaviate://localhost/actions/%s",
+					toPointToUuidLater)),
 			},
 		})
 
@@ -103,13 +102,11 @@ func TestRemovePropertyIndividually(t *testing.T) {
 
 	toPointToUuid := assertCreateAction(t, "TestAction", map[string]interface{}{})
 
-	wurl := "http://localhost"
+	ref := fmt.Sprintf("http://localhost/actions/%s", toPointToUuid)
 	uuid := assertCreateAction(t, "TestActionTwo", map[string]interface{}{
 		"testCrefs": &models.MultipleRef{
 			&models.SingleRef{
-				NrDollarCref: toPointToUuid,
-				LocationURL:  &wurl,
-				Type:         "Action",
+				NrDollarCref: strfmt.UUID(ref),
 			},
 		},
 	})
@@ -124,9 +121,7 @@ func TestRemovePropertyIndividually(t *testing.T) {
 		WithActionID(uuid).
 		WithPropertyName("testCrefs").
 		WithBody(&models.SingleRef{
-			NrDollarCref: toPointToUuid,
-			LocationURL:  &wurl,
-			Type:         "Action",
+			NrDollarCref: strfmt.UUID(ref),
 		})
 
 	updateResp, err := helper.Client(t).Actions.WeaviateActionsPropertiesDelete(params, helper.RootAuth)
