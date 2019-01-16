@@ -16,6 +16,7 @@ package janusgraph
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/creativesoftwarefdn/weaviate/database/connectors/janusgraph/filters"
@@ -144,9 +145,14 @@ func (j *Janusgraph) getClass(k kind.Kind, searchUUID strfmt.UUID, atClass *stri
 
 		if propType.IsReference() {
 			ref := make(map[string]interface{})
-			ref["$cref"] = uuid
-			ref["locationUrl"] = locationUrl
-			ref["type"] = type_
+			crefURL, err := url.Parse(locationUrl)
+			if err != nil {
+				return fmt.Errorf("cref url was not parseable: %s", err)
+			}
+
+			crefURL.Scheme = "weaviate"
+			crefURL.Path = fmt.Sprintf("/%s/%s", pluralizeKindName(type_), uuid)
+			ref["$cref"] = crefURL.String()
 			switch schema.CardinalityOfProperty(property) {
 			case schema.CardinalityAtMostOne:
 				classSchema[propertyName.String()] = ref
@@ -239,4 +245,8 @@ func decodeJanusPrimitiveType(dataType schema.DataType, value gremlin.PropertyVa
 	default:
 		panic(fmt.Sprintf("Unknown primitive datatype '%v'", dataType))
 	}
+}
+
+func pluralizeKindName(k string) string {
+	return strings.ToLower(k) + "s"
 }

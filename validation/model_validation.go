@@ -116,12 +116,8 @@ func validateBody(class string, context string) error {
 }
 
 // validateRefType validates the reference type with one of the existing reference types
-func validateRefType(s connutils.RefType) bool {
-	return (s == connutils.RefTypeAction ||
-		s == connutils.RefTypeThing ||
-		s == connutils.RefTypeKey ||
-		s == connutils.RefTypeNetworkThing ||
-		s == connutils.RefTypeNetworkAction)
+func validateRefType(s string) bool {
+	return (s == "things" || s == "actions")
 }
 
 // ValidateSingleRef validates a single ref based on location URL and existence of the object in the database
