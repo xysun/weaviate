@@ -16,14 +16,15 @@ package janusgraph
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/creativesoftwarefdn/weaviate/database/connectors/janusgraph/filters"
 	"github.com/creativesoftwarefdn/weaviate/database/connectors/janusgraph/state"
 	connutils "github.com/creativesoftwarefdn/weaviate/database/connectors/utils"
 	"github.com/creativesoftwarefdn/weaviate/database/schema"
+	"github.com/creativesoftwarefdn/weaviate/database/schema/crossref"
 	"github.com/creativesoftwarefdn/weaviate/database/schema/kind"
+	libkind "github.com/creativesoftwarefdn/weaviate/database/schema/kind"
 	"github.com/creativesoftwarefdn/weaviate/graphqlapi/local/common_filters"
 	"github.com/creativesoftwarefdn/weaviate/gremlin"
 	"github.com/creativesoftwarefdn/weaviate/models"
@@ -74,7 +75,7 @@ func (j *Janusgraph) getClass(k kind.Kind, searchUUID strfmt.UUID, atClass *stri
 		*foundUUID = strfmt.UUID(vertex.AssertPropertyValue(PROP_UUID).AssertString())
 	}
 
-	kind := kind.KindByName(vertex.AssertPropertyValue(PROP_KIND).AssertString())
+	kind := libkind.KindByName(vertex.AssertPropertyValue(PROP_KIND).AssertString())
 	mappedClassName := state.MappedClassName(vertex.AssertPropertyValue(PROP_CLASS_ID).AssertString())
 	className := j.state.GetClassNameFromMapped(mappedClassName)
 	class := j.schema.GetClass(kind, className)
@@ -145,14 +146,9 @@ func (j *Janusgraph) getClass(k kind.Kind, searchUUID strfmt.UUID, atClass *stri
 
 		if propType.IsReference() {
 			ref := make(map[string]interface{})
-			crefURL, err := url.Parse(locationUrl)
-			if err != nil {
-				return fmt.Errorf("cref url was not parseable: %s", err)
-			}
 
-			crefURL.Scheme = "weaviate"
-			crefURL.Path = fmt.Sprintf("/%s/%s", pluralizeKindName(type_), uuid)
-			ref["$cref"] = crefURL.String()
+			crefURI := crossref.New(locationUrl, strfmt.UUID(uuid), libkind.KindByName(type_)).String()
+			ref["$cref"] = crefURI
 			switch schema.CardinalityOfProperty(property) {
 			case schema.CardinalityAtMostOne:
 				classSchema[propertyName.String()] = ref

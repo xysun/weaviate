@@ -26,6 +26,7 @@ import (
 	"github.com/creativesoftwarefdn/weaviate/restapi/operations"
 	"github.com/creativesoftwarefdn/weaviate/restapi/operations/things"
 	"github.com/creativesoftwarefdn/weaviate/validation"
+	"github.com/davecgh/go-spew/spew"
 	jsonpatch "github.com/evanphx/json-patch"
 	middleware "github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
@@ -285,6 +286,10 @@ func setupThingsHandlers(api *operations.WeaviateAPI) {
 		UUID := strfmt.UUID(params.ThingID)
 		errGet := dbConnector.GetThing(params.HTTPRequest.Context(), UUID, &thingGetResponse)
 
+		fmt.Print("\n\n\n\n before patch:")
+		spew.Dump(thingGetResponse)
+		fmt.Print("\n\n\n\n")
+
 		// Save the old-thing in a variable
 		oldThing := thingGetResponse
 
@@ -317,7 +322,6 @@ func setupThingsHandlers(api *operations.WeaviateAPI) {
 
 		// Apply the patch
 		updatedJSON, applyErr := patchObject.Apply(thingUpdateJSON)
-
 		if applyErr != nil {
 			fmt.Printf("patch attempt on %#v failed. Patch: %#v", thingUpdateJSON, patchObject)
 			return things.NewWeaviateThingsPatchUnprocessableEntity().WithPayload(createErrorResponseObject(applyErr.Error()))
@@ -332,10 +336,15 @@ func setupThingsHandlers(api *operations.WeaviateAPI) {
 
 		// Validate schema made after patching with the weaviate schema
 		databaseSchema := schema.HackFromDatabaseSchema(dbLock.GetSchema())
+		fmt.Print("\n\n\n\n after patch:")
+		spew.Dump(thing.ThingCreate)
+		fmt.Print("\n\n\n\n")
 		validatedErr := validation.ValidateThingBody(params.HTTPRequest.Context(), &thing.ThingCreate,
 			databaseSchema, dbConnector, network, serverConfig, keyToken)
 		if validatedErr != nil {
-			return things.NewWeaviateThingsPatchUnprocessableEntity().WithPayload(createErrorResponseObject(validatedErr.Error()))
+			return things.NewWeaviateThingsPatchUnprocessableEntity().WithPayload(
+				createErrorResponseObject(fmt.Sprintf("validation failed: %s", validatedErr.Error())),
+			)
 		}
 
 		go func() {

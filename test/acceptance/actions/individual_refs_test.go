@@ -39,7 +39,6 @@ func TestCanAddAPropertyIndividually(t *testing.T) {
 	assert.Nil(t, updatedSchema["testCrefs"])
 
 	// Append a property reference
-	wurl := "http://localhost"
 	params := actions.NewWeaviateActionsPropertiesCreateParams().
 		WithActionID(uuid).
 		WithPropertyName("testCrefs").
