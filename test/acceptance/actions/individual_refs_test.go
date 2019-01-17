@@ -72,8 +72,11 @@ func TestCanReplaceAllProperties(t *testing.T) {
 		},
 	})
 
+	fmt.Printf("creation was fine")
+
 	// Verify that testCrefs is empty
 	updatedAction := assertGetAction(t, uuid)
+	fmt.Printf("get was fine")
 	updatedSchema := updatedAction.Schema.(map[string]interface{})
 	assert.NotNil(t, updatedSchema["testCrefs"])
 
@@ -90,9 +93,11 @@ func TestCanReplaceAllProperties(t *testing.T) {
 
 	updateResp, err := helper.Client(t).Actions.WeaviateActionsPropertiesUpdate(params, helper.RootAuth)
 	helper.AssertRequestOk(t, updateResp, err, nil)
+	fmt.Printf("update was fine")
 
 	// Get the property again.
 	updatedAction = assertGetAction(t, uuid)
+	fmt.Printf("another get was fine")
 	updatedSchema = updatedAction.Schema.(map[string]interface{})
 	assert.NotNil(t, updatedSchema["testCrefs"])
 }

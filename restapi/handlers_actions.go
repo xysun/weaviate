@@ -476,7 +476,7 @@ func setupActionsHandlers(api *operations.WeaviateAPI) {
 			"reference not found", principal.(*models.KeyTokenGetResponse))
 		if err != nil {
 			return actions.NewWeaviateActionsPropertiesCreateUnprocessableEntity().
-				WithPayload(createErrorResponseObject(err.Error()))
+				WithPayload(createErrorResponseObject(fmt.Sprintf("validation failed: %s", err.Error())))
 		}
 
 		if class.Action.Schema == nil {
@@ -494,7 +494,8 @@ func setupActionsHandlers(api *operations.WeaviateAPI) {
 
 		err = dbConnector.UpdateAction(ctx, &(class.Action), UUID)
 		if err != nil {
-			return actions.NewWeaviateActionsPropertiesCreateUnprocessableEntity().WithPayload(createErrorResponseObject(err.Error()))
+			return actions.NewWeaviateActionsPropertiesCreateUnprocessableEntity().
+				WithPayload(createErrorResponseObject(fmt.Sprintf("could not perform db update query: %s", err.Error())))
 		}
 
 		// Returns accepted so a Go routine can process in the background
