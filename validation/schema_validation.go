@@ -17,16 +17,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
-	"strings"
 	"time"
-
-	"github.com/go-openapi/strfmt"
 
 	"github.com/creativesoftwarefdn/weaviate/config"
 	dbconnector "github.com/creativesoftwarefdn/weaviate/database/connectors"
 	connutils "github.com/creativesoftwarefdn/weaviate/database/connectors/utils"
 	"github.com/creativesoftwarefdn/weaviate/database/schema"
+	"github.com/creativesoftwarefdn/weaviate/database/schema/crossref"
 	"github.com/creativesoftwarefdn/weaviate/models"
 	"github.com/creativesoftwarefdn/weaviate/network"
 )
@@ -275,30 +272,6 @@ func ValidateSchemaInBody(ctx context.Context, weaviateSchema *models.SemanticSc
 	return nil
 }
 
-func refTypeFromPluralKindName(kind, location string) connutils.RefType {
-	if location == "localhost" {
-		switch kind {
-		case "things":
-			return connutils.RefTypeThing
-		case "actions":
-			return connutils.RefTypeAction
-		default:
-		}
-	}
-
-	switch kind {
-	case "things":
-		return connutils.RefTypeNetworkThing
-	case "actions":
-		return connutils.RefTypeNetworkAction
-	default:
-	}
-
-	// this segment must be unreachabel, otherwise this func was used wrong,
-	// i.e. before validation both kind and location
-	panic("input was not validated before using refTypeFromPluralKindName")
-}
-
 func parseAndValidateSingleRef(ctx context.Context, dbConnector dbconnector.DatabaseConnector, network network.Network,
 	serverConfig *config.WeaviateConfig, keyToken *models.KeyTokenGetResponse, pvcr map[string]interface{},
 	className, propertyName string) (*models.SingleRef, error) {
@@ -321,42 +294,17 @@ func parseAndValidateSingleRef(ctx context.Context, dbConnector dbconnector.Data
 		)
 	}
 
-	crefParsed, err := url.Parse(pvcr["$cref"].(string))
+	ref, err := crossref.Parse(pvcr["$cref"].(string))
 	if err != nil {
-		return nil, fmt.Errorf(
-			ErrorCrefInvalidURI,
-			className,
-			propertyName,
-			err,
-		)
+		return nil, fmt.Errorf("invalid reference: %s", err)
 	}
-
-	pathSegments := strings.Split(crefParsed.Path, "/")
-	if len(pathSegments) != 3 {
-		return nil, fmt.Errorf(ErrorCrefInvalidURIPath, className, propertyName)
-	}
-
-	kind := pathSegments[1]
-	if !validateRefType(kind) {
-		msg := "class '%s' with property '%s' requires one of the following values in 'kind': 'things' or 'actions', but got: %s"
-		return nil, fmt.Errorf(
-			msg,
-			className, propertyName, kind,
-		)
-	}
-
-	// Validate whether reference exists based on given Type
-	cref := &models.SingleRef{}
-	location := crefParsed.Host
-	locationURL := fmt.Sprintf("weaviate://%s", location)
-	cref.Type = string(refTypeFromPluralKindName(kind, location))
-	cref.LocationURL = &locationURL
-	cref.NrDollarCref = strfmt.UUID(pathSegments[2])
-	err = ValidateSingleRef(ctx, serverConfig, cref, dbConnector, network,
-		fmt.Sprintf("'cref' %s %s:%s", cref.Type, className, propertyName), keyToken)
+	errVal := fmt.Sprintf("'cref' %s %s:%s", ref.Kind.Name(), className, propertyName)
+	err = ValidateSingleRef(ctx, serverConfig, ref.SingleRef(), dbConnector, network,
+		errVal, keyToken)
 	if err != nil {
 		return nil, err
 	}
 
-	return cref, nil
+	// Validate whether reference exists based on given Type
+	return ref.SingleRef(), nil
 }

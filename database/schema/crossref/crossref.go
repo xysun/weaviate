@@ -63,6 +63,17 @@ func ParseSingleRef(singleRef *models.SingleRef) (*Ref, error) {
 	return Parse(string(singleRef.NrDollarCref))
 }
 
+// New is a safe way to generate a Reference, as all required arguments must be
+// set in the constructor fn
+func New(peerName string, target strfmt.UUID, k kind.Kind) *Ref {
+	return &Ref{
+		Local:    (peerName == "localhost"),
+		PeerName: peerName,
+		TargetID: target,
+		Kind:     k,
+	}
+}
+
 func parseKind(kinds string) (kind.Kind, error) {
 	switch kinds {
 	case "things":

@@ -76,11 +76,8 @@ func setupThingsHandlers(api *operations.WeaviateAPI) {
 		}()
 
 		// Create Key-ref-Object
-		url := serverConfig.GetHostAddress()
 		keyRef := &models.SingleRef{
-			LocationURL:  &url,
-			NrDollarCref: keyToken.KeyID,
-			Type:         string(connutils.RefTypeKey),
+			NrDollarCref: strfmt.URI(keyToken.KeyID),
 		}
 
 		// Make Thing-Object
@@ -551,22 +548,12 @@ func setupThingsHandlers(api *operations.WeaviateAPI) {
 		}
 
 		crefStr := string(params.Body.NrDollarCref)
-		locationUrl := string(*params.Body.LocationURL)
-		bodyType := string(params.Body.Type)
 
 		// Remove if this reference is found.
 		for idx, schemaPropItem := range schemaPropList {
 			schemaRef := schemaPropItem.(map[string]interface{})
 
 			if schemaRef["$cref"].(string) != crefStr {
-				continue
-			}
-
-			if schemaRef["locationUrl"].(string) != locationUrl {
-				continue
-			}
-
-			if schemaRef["type"].(string) != bodyType {
 				continue
 			}
 
