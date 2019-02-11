@@ -10,19 +10,18 @@
  * CONTACT: hello@creativesoftwarefdn.org
  */
 
-package local
+package janusgraph
 
 import (
-	"github.com/creativesoftwarefdn/weaviate/graphqlapi/local/aggregate"
-	"github.com/creativesoftwarefdn/weaviate/graphqlapi/local/fetch"
-	get "github.com/creativesoftwarefdn/weaviate/graphqlapi/local/get"
-	getmeta "github.com/creativesoftwarefdn/weaviate/graphqlapi/local/getmeta"
+	"github.com/creativesoftwarefdn/weaviate/database/connectors/janusgraph/fetch"
+	graphqlfetch "github.com/creativesoftwarefdn/weaviate/graphqlapi/local/fetch"
+	"github.com/davecgh/go-spew/spew"
 )
 
-// Resolver for local GraphQL queries
-type Resolver interface {
-	get.Resolver
-	getmeta.Resolver
-	aggregate.Resolver
-	fetch.Resolver
+// LocalFetchKindClass based on GraphQL Query params
+func (j *Janusgraph) LocalFetchKindClass(params *graphqlfetch.Params) (interface{}, error) {
+	res, err := fetch.NewQuery(*params, &j.state, &j.schema).String()
+	spew.Dump(res)
+
+	return res, err
 }

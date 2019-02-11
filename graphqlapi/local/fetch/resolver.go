@@ -104,12 +104,12 @@ func newResources(s interface{}) (*resources, error) {
 
 	resolver, ok := source["Resolver"].(Resolver)
 	if !ok {
-		return nil, fmt.Errorf("expected source to contain a usable Resolver, but was %T", source)
+		return nil, fmt.Errorf("expected source to contain a usable Resolver, but was %#v", source)
 	}
 
 	contextionary, ok := source["Contextionary"].(Contextionary)
 	if !ok {
-		return nil, fmt.Errorf("expected source to contain a usable Resolver, but was %T", source)
+		return nil, fmt.Errorf("expected source to contain a usable Contextionary, but was %#v", source)
 	}
 
 	return &resources{
