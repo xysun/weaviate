@@ -68,7 +68,7 @@ func Test_QueryBuilder_VariousGroupingStrategies_WithNameSource(t *testing.T) {
 					Property: schema.PropertyName("name"),
 				},
 			},
-			expectedQuery: `.group().by(out("prop_3").has("classId", "class_18").values("prop_1"))` + matchSelectQuery(),
+			expectedQuery: `.group().by(out("prop_3").has("classId", "class_18").values("prop_1").fold())` + matchSelectQuery(),
 		},
 		testCase{
 			name:       "group by reference 2 levels deep",
@@ -88,7 +88,7 @@ func Test_QueryBuilder_VariousGroupingStrategies_WithNameSource(t *testing.T) {
 			expectedQuery: `.group().by(
 				out("prop_3").has("classId", "class_18")
 				.out("prop_5").has("classId", "class_19")
-				.values("prop_1")
+				.values("prop_1").fold()
 			)` + matchSelectQuery(),
 		},
 	}

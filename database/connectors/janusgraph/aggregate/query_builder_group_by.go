@@ -38,7 +38,7 @@ func (b *Query) groupByReferenceProperty() *gremlin.Query {
 
 	return gremlin.New().
 		Group().
-		ByQuery(edgePath)
+		ByQuery(edgePath.Fold())
 }
 
 func (b *Query) buildEdgePath(path *common_filters.Path) *gremlin.Query {
