@@ -18,6 +18,7 @@ import (
 	"github.com/creativesoftwarefdn/weaviate/database/schema/kind"
 	"github.com/creativesoftwarefdn/weaviate/graphqlapi/network/common"
 	"github.com/creativesoftwarefdn/weaviate/models"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/graphql-go/graphql"
 )
 
@@ -42,6 +43,8 @@ func makeResolve(k kind.Kind) func(p graphql.ResolveParams) (interface{}, error)
 		if err != nil {
 			return nil, fmt.Errorf("could not proxy to remote instance: %s", err)
 		}
+
+		spew.Dump(graphQLResponses)
 
 		return extractResults(k, graphQLResponses)
 	}

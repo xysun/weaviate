@@ -23,6 +23,7 @@ import (
 	"github.com/creativesoftwarefdn/weaviate/graphqlapi/network/common"
 	"github.com/creativesoftwarefdn/weaviate/models"
 	"github.com/creativesoftwarefdn/weaviate/network/common/peers"
+	"github.com/davecgh/go-spew/spew"
 )
 
 // ProxyGetInstance proxies a single SubQuery to a single Target Instance. It
@@ -69,6 +70,8 @@ func (n *network) ProxyFetch(q common.SubQuery) ([]*models.GraphQLResponse, erro
 		return nil, err
 	}
 
+	fmt.Printf("\n\nlist of peers: %v\n\n", knownPeers)
+
 	wg := &sync.WaitGroup{}
 	resultsC := make(chan peerResponse, len(knownPeers))
 	for _, peer := range knownPeers {
@@ -94,6 +97,7 @@ func (n *network) ProxyFetch(q common.SubQuery) ([]*models.GraphQLResponse, erro
 }
 
 func (n *network) sendQueryToPeer(q common.SubQuery, peer peers.Peer) (*models.GraphQLResponse, error) {
+	fmt.Printf("\n\nsending query to peer %s: %v\n\n", peer.Name, q)
 	peerClient, err := peer.CreateClient()
 	if err != nil {
 		return nil, fmt.Errorf("could not build client for peer %s: %s", peer.Name, err)
@@ -103,6 +107,9 @@ func (n *network) sendQueryToPeer(q common.SubQuery, peer peers.Peer) (*models.G
 	if err != nil {
 		return nil, fmt.Errorf("could not post to peer %s: %s", peer.Name, err)
 	}
+
+	fmt.Printf("\n\nerror from result: %s", spew.Sdump(result.Error()))
+	fmt.Printf("\npayload from result: %s", spew.Sdump(result.Payload))
 
 	return result.Payload, nil
 }
