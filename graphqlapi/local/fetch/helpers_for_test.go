@@ -65,6 +65,11 @@ func (m *mockContextionary) SchemaSearch(p contextionary.SearchParams) (contexti
 	}, nil
 }
 
+func (m *mockContextionary) SafeGetSimilarWordsWithCertainty(word string, certainty float32) []string {
+	m.Called(word, certainty)
+	return []string{word, word + "alt1", word + "alt2"}
+}
+
 func newEmptyContextionary() *emptyContextionary {
 	return &emptyContextionary{}
 }
@@ -79,4 +84,8 @@ func (m *emptyContextionary) SchemaSearch(p contextionary.SearchParams) (context
 		Type:    p.SearchType,
 		Results: []contextionary.SearchResult{},
 	}, nil
+}
+
+func (m *emptyContextionary) SafeGetSimilarWordsWithCertainty(word string, certainty float32) []string {
+	panic("not implemented")
 }

@@ -32,6 +32,7 @@ type Resolver interface {
 // provided to the graphQL API in order to resolve Local.Fetch queries.
 type Contextionary interface {
 	SchemaSearch(p contextionary.SearchParams) (contextionary.SearchResults, error)
+	SafeGetSimilarWordsWithCertainty(word string, certainty float32) []string
 }
 
 // Params to describe the Local->GetMeta->Kind->Class query. Will be passed to
@@ -146,4 +147,31 @@ func addPossibleNamesToProperties(whereProperties []whereProperty,
 	}
 
 	return properties, nil
+}
+
+func resolveFuzzy(p graphql.ResolveParams) (interface{}, error) {
+	resources, err := newResources(p.Source)
+	if err != nil {
+		return nil, err
+	}
+
+	args := extractFuzzyArgs(p)
+
+	resources.contextionary.SafeGetSimilarWordsWithCertainty(args.value, args.certainty)
+	return nil, nil
+}
+
+type fuzzyArgs struct {
+	value     string
+	certainty float32
+}
+
+func extractFuzzyArgs(p graphql.ResolveParams) fuzzyArgs {
+	var args fuzzyArgs
+
+	// all args are required, so we don't need to check their existance
+	args.value = p.Args["value"].(string)
+	args.certainty = float32(p.Args["certainty"].(float64))
+
+	return args
 }

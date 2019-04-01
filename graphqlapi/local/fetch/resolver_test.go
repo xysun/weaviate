@@ -40,12 +40,12 @@ type result struct {
 	expectedValue interface{}
 }
 
-func Test_Resolve(t *testing.T) {
+func Test_ResolveKinds(t *testing.T) {
 	t.Parallel()
 
 	tests := testCases{
 		testCase{
-			name: "Resolve Local Fetch (entire unit)",
+			name: "Resolve Local Fetch Kinds (entire unit)",
 			query: `
 			{
 				Fetch {
@@ -177,7 +177,7 @@ func (tests testCases) AssertExtraction(t *testing.T) {
 	}
 }
 
-func Test__Resolve_NoResultsFromContextionary(t *testing.T) {
+func Test__ResolveKinds_NoResultsFromContextionary(t *testing.T) {
 	query := `
 			{
 				Fetch {
@@ -207,4 +207,21 @@ func Test__Resolve_NoResultsFromContextionary(t *testing.T) {
 	assert.Equal(t, res.Errors[0].Message,
 		"the contextionary contains no close matches to the provided class name. "+
 			"Try using different search terms or lowering the desired certainty")
+}
+
+func Test__ResolveFuzzy_HappyPath(t *testing.T) {
+	query := `
+			{
+				Fetch {
+					Fuzzy(value:"steak", certainty: 0.7) {
+						beacon certainty
+					}
+				}
+			}`
+	c11y := newMockContextionary()
+	c11y.On("SafeGetSimilarWordsWithCertainty", "steak", float32(0.7))
+	resolver := newMockResolver(c11y)
+	res := resolver.AssertResolve(t, query)
+	c11y.AssertExpectations(t)
+	_ = res
 }
