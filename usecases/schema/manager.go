@@ -20,6 +20,7 @@ import (
 	"github.com/creativesoftwarefdn/weaviate/entities/schema"
 	"github.com/creativesoftwarefdn/weaviate/entities/schema/kind"
 	"github.com/creativesoftwarefdn/weaviate/usecases/locks"
+	"github.com/creativesoftwarefdn/weaviate/usecases/metrics"
 	"github.com/creativesoftwarefdn/weaviate/usecases/network"
 	"github.com/sirupsen/logrus"
 )
@@ -35,6 +36,7 @@ type Manager struct {
 	network               network.Network
 	callbacks             []func(updatedSchema schema.Schema)
 	logger                logrus.FieldLogger
+	metrics               *metrics.Metrics
 }
 
 type Migrator interface {
@@ -81,6 +83,7 @@ func NewManager(migrator Migrator, repo Repo, locks locks.ConnectorSchemaLock,
 		network:               network,
 		logger:                logger,
 		contextionaryProvider: c11yProvider,
+		metrics:               metrics.NewMetrics(),
 	}
 
 	err := m.loadOrInitializeSchema(context.Background())
