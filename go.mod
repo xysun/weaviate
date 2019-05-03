@@ -38,6 +38,7 @@ require (
 	github.com/mattn/go-isatty v0.0.7 // indirect
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
+	github.com/prometheus/client_golang v0.9.1
 	github.com/prometheus/common v0.0.0-20190107103113-2998b132700a
 	github.com/rs/cors v1.5.0
 	github.com/satori/go.uuid v0.0.0-20180103174451-36e9d2ebbde5

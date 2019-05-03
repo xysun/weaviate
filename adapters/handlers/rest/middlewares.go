@@ -17,6 +17,7 @@ import (
 
 	"github.com/creativesoftwarefdn/weaviate/adapters/handlers/rest/state"
 	"github.com/creativesoftwarefdn/weaviate/adapters/handlers/rest/swagger_middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 )
@@ -48,6 +49,7 @@ func makeSetupGlobalMiddleware(appState *state.State) func(http.Handler) http.Ha
 		handler = swagger_middleware.AddMiddleware([]byte(SwaggerJSON), handler)
 		handler = makeAddLogging(appState.Logger)(handler)
 		handler = addPreflight(handler)
+		handler = makeAddPrometheusMiddleware(appState)(handler)
 
 		return handler
 	}
@@ -61,6 +63,18 @@ func makeAddLogging(logger logrus.FieldLogger) func(http.Handler) http.Handler {
 				WithField("method", r.Method).
 				WithField("url", r.URL).
 				Debug("received HTTP request")
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func makeAddPrometheusMiddleware(appState *state.State) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/metrics" {
+				promhttp.Handler().ServeHTTP(w, r)
+				return
+			}
 			next.ServeHTTP(w, r)
 		})
 	}
