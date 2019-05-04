@@ -219,9 +219,9 @@ func thingClassPropertyFields(class *models.SemanticSchemaClass, actionsAndThing
 	for _, property := range class.Properties {
 
 		propertyType, err := schema.GetPropertyDataType(class, property.Name)
-
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("could not get property data type for property %s.%s: %v",
+				class.Class, property.Name, err)
 		}
 
 		if *propertyType == schema.DataTypeCRef {
@@ -260,9 +260,9 @@ func thingClassPropertyFields(class *models.SemanticSchemaClass, actionsAndThing
 		} else {
 			prefix := fmt.Sprintf("%s%s", weaviate, class.Class)
 			convertedDataType, err := handleNetworkGetNonObjectDataTypes(*propertyType, property, prefix)
-
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("could not built primitive field for property type '%v' of property: '%s': %v",
+					propertyType, property.Name, err)
 			}
 
 			fields[property.Name] = convertedDataType
@@ -330,7 +330,7 @@ func handleNetworkGetNonObjectDataTypes(dataType schema.DataType,
 		}, nil
 
 	default:
-		return nil, fmt.Errorf("%s: %s", schema.ErrorNoSuchDatatype, dataType)
+		return nil, fmt.Errorf(schema.ErrorNoSuchDatatype, dataType)
 	}
 }
 

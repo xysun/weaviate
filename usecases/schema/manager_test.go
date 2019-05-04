@@ -23,6 +23,7 @@ import (
 
 	"github.com/creativesoftwarefdn/weaviate/entities/models"
 	"github.com/creativesoftwarefdn/weaviate/entities/schema/kind"
+	"github.com/creativesoftwarefdn/weaviate/usecases/metrics"
 )
 
 // The etcd manager requires a backend for now (to prevent lots of nil checks).
@@ -585,7 +586,7 @@ func TestSchema(t *testing.T) {
 // New Local Schema *Manager
 func newSchemaManager() *Manager {
 	logger, _ := test.NewNullLogger()
-	sm, err := NewManager(&NilMigrator{}, newFakeRepo(), newFakeLocks(), nil, logger, &fakeC11yProvider{})
+	sm, err := NewManager(&NilMigrator{}, newFakeRepo(), newFakeLocks(), nil, logger, &fakeC11yProvider{}, metrics.NewMetrics())
 	if err != nil {
 		panic(err.Error())
 	}

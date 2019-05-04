@@ -114,7 +114,8 @@ func classPropertyFields(peerName string, class *models.SemanticSchemaClass) (gr
 
 		convertedDataType, err := classPropertyField(peerName, *propertyType, class, property)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("peer %s, propType %v, class %s, property %s: %v",
+				peerName, propertyType, class.Class, property.Name, err)
 		}
 
 		if *propertyType == schema.DataTypeCRef {
@@ -153,7 +154,7 @@ func classPropertyField(peerName string, dataType schema.DataType, class *models
 		// simply skip for now, see gh-729
 		return nil, nil
 	default:
-		return nil, fmt.Errorf(schema.ErrorNoSuchDatatype)
+		return nil, fmt.Errorf(schema.ErrorNoSuchDatatype, dataType)
 	}
 }
 

@@ -13,7 +13,6 @@
 package schema
 
 import (
-	errors_ "errors"
 	"fmt"
 	"strings"
 
@@ -50,7 +49,7 @@ const (
 	// ErrorNoSuchProperty message
 	ErrorNoSuchProperty string = "no such prop with name '%s' found in class '%s' in the schema. Check your schema files for which properties in this class are available"
 	// ErrorNoSuchDatatype message
-	ErrorNoSuchDatatype string = "given value-DataType does not exist."
+	ErrorNoSuchDatatype string = "invalid data type: %s"
 	// ErrorInvalidRefType message
 	ErrorInvalidRefType string = "given ref type is not valid"
 )
@@ -134,7 +133,7 @@ func GetValueDataTypeFromString(dt string) (*DataType, error) {
 			returnDataType = DataTypeGeoCoordinates
 		}
 	} else {
-		return nil, errors_.New(ErrorNoSuchDatatype)
+		return nil, fmt.Errorf("invalid data type: %s", dt)
 	}
 
 	return &returnDataType, nil

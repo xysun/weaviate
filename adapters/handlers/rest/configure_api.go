@@ -30,11 +30,13 @@ import (
 	"github.com/creativesoftwarefdn/weaviate/usecases/connstate"
 	dblisting "github.com/creativesoftwarefdn/weaviate/usecases/connswitch"
 	"github.com/creativesoftwarefdn/weaviate/usecases/kinds"
+	"github.com/creativesoftwarefdn/weaviate/usecases/metrics"
 	"github.com/creativesoftwarefdn/weaviate/usecases/network/common/peers"
 	schemaUC "github.com/creativesoftwarefdn/weaviate/usecases/schema"
 	"github.com/creativesoftwarefdn/weaviate/usecases/telemetry"
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -61,11 +63,16 @@ func configureAPI(api *operations.WeaviateAPI) http.Handler {
 		appState.Logger.WithField("action", "restapi_management").Infof(msg, args...)
 	}
 
+	metrics := metrics.NewMetrics()
+	prometheus.MustRegister(metrics.ConnectorDuration)
+	prometheus.MustRegister(metrics.ValidationDuration)
+
 	schemaRepo := etcd.NewSchemaRepo(etcdClient)
 	connstateRepo := etcd.NewConnStateRepo(etcdClient)
 
 	schemaManager, err := schemaUC.NewManager(appState.Connector, schemaRepo,
-		appState.Locks, appState.Network, appState.Logger, appState)
+		appState.Locks, appState.Network, appState.Logger, appState,
+		metrics)
 	if err != nil {
 		appState.Logger.
 			WithField("action", "startup").WithError(err).

@@ -41,7 +41,7 @@ func ClassPropertyField(dataType schema.DataType, class *models.SemanticSchemaCl
 		// simply skip for now, see gh-729
 		return nil, nil
 	default:
-		return nil, fmt.Errorf(schema.ErrorNoSuchDatatype+": %s", dataType)
+		return nil, fmt.Errorf(schema.ErrorNoSuchDatatype, dataType)
 	}
 }
 

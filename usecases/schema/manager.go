@@ -74,7 +74,8 @@ type contextionaryProvider interface {
 
 // NewManager creates a new manager
 func NewManager(migrator Migrator, repo Repo, locks locks.ConnectorSchemaLock,
-	network network.Network, logger logrus.FieldLogger, c11yProvider contextionaryProvider) (*Manager, error) {
+	network network.Network, logger logrus.FieldLogger, c11yProvider contextionaryProvider,
+	metrics *metrics.Metrics) (*Manager, error) {
 	m := &Manager{
 		migrator:              migrator,
 		repo:                  repo,
@@ -83,7 +84,7 @@ func NewManager(migrator Migrator, repo Repo, locks locks.ConnectorSchemaLock,
 		network:               network,
 		logger:                logger,
 		contextionaryProvider: c11yProvider,
-		metrics:               metrics.NewMetrics(),
+		metrics:               metrics,
 	}
 
 	err := m.loadOrInitializeSchema(context.Background())
