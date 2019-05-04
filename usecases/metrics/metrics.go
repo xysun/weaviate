@@ -4,7 +4,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var buckets = prometheus.LinearBuckets(0, 3, 40)
+var buckets = []float64{1, 5, 10, 20, 50, 75, 100, 125, 150, 250, 375, 500, 750, 1000}
 
 // Metrics to measure success and latency of different use cases
 type Metrics struct {

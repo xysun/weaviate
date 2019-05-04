@@ -18,141 +18,70 @@
   "links": [],
   "panels": [
     {
-      "aliasColors": {},
-      "bars": false,
-      "cacheTimeout": null,
-      "dashLength": 10,
-      "dashes": false,
+      "cards": {
+        "cardPadding": null,
+        "cardRound": null
+      },
+      "color": {
+        "cardColor": "#b4ff00",
+        "colorScale": "sqrt",
+        "colorScheme": "interpolateOranges",
+        "exponent": 0.5,
+        "mode": "spectrum"
+      },
+      "dataFormat": "tsbuckets",
       "datasource": "Prometheus",
-      "fill": 1,
       "gridPos": {
         "h": 8,
-        "w": 8,
+        "w": 17,
         "x": 0,
         "y": 0
       },
-      "id": 4,
+      "heatmap": {},
+      "hideZeroBuckets": false,
+      "highlightCards": true,
+      "id": 12,
       "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": true,
-        "total": false,
-        "values": false
+        "show": false
       },
-      "lines": true,
-      "linewidth": 1,
       "links": [],
-      "nullPointMode": "null",
-      "percentage": false,
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
+      "reverseYBuckets": false,
       "targets": [
         {
-          "expr": "connector_duration_sum / connector_duration_count",
-          "format": "time_series",
+          "expr": " sum(increase(usecase_duration_bucket[3m])) by (le)",
+          "format": "heatmap",
+          "instant": false,
+          "interval": "",
           "intervalFactor": 1,
+          "legendFormat": "{{le}}",
           "refId": "A"
         }
       ],
-      "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
       "timeShift": null,
-      "title": "Mean Connector Interaction Time",
+      "title": "Use Case Duration Heatmap",
       "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
         "show": true,
-        "values": []
+        "showHistogram": false
       },
-      "yaxes": [
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    },
-    {
-      "datasource": "Prometheus",
-      "gridPos": {
-        "h": 8,
-        "w": 9,
-        "x": 8,
-        "y": 0
+      "type": "heatmap",
+      "xAxis": {
+        "show": true
       },
-      "id": 6,
-      "links": [],
-      "options": {
-        "maxValue": "500",
-        "minValue": 0,
-        "orientation": "auto",
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "thresholds": [
-          {
-            "color": "green",
-            "index": 0,
-            "value": null
-          },
-          {
-            "color": "red",
-            "index": 1,
-            "value": 250
-          }
-        ],
-        "valueMappings": [],
-        "valueOptions": {
-          "decimals": null,
-          "prefix": "",
-          "stat": "mean",
-          "suffix": "",
-          "unit": "ms"
-        }
+      "xBucketNumber": null,
+      "xBucketSize": null,
+      "yAxis": {
+        "decimals": null,
+        "format": "short",
+        "logBase": 1,
+        "max": null,
+        "min": null,
+        "show": true,
+        "splitFactor": null
       },
-      "pluginVersion": "6.1.6",
-      "targets": [
-        {
-          "expr": "avg(connector_duration_sum / connector_duration_count) without(resource)",
-          "format": "time_series",
-          "intervalFactor": 1,
-          "legendFormat": "{{verb}}",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Mean connector Interaction time (ms)",
-      "type": "gauge"
+      "yBucketBound": "auto",
+      "yBucketNumber": null,
+      "yBucketSize": null
     },
     {
       "aliasColors": {},
@@ -253,7 +182,7 @@
         "x": 0,
         "y": 8
       },
-      "id": 8,
+      "id": 4,
       "legend": {
         "avg": false,
         "current": false,
@@ -268,6 +197,7 @@
       "links": [],
       "nullPointMode": "null",
       "percentage": false,
+      "pluginVersion": "6.1.6",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -277,10 +207,12 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "avg(locking_duration_sum / locking_duration_count) without(resource)",
-          "format": "time_series",
+          "expr": "connector_duration_sum / connector_duration_count",
+          "format": "heatmap",
+          "instant": false,
           "interval": "",
           "intervalFactor": 1,
+          "legendFormat": "",
           "refId": "A"
         }
       ],
@@ -288,7 +220,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Mean time waiting for locks (ms)",
+      "title": "Mean Connector Interaction Time",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -333,7 +265,7 @@
         "x": 8,
         "y": 8
       },
-      "id": 7,
+      "id": 6,
       "links": [],
       "options": {
         "maxValue": "500",
@@ -350,7 +282,7 @@
           {
             "color": "red",
             "index": 1,
-            "value": 100
+            "value": 250
           }
         ],
         "valueMappings": [],
@@ -365,17 +297,16 @@
       "pluginVersion": "6.1.6",
       "targets": [
         {
-          "expr": "avg(locking_duration_sum / locking_duration_count) by(lock_type)",
+          "expr": "avg(connector_duration_sum / connector_duration_count) without(resource)",
           "format": "time_series",
-          "instant": false,
           "intervalFactor": 1,
-          "legendFormat": "foo {{lock_type}}",
+          "legendFormat": "{{verb}}",
           "refId": "A"
         }
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Mean lock wait time",
+      "title": "Mean connector Interaction time (ms)",
       "type": "gauge"
     },
     {
@@ -461,6 +392,145 @@
         "align": false,
         "alignLevel": null
       }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "cacheTimeout": null,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fill": 1,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
+      "id": 8,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "avg(locking_duration_sum / locking_duration_count) without(resource)",
+          "format": "time_series",
+          "interval": "",
+          "intervalFactor": 1,
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Mean time waiting for locks (ms)",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 8,
+        "y": 16
+      },
+      "id": 7,
+      "links": [],
+      "options": {
+        "maxValue": "500",
+        "minValue": 0,
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "thresholds": [
+          {
+            "color": "green",
+            "index": 0,
+            "value": null
+          },
+          {
+            "color": "red",
+            "index": 1,
+            "value": 100
+          }
+        ],
+        "valueMappings": [],
+        "valueOptions": {
+          "decimals": null,
+          "prefix": "",
+          "stat": "mean",
+          "suffix": "",
+          "unit": "ms"
+        }
+      },
+      "pluginVersion": "6.1.6",
+      "targets": [
+        {
+          "expr": "avg(locking_duration_sum / locking_duration_count) by(lock_type)",
+          "format": "time_series",
+          "instant": false,
+          "intervalFactor": 1,
+          "legendFormat": "foo {{lock_type}}",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Mean lock wait time",
+      "type": "gauge"
     }
   ],
   "refresh": false,
@@ -471,7 +541,7 @@
     "list": []
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {
