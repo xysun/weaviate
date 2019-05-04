@@ -64,8 +64,10 @@ func configureAPI(api *operations.WeaviateAPI) http.Handler {
 	}
 
 	metrics := metrics.NewMetrics()
-	prometheus.MustRegister(metrics.ConnectorDuration)
-	prometheus.MustRegister(metrics.ValidationDuration)
+	prometheus.MustRegister(metrics.Connector)
+	prometheus.MustRegister(metrics.Locking)
+	prometheus.MustRegister(metrics.Validation)
+	prometheus.MustRegister(metrics.UseCase)
 
 	schemaRepo := etcd.NewSchemaRepo(etcdClient)
 	connstateRepo := etcd.NewConnStateRepo(etcdClient)

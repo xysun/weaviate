@@ -13,7 +13,6 @@
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/creativesoftwarefdn/weaviate/entities/models"
 	"github.com/creativesoftwarefdn/weaviate/entities/schema/kind"
@@ -30,23 +29,26 @@ func (m *Manager) AddThing(ctx context.Context, class *models.SemanticSchemaClas
 }
 
 func (m *Manager) addClass(ctx context.Context, class *models.SemanticSchemaClass, k kind.Kind) error {
+	finish := meassure(m.metrics.UseCase.WithLabelValues("add", k.Name()))
+	defer finish()
 
+	finish = meassure(m.metrics.Locking.WithLabelValues("schema", "add", k.Name()))
 	unlock, err := m.locks.LockSchema()
 	if err != nil {
 		return err
 	}
 	defer unlock()
+	finish()
 
-	start := time.Now()
+	finish = meassure(m.metrics.Validation.WithLabelValues("add", k.Name()))
 	err = m.validateCanAddClass(k, class)
 	if err != nil {
 		return err
 	}
-	afterValidation := time.Since(start)
-	m.metrics.ValidationDuration.WithLabelValues("add", k.Name()).
-		Observe(float64(afterValidation / time.Millisecond))
+	finish()
 
-	beforeConnector := time.Now()
+	finish = meassure(m.metrics.Connector.WithLabelValues("add", k.Name()))
+	defer finish()
 	semanticSchema := m.state.SchemaFor(k)
 	semanticSchema.Classes = append(semanticSchema.Classes, class)
 	err = m.saveSchema(ctx)
@@ -54,12 +56,7 @@ func (m *Manager) addClass(ctx context.Context, class *models.SemanticSchemaClas
 		return err
 	}
 
-	err = m.migrator.AddClass(ctx, k, class)
-	afterConnector := time.Since(beforeConnector)
-	m.metrics.ConnectorDuration.WithLabelValues("add", k.Name()).
-		Observe(float64(afterConnector / time.Millisecond))
-
-	return err
+	return m.migrator.AddClass(ctx, k, class)
 	// TODO gh-846: Rollback state upate if migration fails
 }
 
