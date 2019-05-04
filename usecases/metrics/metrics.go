@@ -14,6 +14,7 @@ type Metrics struct {
 	Locking       *prometheus.HistogramVec
 	ValidationErr *prometheus.CounterVec
 	Validation    *prometheus.HistogramVec
+	APIUsage      *prometheus.CounterVec
 }
 
 // NewMetrics for Prometheus Metrics
@@ -50,5 +51,9 @@ func NewMetrics() *Metrics {
 			Name: "validation_errors",
 			Help: "The number of errors occurred while validating user input",
 		}, []string{"verb", "resource"}),
+		APIUsage: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "api_usage",
+			Help: "Count the number of times an API was used (by type)",
+		}, []string{"type"}),
 	}
 }

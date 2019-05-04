@@ -68,6 +68,7 @@ func configureAPI(api *operations.WeaviateAPI) http.Handler {
 	prometheus.MustRegister(metrics.Locking)
 	prometheus.MustRegister(metrics.Validation)
 	prometheus.MustRegister(metrics.UseCase)
+	prometheus.MustRegister(metrics.APIUsage)
 
 	schemaRepo := etcd.NewSchemaRepo(etcdClient)
 	connstateRepo := etcd.NewConnStateRepo(etcdClient)
@@ -137,7 +138,7 @@ func configureAPI(api *operations.WeaviateAPI) http.Handler {
 	api.ServerShutdown = func() {}
 	configureServer = makeConfigureServer(appState)
 	setupMiddlewares := makeSetupMiddlewares(appState)
-	setupGlobalMiddleware := makeSetupGlobalMiddleware(appState)
+	setupGlobalMiddleware := makeSetupGlobalMiddleware(appState, metrics)
 	return setupGlobalMiddleware(api.Serve(setupMiddlewares))
 }
 

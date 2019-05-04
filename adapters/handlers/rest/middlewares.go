@@ -14,9 +14,11 @@ package rest
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/creativesoftwarefdn/weaviate/adapters/handlers/rest/state"
 	"github.com/creativesoftwarefdn/weaviate/adapters/handlers/rest/swagger_middleware"
+	"github.com/creativesoftwarefdn/weaviate/usecases/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
@@ -39,7 +41,8 @@ func makeSetupMiddlewares(appState *state.State) func(http.Handler) http.Handler
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics
 // Contains "x-api-key", "x-api-token" for legacy reasons, older interfaces might need these headers.
-func makeSetupGlobalMiddleware(appState *state.State) func(http.Handler) http.Handler {
+func makeSetupGlobalMiddleware(appState *state.State,
+	metrics *metrics.Metrics) func(http.Handler) http.Handler {
 	return func(handler http.Handler) http.Handler {
 		handleCORS := cors.New(cors.Options{
 			OptionsPassthrough: true,
@@ -50,6 +53,7 @@ func makeSetupGlobalMiddleware(appState *state.State) func(http.Handler) http.Ha
 		handler = makeAddLogging(appState.Logger)(handler)
 		handler = addPreflight(handler)
 		handler = makeAddPrometheusMiddleware(appState)(handler)
+		handler = makeAPIUsageMetrics(metrics)(handler)
 
 		return handler
 	}
@@ -74,6 +78,19 @@ func makeAddPrometheusMiddleware(appState *state.State) func(http.Handler) http.
 			if r.URL.Path == "/metrics" {
 				promhttp.Handler().ServeHTTP(w, r)
 				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func makeAPIUsageMetrics(metrics *metrics.Metrics) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.Contains(r.URL.Path, "/graphql") {
+				metrics.APIUsage.WithLabelValues("graphql").Inc()
+			} else {
+				metrics.APIUsage.WithLabelValues("rest").Inc()
 			}
 			next.ServeHTTP(w, r)
 		})
