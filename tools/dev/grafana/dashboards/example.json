@@ -208,7 +208,7 @@
       "targets": [
         {
           "expr": "connector_duration_sum / connector_duration_count",
-          "format": "heatmap",
+          "format": "time_series",
           "instant": false,
           "interval": "",
           "intervalFactor": 1,
@@ -541,7 +541,7 @@
     "list": []
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {

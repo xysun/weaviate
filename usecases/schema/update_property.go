@@ -12,6 +12,7 @@
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/creativesoftwarefdn/weaviate/entities/models"
 	"github.com/creativesoftwarefdn/weaviate/entities/schema"
@@ -33,12 +34,19 @@ func (m *Manager) UpdateThingProperty(ctx context.Context, class string, name st
 // TODO: gh-832: Implement full capabilities, not just keywords/naming
 func (m *Manager) updateClassProperty(ctx context.Context, className string, name string,
 	property *models.SemanticSchemaClassProperty, k kind.Kind) error {
+	label := fmt.Sprintf("schema/%s/property", k.Name())
+	finish := meassure(m.metrics.UseCase.WithLabelValues("update", label))
+	defer finish()
+
+	finish = meassure(m.metrics.Locking.WithLabelValues("schema", "update", label))
 	unlock, err := m.locks.LockSchema()
 	if err != nil {
 		return err
 	}
 	defer unlock()
+	finish()
 
+	finish = meassure(m.metrics.Validation.WithLabelValues("update", label))
 	var newName *string
 	var newKeywords *models.SemanticSchemaKeywords
 
@@ -80,7 +88,10 @@ func (m *Manager) updateClassProperty(ctx context.Context, className string, nam
 
 	// Validate name / keywords in contextionary
 	m.validatePropertyNameOrKeywordsCorrect(className, propNameAfterUpdate, keywordsAfterUpdate)
+	finish()
 
+	finish = meassure(m.metrics.Connector.WithLabelValues("update", label))
+	defer finish()
 	// Validated! Now apply the changes.
 	prop.Name = propNameAfterUpdate
 	prop.Keywords = keywordsAfterUpdate

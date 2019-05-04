@@ -29,10 +29,11 @@ func (m *Manager) AddThing(ctx context.Context, class *models.SemanticSchemaClas
 }
 
 func (m *Manager) addClass(ctx context.Context, class *models.SemanticSchemaClass, k kind.Kind) error {
-	finish := meassure(m.metrics.UseCase.WithLabelValues("add", k.Name()))
+	label := fmt.Sprintf("schema/%s", k.Name())
+	finish := meassure(m.metrics.UseCase.WithLabelValues("add", label))
 	defer finish()
 
-	finish = meassure(m.metrics.Locking.WithLabelValues("schema", "add", k.Name()))
+	finish = meassure(m.metrics.Locking.WithLabelValues("schema", "add", label))
 	unlock, err := m.locks.LockSchema()
 	if err != nil {
 		return err
@@ -40,14 +41,14 @@ func (m *Manager) addClass(ctx context.Context, class *models.SemanticSchemaClas
 	defer unlock()
 	finish()
 
-	finish = meassure(m.metrics.Validation.WithLabelValues("add", k.Name()))
+	finish = meassure(m.metrics.Validation.WithLabelValues("add", label))
 	err = m.validateCanAddClass(k, class)
 	if err != nil {
 		return err
 	}
 	finish()
 
-	finish = meassure(m.metrics.Connector.WithLabelValues("add", k.Name()))
+	finish = meassure(m.metrics.Connector.WithLabelValues("add", label))
 	defer finish()
 	semanticSchema := m.state.SchemaFor(k)
 	semanticSchema.Classes = append(semanticSchema.Classes, class)

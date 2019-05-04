@@ -33,12 +33,19 @@ func (m *Manager) AddThingProperty(ctx context.Context, class string, property *
 
 func (m *Manager) addClassProperty(ctx context.Context, className string,
 	prop *models.SemanticSchemaClassProperty, k kind.Kind) error {
+	label := fmt.Sprintf("schema/%s/property", k.Name())
+	finish := meassure(m.metrics.UseCase.WithLabelValues("add", label))
+	defer finish()
+
+	finish = meassure(m.metrics.Locking.WithLabelValues("schema", "add", label))
 	unlock, err := m.locks.LockSchema()
 	if err != nil {
 		return err
 	}
 	defer unlock()
+	finish()
 
+	finish = meassure(m.metrics.Validation.WithLabelValues("add", label))
 	semanticSchema := m.state.SchemaFor(k)
 	class, err := schema.GetClassByName(semanticSchema, className)
 	if err != nil {
@@ -49,13 +56,14 @@ func (m *Manager) addClassProperty(ctx context.Context, className string,
 	if err != nil {
 		return err
 	}
+	finish()
 
+	finish = meassure(m.metrics.Connector.WithLabelValues("add", label))
+	defer finish()
 	class.Properties = append(class.Properties, prop)
-
 	err = m.saveSchema(ctx)
-
 	if err != nil {
-		return nil
+		return err
 	}
 
 	return m.migrator.AddProperty(ctx, k, className, prop)

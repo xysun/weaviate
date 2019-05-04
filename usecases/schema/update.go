@@ -12,6 +12,7 @@
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/creativesoftwarefdn/weaviate/entities/models"
 	"github.com/creativesoftwarefdn/weaviate/entities/schema"
@@ -33,12 +34,19 @@ func (m *Manager) UpdateThing(ctx context.Context, name string,
 // TODO: gh-832: Implement full capabilities, not just keywords/naming
 func (m *Manager) updateClass(ctx context.Context, className string,
 	class *models.SemanticSchemaClass, k kind.Kind) error {
+	label := fmt.Sprintf("schema/%s", k.Name())
+	finish := meassure(m.metrics.UseCase.WithLabelValues("update", label))
+	defer finish()
+
+	finish = meassure(m.metrics.Locking.WithLabelValues("schema", "update", label))
 	unlock, err := m.locks.LockSchema()
 	if err != nil {
 		return err
 	}
 	defer unlock()
+	finish()
 
+	finish = meassure(m.metrics.Validation.WithLabelValues("update", label))
 	var newName *string
 	var newKeywords *models.SemanticSchemaKeywords
 
@@ -79,7 +87,10 @@ func (m *Manager) updateClass(ctx context.Context, className string,
 	if err = m.validateClassNameOrKeywordsCorrect(k, classNameAfterUpdate, keywordsAfterUpdate); err != nil {
 		return err
 	}
+	finish()
 
+	finish = meassure(m.metrics.Connector.WithLabelValues("update", label))
+	defer finish()
 	// Validated! Now apply the changes.
 	class.Class = classNameAfterUpdate
 	class.Keywords = keywordsAfterUpdate
