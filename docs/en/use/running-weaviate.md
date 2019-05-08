@@ -43,6 +43,8 @@ development purposes.
 Warning: The output is quite verbose, for an alternative see [attaching to only
 the log output of weaviate](#attaching-to-the-log-output-of-only-weaviate).
 
+Note: jq (a lightweight and flexible command-line JSON processor) is required for this step. [Download and install jq](https://stedolan.github.io/jq/download/) 
+
 ```sh
 $ curl -s https://raw.githubusercontent.com/semi-technologies/weaviate/master/tools/download-docker-compose-deps.sh | bash
 $ docker-compose up
