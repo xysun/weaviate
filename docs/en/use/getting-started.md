@@ -27,11 +27,16 @@ you can use the binaries and data connectors directly. This is covered in the
 [running Weaviate](running-weaviate.md#run-weaviate-stand-alone-with-docker)
 documentation.
 
-Check you have Docker and Docker-compose installed:
+**Dependencies:**
+- Docker [(download)](https://docs.docker.com/install/)
+- jq [(download)](https://stedolan.github.io/jq/download/)
+
+Check if you have Docker, Docker-compose and jq installed:
 
 ```bash
 $ docker --version
 $ docker-compose --version
+$ jq --version
 ```
 
 If you do not have Docker installed, you can read
