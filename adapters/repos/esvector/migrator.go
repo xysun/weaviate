@@ -22,6 +22,10 @@ import (
 	"github.com/semi-technologies/weaviate/entities/schema/kind"
 )
 
+const (
+	textAggregationField = "weaviate_text_aggregation"
+)
+
 // Migrator is a wrapper around a "primitive" esvector.Repo which implements
 // the migrate.Migrator interface
 type Migrator struct {
@@ -132,9 +136,9 @@ func (m *Migrator) setMappings(ctx context.Context, index string,
 
 		switch prop.DataType[0] {
 		case string(schema.DataTypeString):
-			esProperties[prop.Name] = typeMap(Keyword)
+			esProperties[prop.Name] = typeMapWithCopy(Keyword)
 		case string(schema.DataTypeText):
-			esProperties[prop.Name] = typeMap(Text)
+			esProperties[prop.Name] = typeMapWithCopy(Text)
 		case string(schema.DataTypeInt):
 			esProperties[prop.Name] = typeMap(Integer)
 		case string(schema.DataTypeNumber):
@@ -152,6 +156,12 @@ func (m *Migrator) setMappings(ctx context.Context, index string,
 	}
 
 	return m.repo.SetMappings(ctx, index, esProperties)
+}
+
+func typeMapWithCopy(ft FieldType) map[string]interface{} {
+	m := typeMap(ft)
+	m["copy_to"] = textAggregationField
+	return m
 }
 
 func typeMap(ft FieldType) map[string]interface{} {

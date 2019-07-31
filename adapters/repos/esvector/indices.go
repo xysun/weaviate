@@ -34,9 +34,7 @@ func (r *Repo) PutIndex(ctx context.Context, index string) error {
 	}
 
 	body := map[string]interface{}{
-		"settings": map[string]interface{}{
-			// "index.mapping.single_type": true,
-		},
+		"settings": map[string]interface{}{},
 	}
 
 	var buf bytes.Buffer
@@ -110,6 +108,11 @@ func (r *Repo) SetMappings(ctx context.Context, index string, props map[string]i
 	props[vectorProp] = map[string]interface{}{
 		"type":       "binary",
 		"doc_values": true,
+	}
+
+	// extend with text aggregation prop
+	props[textAggregationField] = map[string]interface{}{
+		"type": "text",
 	}
 
 	body := map[string]interface{}{

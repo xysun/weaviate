@@ -84,7 +84,7 @@ func (r *Repo) VectorSearch(ctx context.Context, index string,
 								"inline": "binary_vector_score",
 								"lang":   "knn",
 								"params": map[string]interface{}{
-									"cosine": false,
+									"cosine": true,
 									"field":  "embedding_vector",
 									"vector": vector,
 								},
@@ -101,6 +101,11 @@ func (r *Repo) VectorSearch(ctx context.Context, index string,
 	if err != nil {
 		return nil, fmt.Errorf("vector search: encode json: %v", err)
 	}
+
+	r.logger.WithField("action", "vector_search").
+		WithField("body", body).
+		WithField("body_json", buf.String()).
+		Debug("sending request to es")
 
 	res, err := r.client.Search(
 		r.client.Search.WithContext(ctx),
