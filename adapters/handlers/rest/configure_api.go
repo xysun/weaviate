@@ -268,12 +268,14 @@ func startupRoutine() (*state.State, *clientv3.Client, *elasticsearch.Client) {
 	logger.WithField("action", "startup").WithField("startup_time_left", timeTillDeadline(ctx)).
 		Debug("initialized stopword detector")
 
-	c11y, err := contextionary.NewClient(appState.ServerConfig.Config.Contextionary.URL)
-	if err != nil {
-		logger.WithField("action", "startup").
-			WithError(err).Error("cannot create c11y client")
-		logger.Exit(1)
-	}
+	// c11y, err := contextionary.NewClient(appState.ServerConfig.Config.Contextionary.URL)
+	// if err != nil {
+	// 	logger.WithField("action", "startup").
+	// 		WithError(err).Error("cannot create c11y client")
+	// 	logger.Exit(1)
+	// }
+
+	c11y := contextionary.NewBertHTTPClient("bert:8125")
 
 	appState.StopwordDetector = c11y
 	appState.Contextionary = c11y
