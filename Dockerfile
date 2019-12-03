@@ -56,7 +56,7 @@ ENTRYPOINT ["./tools/dev/telemetry_mock_api.sh"]
 # Weaviate (no differentiation between dev/test/prod - 12 factor!)
 # It has a development-friendly config file by default, but the config
 # can of course be overwritten through any mounted config file.
-FROM alpine AS weaviate
+FROM registry.access.redhat.com/ubi8/ubi-minimal AS weaviate
 ENTRYPOINT ["/bin/weaviate"]
 COPY ./tools/dev/config.docker.yaml /weaviate.conf.yaml
 COPY --from=server_builder /go/bin/weaviate-server /bin/weaviate
