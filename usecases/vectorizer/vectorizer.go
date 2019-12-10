@@ -61,7 +61,7 @@ func (v *Vectorizer) Action(ctx context.Context, object *models.Action) ([]float
 func (v *Vectorizer) object(ctx context.Context, className string,
 	schema interface{}) ([]float32, error) {
 	var corpi []string
-	corpi = append(corpi, camelCaseToLower(className))
+	// corpi = append(corpi, camelCaseToLower(className))
 
 	if schema != nil {
 		for prop, value := range schema.(map[string]interface{}) {
@@ -73,7 +73,8 @@ func (v *Vectorizer) object(ctx context.Context, className string,
 			if ok {
 				// use prop and value
 				corpi = append(corpi, strings.ToLower(
-					fmt.Sprintf("%s %s", camelCaseToLower(prop), valueString)))
+					// fmt.Sprintf("%s %s", camelCaseToLower(prop), valueString)))
+					fmt.Sprintf("%s", valueString)))
 			}
 		}
 	}
