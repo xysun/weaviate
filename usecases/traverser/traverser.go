@@ -51,6 +51,8 @@ type CorpiVectorizer interface {
 	Corpi(ctx context.Context, corpi []string) ([]float32, error)
 	MoveTo(source []float32, target []float32, weight float32) ([]float32, error)
 	MoveAwayFrom(source []float32, target []float32, weight float32) ([]float32, error)
+	NearestWordsByVector(ctx context.Context, vector []float32, k int) ([]string, []float32, error)
+	MultiVectorForWord(ctx context.Context, words []string) ([][]float32, []uint64, error)
 }
 
 type VectorSearcher interface {

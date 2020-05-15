@@ -185,8 +185,9 @@ func (c *Client) VectorForWord(ctx context.Context, word string) ([]float32, err
 
 // TODO: gh-1125 this must be moved to the c11y, otherwise we still send n
 // requests which is a lot of overhead that isn't required
-func (c *Client) MultiVectorForWord(ctx context.Context, words []string) ([][]float32, error) {
+func (c *Client) MultiVectorForWord(ctx context.Context, words []string) ([][]float32, []uint64, error) {
 	out := make([][]float32, len(words))
+	occs := make([]uint64, len(words))
 	wordParams := make([]*pb.Word, len(words))
 
 	for i, word := range words {
@@ -195,7 +196,7 @@ func (c *Client) MultiVectorForWord(ctx context.Context, words []string) ([][]fl
 
 	res, err := c.grpcClient.MultiVectorForWord(ctx, &pb.WordList{Words: wordParams})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for i, elem := range res.Vectors {
@@ -205,9 +206,10 @@ func (c *Client) MultiVectorForWord(ctx context.Context, words []string) ([][]fl
 		}
 
 		out[i] = vectorFromProto(elem.Entries)
+		occs[i] = elem.Occurrence
 	}
 
-	return out, nil
+	return out, occs, nil
 }
 
 func vectorFromProto(in []*pb.VectorEntry) []float32 {

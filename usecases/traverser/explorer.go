@@ -125,6 +125,12 @@ func (e *Explorer) searchResultsToGetResponse(ctx context.Context,
 
 	for _, res := range input {
 		if searchVector != nil {
+			// only activate the spike path algo for the first element
+			err := e.semanticPath(searchVector, res.Vector)
+			if err != nil {
+				return nil, err
+			}
+
 			dist, err := e.distancer(res.Vector, searchVector)
 			if err != nil {
 				return nil, fmt.Errorf("explorer: calculate distance: %v", err)

@@ -43,6 +43,8 @@ func NewErrNoUsableWordsf(pattern string, args ...interface{}) ErrNoUsableWords 
 type client interface {
 	VectorForCorpi(ctx context.Context, corpi []string,
 		overrides map[string]string) ([]float32, error)
+	NearestWordsByVector(ctx context.Context, vector []float32, n int, k int) ([]string, []float32, error)
+	MultiVectorForWord(ctx context.Context, words []string) ([][]float32, []uint64, error)
 }
 
 // IndexCheck returns whether a property of a class should be indexed
@@ -179,4 +181,12 @@ func camelCaseToLower(in string) string {
 	}
 
 	return sb.String()
+}
+
+func (v *Vectorizer) NearestWordsByVector(ctx context.Context, vector []float32, k int) ([]string, []float32, error) {
+	return v.client.NearestWordsByVector(ctx, vector, k, 12)
+}
+
+func (v *Vectorizer) MultiVectorForWord(ctx context.Context, words []string) ([][]float32, []uint64, error) {
+	return v.client.MultiVectorForWord(ctx, words)
 }

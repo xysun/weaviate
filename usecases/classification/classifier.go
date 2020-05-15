@@ -47,7 +47,7 @@ type Classifier struct {
 type vectorizer interface {
 	// MultiVectorForWord must keep order, if an item cannot be vectorized, the
 	// element should be explicit nil, not skipped
-	MultiVectorForWord(ctx context.Context, words []string) ([][]float32, error)
+	MultiVectorForWord(ctx context.Context, words []string) ([][]float32, []uint64, error)
 
 	VectorForCorpi(ctx context.Context, corpi []string, overrides map[string]string) ([]float32, error)
 }
