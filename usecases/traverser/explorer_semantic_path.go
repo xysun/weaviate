@@ -8,85 +8,67 @@ import (
 const stepSize = 0.05
 
 func (e *Explorer) semanticPath(source, target []float32) error {
-	// dist, err := e.distancer(source, target)
-	// if err != nil {
-	// 	return fmt.Errorf("distancer: calculate distance: %v", err)
-	// }
+	// Yoko Ono was the wife of Lennon
+	sourceStringArr := []string{"beatles"}
+	targetStringArr := []string{"yoko", "ono"}
 
-	// directionalVec := substrVector(source, target)
+	//// New York purchased the rights of NYC from Holland
+	// sourceStringArr := []string{"new", "york", "city"}
+	// targetStringArr := []string{"holland"}
+
+	//// Fashion designer to fashion magazine
+	// sourceStringArr := []string{"alexander", "mcqueen"}
+	// targetStringArr := []string{"vogue"}
 
 	// overwrite source and target
-	source, err := e.vectorizer.Corpi(context.TODO(), []string{"beatles"})
+	source, err := e.vectorizer.Corpi(context.TODO(), sourceStringArr)
 	if err != nil {
 		return err
 	}
-	target, err = e.vectorizer.Corpi(context.TODO(), []string{"rolling", "stones"})
-	if err != nil {
-		return err
-	}
-
-	sourceWords, _, err := e.vectorizer.NearestWordsByVector(context.TODO(), source, 300)
+	target, err = e.vectorizer.Corpi(context.TODO(), targetStringArr)
 	if err != nil {
 		return err
 	}
 
-	targetWords, _, err := e.vectorizer.NearestWordsByVector(context.TODO(), target, 300)
+	sourceWords, _, err := e.vectorizer.NearestWordsByVector(context.TODO(), source, 2500)
 	if err != nil {
 		return err
 	}
 
-	overlapSource := -1
-	overlapTarget := -1
+	targetWords, _, err := e.vectorizer.NearestWordsByVector(context.TODO(), target, 2500)
+	if err != nil {
+		return err
+	}
 
+	// Moving away from the source as start point, towards the target
+	lowestDistance := float32(9999.0)
 	for i := range sourceWords {
 		if string(sourceWords[i][0]) != "$" {
-			if pos, ok := containedIn(targetWords, sourceWords[i]); ok {
-				overlapSource = i
-				overlapTarget = pos
-				break
+			sourceWordVector, err := e.vectorizer.Corpi(context.TODO(), []string{string(sourceWords[i])})
+			if err != nil {
+				return err
 			}
-		}
-
-		if string(targetWords[i][0]) != "$" {
-			if pos, ok := containedIn(sourceWords, targetWords[i]); ok {
-				overlapSource = pos
-				overlapTarget = i
-				break
+			distToResult, _ := e.distancer(sourceWordVector, target)
+			if distToResult < lowestDistance {
+				fmt.Println(sourceWords[i], distToResult)
+				lowestDistance = distToResult
 			}
 		}
 	}
 
-	sourceVectors, sourceOccs, _ := e.vectorizer.MultiVectorForWord(context.TODO(), sourceWords)
-	targetVectors, targetOccs, _ := e.vectorizer.MultiVectorForWord(context.TODO(), targetWords)
-
-	count := 0
-	if overlapSource != -1 {
-		fmt.Printf("first overlap is %s (sourcePos: %d, targetPos: %d)\n", sourceWords[overlapSource], overlapSource, overlapTarget)
-		for i := 0; i < overlapSource; i++ {
-			if string(sourceWords[i][0]) == "$" {
-				continue
+	// Moving towards the target, furthers away from the target
+	for i := len(targetWords)-1; i >= 0; i-- {
+		if string(targetWords[i][0]) != "$" {
+			targetWordVector, err := e.vectorizer.Corpi(context.TODO(), []string{string(targetWords[i])})
+			if err != nil {
+				return err
 			}
-
-			dist, _ := e.distancer(sourceVectors[i], target)
-			fmt.Printf("%d;%s;%f;%d\n", count, sourceWords[i], dist, sourceOccs[i])
-			count++
-		}
-		dist, _ := e.distancer(sourceVectors[overlapSource], target)
-		fmt.Printf("%d;%s;%f;%d\n", count, sourceWords[overlapSource], dist, sourceOccs[overlapSource])
-		count++
-		for i := overlapTarget - 1; i >= 0; i-- {
-			if string(targetWords[i][0]) == "$" {
-				continue
+			distToResult, _ := e.distancer(targetWordVector, source)
+			if distToResult < lowestDistance {
+				fmt.Println(targetWords[i], distToResult)
+				lowestDistance = distToResult
 			}
-
-			dist, _ := e.distancer(targetVectors[i], target)
-			fmt.Printf("%d;%s;%f;%d\n", count, targetWords[overlapSource], dist, targetOccs[overlapSource])
-			count++
 		}
-		fmt.Printf("\n\n")
-
-	} else {
-		fmt.Println("no overlap")
 	}
 
 	return nil
