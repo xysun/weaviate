@@ -65,7 +65,7 @@ func (e *Explorer) semanticPath(source, target []float32) error {
 			}
 			distToResult, _ := e.distancer(targetWordVector, source)
 			if distToResult < lowestDistance {
-				fmt.Println("concept:", targetWords[i], "distanceToQuery", distToResult, "distanceToParent:", "UNSET", "distanceToNext:", "UNSET"))
+				fmt.Println("concept:", targetWords[i], "distanceToQuery", distToResult, "distanceToParent:", "UNSET", "distanceToNext:", "UNSET")
 				lowestDistance = distToResult
 			}
 		}
