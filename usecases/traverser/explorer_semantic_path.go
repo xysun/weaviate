@@ -7,6 +7,7 @@ import (
 
 const stepSize = 0.05
 
+// this is the latest approach, i.e. the "overlapping algo"
 func (e *Explorer) semanticPath(source, target []float32) error {
 	// Yoko Ono was the wife of Lennon
 	sourceStringArr := []string{"beatles"}
@@ -93,6 +94,7 @@ func substrVector(target, source []float32) []float32 {
 	return out
 }
 
+// this is the alternative approach, i.e. doing a KNN search for each point
 func (e *Explorer) semanticPathKNN(source, target []float32) error {
 	dist, err := e.distancer(source, target)
 	if err != nil {
