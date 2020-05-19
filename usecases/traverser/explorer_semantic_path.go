@@ -3,34 +3,36 @@ package traverser
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 const stepSize = 0.05
 
 // this is the latest approach, i.e. the "overlapping algo"
 func (e *Explorer) semanticPath(source, target []float32) error {
-	// Yoko Ono was the wife of Lennon
-	sourceStringArr := []string{"beatles"}
-	targetStringArr := []string{"yoko", "ono"}
+	// // Yoko Ono was the wife of Lennon
+	// sourceStringArr := []string{"beatles"}
+	// targetStringArr := []string{"yoko", "ono"}
 
-	//// New York purchased the rights of NYC from Holland
-	// sourceStringArr := []string{"new", "york", "city"}
-	// targetStringArr := []string{"holland"}
+	// //// New York purchased the rights of NYC from Holland
+	// // sourceStringArr := []string{"new", "york", "city"}
+	// // targetStringArr := []string{"holland"}
 
-	//// Fashion designer to fashion magazine
-	// sourceStringArr := []string{"alexander", "mcqueen"}
-	// targetStringArr := []string{"vogue"}
+	// //// Fashion designer to fashion magazine
+	// // sourceStringArr := []string{"alexander", "mcqueen"}
+	// // targetStringArr := []string{"vogue"}
 
-	// overwrite source and target
-	source, err := e.vectorizer.Corpi(context.TODO(), sourceStringArr)
-	if err != nil {
-		return err
-	}
-	target, err = e.vectorizer.Corpi(context.TODO(), targetStringArr)
-	if err != nil {
-		return err
-	}
+	// // overwrite source and target
+	// source, err := e.vectorizer.Corpi(context.TODO(), sourceStringArr)
+	// if err != nil {
+	// 	return err
+	// }
+	// target, err = e.vectorizer.Corpi(context.TODO(), targetStringArr)
+	// if err != nil {
+	// 	return err
+	// }
 
+	before := time.Now()
 	sourceWords, _, err := e.vectorizer.NearestWordsByVector(context.TODO(), source, 2500)
 	if err != nil {
 		return err
@@ -40,6 +42,9 @@ func (e *Explorer) semanticPath(source, target []float32) error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("getting NNs took %s\n", time.Since(before))
+
+	fmt.Printf("out of interest, lengths are %d and %d\n", len(sourceWords), len(targetWords))
 
 	// Moving away from the source as start point, towards the target
 	lowestDistance := float32(9999.0)
@@ -58,7 +63,7 @@ func (e *Explorer) semanticPath(source, target []float32) error {
 	}
 
 	// Moving towards the target, furthers away from the target
-	for i := len(targetWords)-1; i >= 0; i-- {
+	for i := len(targetWords) - 1; i >= 0; i-- {
 		if string(targetWords[i][0]) != "$" {
 			targetWordVector, err := e.vectorizer.Corpi(context.TODO(), []string{string(targetWords[i])})
 			if err != nil {
