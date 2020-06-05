@@ -3,6 +3,7 @@ package traverser
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 const stepSize = 0.05
@@ -171,6 +172,7 @@ func substrVector(target, source []float32) []float32 {
 	return out
 }
 
+// this is the alternative approach, i.e. doing a KNN search for each point
 func (e *Explorer) semanticPathKNN(source, target []float32) error {
 	dist, err := e.distancer(source, target)
 	if err != nil {

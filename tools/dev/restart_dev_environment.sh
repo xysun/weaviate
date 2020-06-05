@@ -22,6 +22,9 @@ elif [[ "$*" == *--keycloak* ]]; then
   ADDITIONAL_SERVICES+=('keycloak')
 elif [[ "$*" == *--esvector-only* ]]; then
   DOCKER_COMPOSE_FILE=docker-compose-esonly.yml
+elif [[ "$*" == *--sempath* ]]; then
+  echo "Running the semantic path spike version"
+  DOCKER_COMPOSE_FILE=docker-compose-sempath.yml
 else
   DOCKER_COMPOSE_FILE=docker-compose.yml
   ADDITIONAL_SERVICES+=('genesis_fake')
@@ -32,7 +35,7 @@ docker-compose -f $DOCKER_COMPOSE_FILE down --remove-orphans
 
 rm -rf data connector_state.json schema_state.json
 
-docker-compose -f $DOCKER_COMPOSE_FILE up -d etcd contextionary esvector kibana "${ADDITIONAL_SERVICES[@]}"
+docker-compose -f $DOCKER_COMPOSE_FILE up -d etcd contextionary esvector "${ADDITIONAL_SERVICES[@]}"
 
 if [[ "$*" == *--keycloak* ]]; then
   echo "Since you have specified the --keycloak option, we must now wait for"
@@ -48,4 +51,4 @@ if [[ "$*" == *--keycloak* ]]; then
   ./tools/dev/keycloak/import_users.sh
 fi
 
-echo "You can now run the dev version with: ./tools/dev/run_dev_server.sh or ./tools/dev/run_dev_server_no_network.sh"
+echo "You can now run the dev version with: ./tools/dev/run_dev_server.sh"
