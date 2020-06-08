@@ -86,7 +86,7 @@ services:
     environment:
       xpack.security.enabled: "false"
       discovery.type: single-node
-      ES_JAVA_OPTS: -Xms6096m -Xmx6096m
+      ES_JAVA_OPTS: -Xms500m -Xmx500m
       bootstrap.memory_lock: "true"
       path.repo: "/mounts/backups,"
     ulimits:

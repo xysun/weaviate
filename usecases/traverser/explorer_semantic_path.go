@@ -15,13 +15,13 @@ func (e *Explorer) semanticPath(source, target []float32) error {
 	threshold := float32(0.3)
 
 	// Query and Target search for gulf of mexico
-	// queryStringArr := []string{"Which river meets the Gulf of Mexico?"}
-	// solutionSentenceArray := []string{
-	// 	"Thousands of miles of levees, flood walls, and revetments have been erected to manage the Mississippi.", 
-	// 	"Since the city wasn’t going to move to suit the river, the river would be forced to stay put.", 
-	// 	"Southeast Louisiana, where the Mississippi River meets the Gulf of Mexico, as it is often depicted on maps.", 
-	// 	"Directly next door to the Center for River Studies sits the headquarters of Louisiana’s Coastal Protection and Restoration Authority.", 
-	// 	"The Corps plugged the Mississippi River Gulf Outlet with a nine-hundred-and-fifty-foot-wide rock dam and installed massive gates and pumps between the drainage canals and Lake Pontchartrain."}
+	queryStringArr := []string{"Which river meets the Gulf of Mexico?"}
+	solutionSentenceArray := []string{
+		"Thousands of miles of levees, flood walls, and revetments have been erected to manage the Mississippi.",
+		"Since the city wasn’t going to move to suit the river, the river would be forced to stay put.",
+		"Southeast Louisiana, where the Mississippi River meets the Gulf of Mexico, as it is often depicted on maps.",
+		"Directly next door to the Center for River Studies sits the headquarters of Louisiana’s Coastal Protection and Restoration Authority.",
+		"The Corps plugged the Mississippi River Gulf Outlet with a nine-hundred-and-fifty-foot-wide rock dam and installed massive gates and pumps between the drainage canals and Lake Pontchartrain."}
 
 	// Query which is more generic to show where it found value
 	// queryStringArr := []string{"Is herbalife a pyramid scheme?"}
@@ -42,13 +42,18 @@ func (e *Explorer) semanticPath(source, target []float32) error {
 	// 	"As a result of the complaints, the company modified its product claims and reformulated the product."}
 
 	// Wrong on purpose
-	queryStringArr := []string{"Do birds fart?"}
-	solutionSentenceArray := []string{
-		"Thousands of miles of levees, flood walls, and revetments have been erected to manage the Mississippi.", 
-		"Since the city wasn’t going to move to suit the river, the river would be forced to stay put.", 
-		"Southeast Louisiana, where the Mississippi River meets the Gulf of Mexico, as it is often depicted on maps.", 
-		"Directly next door to the Center for River Studies sits the headquarters of Louisiana’s Coastal Protection and Restoration Authority.", 
-		"The Corps plugged the Mississippi River Gulf Outlet with a nine-hundred-and-fifty-foot-wide rock dam and installed massive gates and pumps between the drainage canals and Lake Pontchartrain."}
+	//queryStringArr := []string{"Do birds fart?"}
+	//solutionSentenceArray := []string{
+	//	"Thousands of miles of levees, flood walls, and revetments have been erected to manage the Mississippi.",
+	//	"Since the city wasn’t going to move to suit the river, the river would be forced to stay put.",
+	//	"Southeast Louisiana, where the Mississippi River meets the Gulf of Mexico, as it is often depicted on maps.",
+	//	"Directly next door to the Center for River Studies sits the headquarters of Louisiana’s Coastal Protection and Restoration Authority.",
+	//	"The Corps plugged the Mississippi River Gulf Outlet with a nine-hundred-and-fifty-foot-wide rock dam and installed massive gates and pumps between the drainage canals and Lake Pontchartrain."}
+
+
+	startTime := time.Now()
+
+
 
 	// overwrite source and target
 	queryVector, err := e.vectorizer.Corpi(context.TODO(), queryStringArr)
@@ -69,6 +74,9 @@ func (e *Explorer) semanticPath(source, target []float32) error {
 		}
 	}
 
+	endTime := time.Now()
+	elapsed := endTime.Sub(startTime)
+
 	fmt.Println("============================================================")
 	fmt.Printf("\033[1;36m%s\033[0m", "FULL CORPUS: ")
 	fmt.Println(solutionSentenceArray)
@@ -76,6 +84,8 @@ func (e *Explorer) semanticPath(source, target []float32) error {
 	fmt.Println(queryStringArr)
 	fmt.Printf("\033[1;36m%s\033[0m", "WINNER SENTENCE: ")
 	fmt.Println(winner, winnerDist)
+	fmt.Printf("\033[1;36m%s\033[0m", "Time elapsed: ")
+	fmt.Println(elapsed)
 	fmt.Println("============================================================")
 
 	return nil
