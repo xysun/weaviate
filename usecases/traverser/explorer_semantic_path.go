@@ -58,6 +58,10 @@ gates and pumps between the drainage canals and Lake Pontchartrain.`,
 
 	for i := 0; i < len(queries); i++ {
 		corpus := corpie[i]
+
+		// for predifined snippets
+		//corpus := strings.Split(corpie[i], ".")
+
 		query := queries[i]
 
 		startTime := time.Now()
@@ -68,14 +72,19 @@ gates and pumps between the drainage canals and Lake Pontchartrain.`,
 			return err
 		}
 
+		winner, winnerDist := e.searchByDevide(corpus, queryVector)
 		//winner, winnerDist := e.searchByWord(corpus, queryVector)
-		winner, winnerDist := e.searchByWordEasy(corpus, queryVector)
+		//winner, winnerDist := e.searchByPredefinedSnippets(corpus, queryVector)
 
 		endTime := time.Now()
 		elapsed := endTime.Sub(startTime)
 
 		speedTest = append(speedTest, elapsed)
+
 		printInfo(corpus, query, winner, winnerDist, elapsed)
+
+		// for predifined snippets
+		//printInfo(corpie[i], query, winner, winnerDist, elapsed)
 	}
 
 	for _, dur := range(speedTest) {
@@ -100,51 +109,23 @@ func printInfo(corpus string, query string, winner string, winnerDist float32, e
 	fmt.Println("============================================================")
 }
 
-func (e *Explorer) searchByWord(corpus string, queryVector []float32) (string, float32){
+func (e *Explorer) searchByPredefinedSnippets(corpus []string, queryVector []float32) (string, float32){
 	winnerDist := float32(100.0)
-	winnerStart := -1
-	winnerEnd := -1
+	winnerSnippet := "NO ANSWER FOUND... "
 
-	startWord := 0
-	endWord := strings.Index(corpus, " ")
-	endReached := false
-	if endWord == -1{
-		endReached = true
-	}
-	for !endReached {
-		word := []string{corpus[startWord:endWord]}
-		vecWord, _ := e.vectorizer.Corpi(context.TODO(), word)
-		distance, _ := e.distancer(queryVector, vecWord)
+	for _, snippet := range(corpus) {
+		vecSnippet, _ := e.vectorizer.Corpi(context.TODO(), []string{snippet})
+		distance, _ := e.distancer(queryVector, vecSnippet)
 		if distance < winnerDist && distance < distanceThreshold {
-			winnerStart = startWord
-			winnerEnd = endWord
+			winnerSnippet = snippet
 			winnerDist = distance
 		}
-		startWord = endWord+1
-		endWord = strings.Index(corpus[startWord:], " ")
-		if endWord == -1 {
-			endReached = true
-		}
-		endWord = endWord + startWord
 	}
 
-	if winnerStart == -1 {
-		return "NO ANSWER FOUND... ", winnerDist
-	}
-
-	winnerStart = winnerStart - 20
-	winnerEnd = winnerEnd + 20
-	if winnerStart < 0 {
-		winnerStart = 0
-	}
-	if winnerEnd > len(corpus){
-		winnerEnd = len(corpus)
-	}
-
-	return corpus[winnerStart:winnerEnd], winnerDist
+	return winnerSnippet, winnerDist
 }
 
-func (e *Explorer) searchByWordEasy(corpus string, queryVector []float32) (string, float32){
+func (e *Explorer) searchByWord(corpus string, queryVector []float32) (string, float32){
 	winnerDist := float32(100.0)
 	winnerWord := "NO ANSWER FOUND... "
 
@@ -161,6 +142,35 @@ func (e *Explorer) searchByWordEasy(corpus string, queryVector []float32) (strin
 	return winnerWord, winnerDist
 }
 
+func (e *Explorer) searchByDevide(corpus string, queryVector []float32) (string, float32){
+	splitPosition := int(len(corpus) / 2)
+	distance := float32(100.0)
+
+	for len(corpus) > 50 {
+		corpus, distance = e.getSmallerCorpus(corpus, queryVector, splitPosition)
+		splitPosition = int(len(corpus) / 2)
+	}
+
+	if distance > distanceThreshold {
+		return "NO ANSWER FOUND... ", float32(100.0)
+	}
+
+	return corpus, distance
+
+}
+
+func (e *Explorer) getSmallerCorpus(corpus string, queryVector []float32, splitPosition int) (string, float32) {
+	left := corpus[:splitPosition]
+	right := corpus[splitPosition:]
+	vecLeft, _ := e.vectorizer.Corpi(context.TODO(), []string{left})
+	vecRight, _ := e.vectorizer.Corpi(context.TODO(), []string{right})
+	distanceLeft, _ := e.distancer(queryVector, vecLeft)
+	distanceRight, _ := e.distancer(queryVector, vecRight)
+	if distanceLeft > distanceRight {
+		return right, distanceRight
+	}
+	return left, distanceLeft
+}
 
 // IS SEMANTIC PATH TEST
 // func (e *Explorer) semanticPath(source, target []float32) error {
