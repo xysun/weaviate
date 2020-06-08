@@ -2,6 +2,7 @@
 
 CONFIG=${1:-local-development}
 
+
 # Jump to root directory
 cd "$( dirname "${BASH_SOURCE[0]}" )"/../..
 
