@@ -281,9 +281,9 @@ func TestVectorizingSearchTerms(t *testing.T) {
 			expectedClientCall: []string{"car", "car brand"},
 		},
 		testCase{
-			name:               "with camel cased words",
+			name:               "with camel cased words (leaves the splitting to the remote)",
 			input:              []string{"Car", "CarBrand"},
-			expectedClientCall: []string{"car", "car brand"},
+			expectedClientCall: []string{"car", "carbrand"},
 		},
 	}
 

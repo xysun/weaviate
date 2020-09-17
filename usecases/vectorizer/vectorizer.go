@@ -149,9 +149,9 @@ func (v *Vectorizer) object(ctx context.Context, className string,
 func (v *Vectorizer) Corpi(ctx context.Context, corpi []string,
 ) ([]float32, error) {
 
-	// for i, corpus := range corpi {
-	// 	corpi[i] = camelCaseToLower(corpus)
-	// }
+	for i, corpus := range corpi {
+		corpi[i] = strings.ToLower(corpus)
+	}
 
 	vector, _, err := v.client.VectorForCorpi(ctx, corpi, nil)
 	if err != nil {
