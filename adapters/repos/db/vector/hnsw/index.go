@@ -22,6 +22,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/inverted"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 )
 
 const importLimit = 200000 // TODO: make variable
@@ -68,6 +69,8 @@ type hnsw struct {
 
 	id       string
 	rootPath string
+
+	distancerProvider distancer.Provider
 }
 
 type CommitLogger interface {
@@ -105,13 +108,14 @@ func New(cfg Config) (*hnsw, error) {
 		maximumConnectionsLayerZero: 2 * cfg.MaximumConnections,
 
 		// inspired by c++ implementation
-		levelNormalizer: 1 / math.Log(float64(cfg.MaximumConnections)),
-		efConstruction:  cfg.EFConstruction,
-		nodes:           make([]*vertex, importLimit), // TODO: grow variably rather than fixed length
-		vectorForID:     vectorCache.get,
-		id:              cfg.ID,
-		rootPath:        cfg.RootPath,
-		tombstones:      map[int]struct{}{},
+		levelNormalizer:   1 / math.Log(float64(cfg.MaximumConnections)),
+		efConstruction:    cfg.EFConstruction,
+		nodes:             make([]*vertex, importLimit), // TODO: grow variably rather than fixed length
+		vectorForID:       vectorCache.get,
+		id:                cfg.ID,
+		rootPath:          cfg.RootPath,
+		tombstones:        map[int]struct{}{},
+		distancerProvider: distancer.NewCosineProvider(),
 	}
 
 	if err := index.restoreFromDisk(); err != nil {
@@ -539,7 +543,11 @@ func (h *hnsw) distBetweenNodes(a, b int) (float32, error) {
 		return 0, fmt.Errorf("got a nil or zero-length vector at docID %d", b)
 	}
 
-	return cosineDist(vecA, vecB)
+	// there is no performance benefit (but also no penalty) in using the
+	// reusable distancer here. However, it makes it much easier to switch out
+	// the distance function if there is only a single type that is used to
+	// calculate distances
+	return h.distancerProvider.New(vecA).Distance(vecB)
 }
 
 func (h *hnsw) distBetweenNodeAndVec(node int, vecB []float32) (float32, error) {
@@ -558,7 +566,11 @@ func (h *hnsw) distBetweenNodeAndVec(node int, vecB []float32) (float32, error) 
 		return 0, fmt.Errorf("got a nil or zero-length vector as search vector")
 	}
 
-	return cosineDist(vecA, vecB)
+	// there is no performance benefit (but also no penalty) in using the
+	// reusable distancer here. However, it makes it much easier to switch out
+	// the distance function if there is only a single type that is used to
+	// calculate distances
+	return h.distancerProvider.New(vecA).Distance(vecB)
 }
 
 func (h *hnsw) Stats() {

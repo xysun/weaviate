@@ -8,8 +8,7 @@
 //
 //  CONTACT: hello@semi.technology
 //
-
-package hnsw
+package distancer
 
 import (
 	"fmt"
@@ -70,7 +69,7 @@ func newReusableDistancer(fixedVec []float32) *reusableDistancer {
 	}
 }
 
-func (d *reusableDistancer) distance(input []float32) (float32, error) {
+func (d *reusableDistancer) Distance(input []float32) (float32, error) {
 	if len(input) != len(d.fixedVector) {
 		return 0, fmt.Errorf("vectors have different dimensions")
 	}
@@ -87,4 +86,14 @@ func (d *reusableDistancer) distance(input []float32) (float32, error) {
 	}
 
 	return 1 - float32(sumProduct/(math.Sqrt(sumSquare)*d.fixedVetorSquredSumSquareRoot)), nil
+}
+
+type CosineProvider struct{}
+
+func (p CosineProvider) New(vec []float32) Distancer {
+	return newReusableDistancer(vec)
+}
+
+func NewCosineProvider() Provider {
+	return CosineProvider{}
 }
