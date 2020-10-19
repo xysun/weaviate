@@ -67,8 +67,8 @@ func (m *Manager) checkIDOrAssignNew(ctx context.Context, kind kind.Kind,
 	return id, nil
 }
 
-func (m *Manager) addActionToConnectorAndSchema(ctx context.Context, principal *models.Principal,
-	class *models.Action) (*models.Action, error) {
+func (m *Manager) addActionToConnectorAndSchema(ctx context.Context,
+	principal *models.Principal, class *models.Action) (*models.Action, error) {
 	id, err := m.checkIDOrAssignNew(ctx, kind.Action, class.ID)
 	if err != nil {
 		return nil, err
@@ -98,20 +98,28 @@ func (m *Manager) addActionToConnectorAndSchema(ctx context.Context, principal *
 	return class, nil
 }
 
-func (m *Manager) vectorizeAndPutAction(ctx context.Context, class *models.Action) error {
-	v, source, err := m.vectorizer.Action(ctx, class)
-	if err != nil {
-		return fmt.Errorf("vectorize: %v", err)
+func (m *Manager) vectorizeAndPutAction(ctx context.Context,
+	class *models.Action) error {
+	var vector []float32
+
+	if len(class.Vector) > 0 {
+		vector = class.Vector
+	} else {
+		v, source, err := m.vectorizer.Action(ctx, class)
+		if err != nil {
+			return fmt.Errorf("vectorize: %v", err)
+		}
+
+		if class.Meta == nil {
+			class.Meta = &models.UnderscoreProperties{}
+		}
+		class.Meta.Interpretation = &models.Interpretation{
+			Source: sourceFromInputElements(source),
+		}
+		vector = v
 	}
 
-	if class.Meta == nil {
-		class.Meta = &models.UnderscoreProperties{}
-	}
-	class.Meta.Interpretation = &models.Interpretation{
-		Source: sourceFromInputElements(source),
-	}
-
-	err = m.vectorRepo.PutAction(ctx, class, v)
+	err := m.vectorRepo.PutAction(ctx, class, vector)
 	if err != nil {
 		return fmt.Errorf("store: %v", err)
 	}
@@ -169,8 +177,8 @@ func (m *Manager) AddThing(ctx context.Context, principal *models.Principal,
 	return m.addThingToConnectorAndSchema(ctx, principal, class)
 }
 
-func (m *Manager) addThingToConnectorAndSchema(ctx context.Context, principal *models.Principal,
-	class *models.Thing) (*models.Thing, error) {
+func (m *Manager) addThingToConnectorAndSchema(ctx context.Context,
+	principal *models.Principal, class *models.Thing) (*models.Thing, error) {
 	id, err := m.checkIDOrAssignNew(ctx, kind.Thing, class.ID)
 	if err != nil {
 		return nil, err
@@ -200,20 +208,29 @@ func (m *Manager) addThingToConnectorAndSchema(ctx context.Context, principal *m
 	return class, nil
 }
 
-func (m *Manager) vectorizeAndPutThing(ctx context.Context, class *models.Thing) error {
-	v, source, err := m.vectorizer.Thing(ctx, class)
-	if err != nil {
-		return fmt.Errorf("vectorize: %v", err)
+func (m *Manager) vectorizeAndPutThing(ctx context.Context,
+	class *models.Thing) error {
+	var vector []float32
+
+	if len(class.Vector) > 0 {
+		vector = class.Vector
+	} else {
+		v, source, err := m.vectorizer.Thing(ctx, class)
+		if err != nil {
+			return fmt.Errorf("vectorize: %v", err)
+		}
+
+		if class.Meta == nil {
+			class.Meta = &models.UnderscoreProperties{}
+		}
+		class.Meta.Interpretation = &models.Interpretation{
+			Source: sourceFromInputElements(source),
+		}
+
+		vector = v
 	}
 
-	if class.Meta == nil {
-		class.Meta = &models.UnderscoreProperties{}
-	}
-	class.Meta.Interpretation = &models.Interpretation{
-		Source: sourceFromInputElements(source),
-	}
-
-	err = m.vectorRepo.PutThing(ctx, class, v)
+	err := m.vectorRepo.PutThing(ctx, class, vector)
 	if err != nil {
 		return fmt.Errorf("store: %v", err)
 	}
