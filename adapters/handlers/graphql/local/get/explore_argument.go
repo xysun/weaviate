@@ -36,7 +36,11 @@ func exploreFields(prefix string) graphql.InputObjectConfigFieldMap {
 	return graphql.InputObjectConfigFieldMap{
 		"concepts": &graphql.InputObjectFieldConfig{
 			// Description: descriptions.Concepts,
-			Type: graphql.NewNonNull(graphql.NewList(graphql.String)),
+			Type: graphql.NewList(graphql.String),
+		},
+		"vector": &graphql.InputObjectFieldConfig{
+			// Description: descriptions.Concepts,
+			Type: graphql.NewList(graphql.Float),
 		},
 		"moveTo": &graphql.InputObjectFieldConfig{
 			Description: descriptions.VectorMovement,

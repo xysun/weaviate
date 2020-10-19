@@ -33,7 +33,11 @@ func Build() *graphql.Field {
 			},
 			"concepts": &graphql.ArgumentConfig{
 				Description: descriptions.Keywords,
-				Type:        graphql.NewNonNull(graphql.NewList(graphql.String)),
+				Type:        graphql.NewList(graphql.String),
+			},
+			"vector": &graphql.ArgumentConfig{
+				Description: descriptions.Keywords,
+				Type:        graphql.NewList(graphql.Float),
 			},
 			"limit": &graphql.ArgumentConfig{
 				Type:        graphql.Int,

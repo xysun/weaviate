@@ -82,12 +82,16 @@ func (e *Explorer) GetClass(ctx context.Context,
 
 func (e *Explorer) getClassExploration(ctx context.Context,
 	params GetParams) ([]interface{}, error) {
-	searchVector, err := e.vectorFromExploreParams(ctx, params.Explore)
-	if err != nil {
-		return nil, fmt.Errorf("explorer: get class: vectorize params: %v", err)
-	}
+	if params.Explore.Vector == nil {
+		searchVector, err := e.vectorFromExploreParams(ctx, params.Explore)
+		if err != nil {
+			return nil, fmt.Errorf("explorer: get class: vectorize params: %v", err)
+		}
 
-	params.SearchVector = searchVector
+		params.SearchVector = searchVector
+	} else {
+		params.SearchVector = params.Explore.Vector
+	}
 
 	res, err := e.search.VectorClassSearch(ctx, params)
 	if err != nil {
@@ -123,7 +127,7 @@ func (e *Explorer) getClassExploration(ctx context.Context,
 
 	if params.UnderscoreProperties.SemanticPath != nil {
 		p := params.UnderscoreProperties.SemanticPath
-		p.SearchVector = searchVector
+		p.SearchVector = params.SearchVector
 		withPath, err := e.pathBuilder.CalculatePath(res, p)
 		if err != nil {
 			return nil, fmt.Errorf("extend with semantic path: %v", err)
@@ -132,7 +136,7 @@ func (e *Explorer) getClassExploration(ctx context.Context,
 		res = withPath
 	}
 
-	return e.searchResultsToGetResponse(ctx, res, searchVector, params)
+	return e.searchResultsToGetResponse(ctx, res, params.SearchVector, params)
 }
 
 func (e *Explorer) getClassList(ctx context.Context,

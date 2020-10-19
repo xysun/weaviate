@@ -18,11 +18,20 @@ import "github.com/semi-technologies/weaviate/usecases/traverser"
 func ExtractExplore(source map[string]interface{}) traverser.ExploreParams {
 	var args traverser.ExploreParams
 
-	// keywords is a required argument, so we don't need to check for its existing
-	keywords := source["concepts"].([]interface{})
-	args.Values = make([]string, len(keywords))
-	for i, value := range keywords {
-		args.Values[i] = value.(string)
+	keywords, ok := source["concepts"].([]interface{})
+	if ok {
+		args.Values = make([]string, len(keywords))
+		for i, value := range keywords {
+			args.Values[i] = value.(string)
+		}
+	}
+
+	vector, ok := source["vector"].([]interface{})
+	if ok {
+		args.Vector = make([]float32, len(vector))
+		for i, value := range vector {
+			args.Vector[i] = float32(value.(float64))
+		}
 	}
 
 	// limit is an optional arg, so it could be nil

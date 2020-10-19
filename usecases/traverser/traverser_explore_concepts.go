@@ -41,6 +41,7 @@ type ExploreParams struct {
 	MoveAwayFrom ExploreMove
 	Certainty    float64
 	Network      bool
+	Vector       []float32
 }
 
 // ExploreMove moves an existing Search Vector closer (or further away from) a specific other search term
