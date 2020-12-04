@@ -47,17 +47,13 @@ func (c *Classifier) makeClassifyItemContextual(preparedContext contextualPrepar
 	int, kind.Kind, models.Classification, filters) error {
 	return func(item search.Result, itemIndex int, kind kind.Kind, params models.Classification, filters filters) error {
 		schema := c.schemaGetter.GetSchemaSkipAuth()
-		run := &contextualItemClassifier{
-			item:        item,
-			itemIndex:   itemIndex,
-			kind:        kind,
-			params:      params,
-			classifier:  c,
-			schema:      schema,
-			filters:     filters,
-			context:     preparedContext,
-			vectorizer:  c.vectorizer,
-			rankedWords: map[string][]scoredWord{},
+		run := &oldschoolContextualItemClassifier{
+			item:       item,
+			kind:       kind,
+			params:     params,
+			classifier: c,
+			schema:     schema,
+			filters:    filters,
 		}
 
 		err := run.do()
@@ -407,4 +403,9 @@ func cosineDist(a, b []float32) (float32, error) {
 	}
 
 	return 1 - sim, nil
+}
+
+func classifyOldSchoolContextual(item search.Result, itemIndex int, kind kind.Kind,
+	params models.Classification, filters filters) error {
+	return nil
 }

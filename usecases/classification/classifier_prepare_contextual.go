@@ -34,17 +34,18 @@ type contextualPreparationContext struct {
 
 func (c *Classifier) prepareContextualClassification(kind kind.Kind, params models.Classification,
 	filters filters, items search.Results) (contextualPreparationContext, error) {
-	schema := c.schemaGetter.GetSchemaSkipAuth()
-	p := &contextualPreparer{
-		inputItems: items,
-		params:     params,
-		repo:       c.vectorRepo,
-		filters:    filters,
-		kind:       kind,
-		schema:     schema,
-	}
+	// schema := c.schemaGetter.GetSchemaSkipAuth()
+	// p := &contextualPreparer{
+	// 	inputItems: items,
+	// 	params:     params,
+	// 	repo:       c.vectorRepo,
+	// 	filters:    filters,
+	// 	kind:       kind,
+	// 	schema:     schema,
+	// }
 
-	return p.do()
+	// return p.do()
+	return contextualPreparationContext{}, nil
 }
 
 type contextualPreparer struct {

@@ -77,14 +77,14 @@ func (c *Classifier) prepareRun(kind kind.Kind, params models.Classification, fi
 	case "knn":
 		classifyItem = c.classifyItemUsingKNN
 	case "contextual":
-		// 1. do preparation here once
-		preparedContext, err := c.prepareContextualClassification(kind, params, filters, unclassifiedItems)
-		if err != nil {
-			return nil, errors.Wrap(err, "prepare context for contexual classification")
-		}
+		// // 1. do preparation here once
+		// preparedContext, err := c.prepareContextualClassification(kind, params, filters, unclassifiedItems)
+		// if err != nil {
+		// 	return nil, errors.Wrap(err, "prepare context for contexual classification")
+		// }
 
 		// 2. use higher order function to inject preparation data so it is then present for each single run
-		classifyItem = c.makeClassifyItemContextual(preparedContext)
+		classifyItem = c.makeClassifyItemContextual(contextualPreparationContext{})
 	default:
 		return nil, fmt.Errorf("unsupported type '%s', have no classify item fn for this", *params.Type)
 	}
