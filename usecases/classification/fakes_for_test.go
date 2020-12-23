@@ -24,7 +24,6 @@ import (
 	"github.com/semi-technologies/weaviate/entities/schema"
 	"github.com/semi-technologies/weaviate/entities/schema/kind"
 	"github.com/semi-technologies/weaviate/entities/search"
-	"github.com/semi-technologies/weaviate/usecases/kinds"
 	"github.com/semi-technologies/weaviate/usecases/traverser"
 )
 
@@ -160,17 +159,15 @@ func (f *fakeVectorRepoKNN) VectorClassSearch(ctx context.Context,
 	return nil, fmt.Errorf("vector class search not implemented in fake")
 }
 
-func (f *fakeVectorRepoKNN) BatchPutThings(ctx context.Context, things kinds.BatchThings) (kinds.BatchThings, error) {
+func (f *fakeVectorRepoKNN) PutThing(ctx context.Context, thing *models.Thing, vector []float32) error {
 	f.Lock()
 	defer f.Unlock()
-	for _, batchThing := range things {
-		f.db[batchThing.Thing.ID] = batchThing.Thing
-	}
-	return things, nil
+	f.db[thing.ID] = thing
+	return nil
 }
 
-func (f *fakeVectorRepoKNN) BatchPutActions(ctx context.Context, actions kinds.BatchActions) (kinds.BatchActions, error) {
-	return actions, fmt.Errorf("put action not implemented in fake")
+func (f *fakeVectorRepoKNN) PutAction(ctx context.Context, thing *models.Action, vector []float32) error {
+	return fmt.Errorf("put action not implemented in fake")
 }
 
 func (f *fakeVectorRepoKNN) get(id strfmt.UUID) (*models.Thing, bool) {
@@ -227,17 +224,15 @@ func (f *fakeVectorRepoContextual) AggregateNeighbors(ctx context.Context, vecto
 	panic("not implemented")
 }
 
-func (f *fakeVectorRepoContextual) BatchPutThings(ctx context.Context, things kinds.BatchThings) (kinds.BatchThings, error) {
+func (f *fakeVectorRepoContextual) PutThing(ctx context.Context, thing *models.Thing, vector []float32) error {
 	f.Lock()
 	defer f.Unlock()
-	for _, batchThing := range things {
-		f.db[batchThing.Thing.ID] = batchThing.Thing
-	}
-	return things, nil
+	f.db[thing.ID] = thing
+	return nil
 }
 
-func (f *fakeVectorRepoContextual) BatchPutActions(ctx context.Context, actions kinds.BatchActions) (kinds.BatchActions, error) {
-	return actions, fmt.Errorf("put action not implemented in fake")
+func (f *fakeVectorRepoContextual) PutAction(ctx context.Context, thing *models.Action, vector []float32) error {
+	return fmt.Errorf("put action not implemented in fake")
 }
 
 func (f *fakeVectorRepoContextual) VectorClassSearch(ctx context.Context,
