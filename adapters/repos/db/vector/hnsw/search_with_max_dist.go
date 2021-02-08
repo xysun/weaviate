@@ -36,7 +36,7 @@ func (h *hnsw) KnnSearchByVectorMaxDist(searchVec []float32, dist float32,
 		eps := &binarySearchTreeGeneric{}
 		eps.insert(entryPointID, entryPointDistance)
 		// ignore allowList on layers > 0
-		res, err := h.searchLayerByVector(searchVec, *eps, 1, level, nil)
+		res, err := h.searchLayerByVector(searchVec, *eps, 1, level, nil, nil)
 		if err != nil {
 			return nil, errors.Wrapf(err, "knn search: search layer at level %d", level)
 		}
@@ -49,7 +49,7 @@ func (h *hnsw) KnnSearchByVectorMaxDist(searchVec []float32, dist float32,
 
 	eps := &binarySearchTreeGeneric{}
 	eps.insert(entryPointID, entryPointDistance)
-	res, err := h.searchLayerByVector(searchVec, *eps, ef, 0, allowList)
+	res, err := h.searchLayerByVector(searchVec, *eps, ef, 0, allowList, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "knn search: search layer at level %d", 0)
 	}

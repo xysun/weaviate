@@ -45,9 +45,16 @@ func targetContained(haystack []uint64, needle uint64) bool {
 	return false
 }
 
+// WARNING: findAndConnectNeighbors is assumed to be called from situations
+// where the caller already holds a Lock (write lock) on the node. Make sure to
+// be in possesion of a lock when calling this method or you'll risk concurrent
+// map read/writes and/or logical errors
 func (h *hnsw) findAndConnectNeighbors(node *vertex,
 	entryPointID uint64, nodeVec []float32, targetLevel, currentMaxLevel int,
 	denyList helpers.AllowList) error {
+	// if denyList != nil {
+	// 	fmt.Printf("delete list in facn: %#v\n", denyList)
+	// }
 	nfc := newNeighborFinderConnector(h, node, entryPointID, nodeVec, targetLevel,
 		currentMaxLevel, denyList)
 
@@ -107,8 +114,11 @@ func (n *neighborFinderConnector) Do() error {
 }
 
 func (n *neighborFinderConnector) doAtLevel(level int) error {
+	// if n.denyList != nil {
+	// 	fmt.Printf("delete list in do at level: %#v\n", n.denyList)
+	// }
 	results, err := n.graph.searchLayerByVector(n.nodeVec, *n.results, n.graph.efConstruction,
-		level, nil)
+		level, nil, n.denyList)
 	if err != nil {
 		return errors.Wrapf(err, "find neighbors: search layer at level %d", level)
 	}
@@ -132,6 +142,12 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 
 func (n *neighborFinderConnector) connectNeighborAtLevel(neighborID uint64,
 	level int) error {
+	ok, unlock := n.graph.nodeUnderMaintenance(neighborID)
+	defer unlock()
+	if ok {
+		return nil
+	}
+
 	neighbor := n.graph.nodeByID(neighborID)
 	if skip := n.skipNeighbor(neighbor); skip {
 		return nil

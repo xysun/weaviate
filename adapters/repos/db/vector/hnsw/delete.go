@@ -13,6 +13,7 @@ package hnsw
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -121,6 +122,7 @@ func (h *hnsw) CleanUpTombstonedNodes() error {
 		return nil
 	}
 
+	fmt.Printf("delete list in early cutn: %#v\n", deleteList)
 	if err := h.reassignNeighborsOf(deleteList); err != nil {
 		return errors.Wrap(err, "reassign neighbor edges")
 	}
@@ -204,7 +206,7 @@ func (h *hnsw) reassignNeighborsOf(deleteList helpers.AllowList) error {
 		}
 
 		entryPointID, err := h.findBestEntrypointForNode(h.currentMaximumLayer,
-			neighborLevel, currentEntrypoint, neighborVec)
+			neighborLevel, currentEntrypoint, neighborVec, deleteList)
 		if err != nil {
 			return errors.Wrap(err, "find best entrypoint")
 		}
@@ -235,18 +237,20 @@ func (h *hnsw) reassignNeighborsOf(deleteList helpers.AllowList) error {
 			entryPointID = alternative
 		}
 
-		neighborNode.Lock()
+		h.markAsMaintenance(neighborNode.id)
+		deleteListWithNeighbor := deleteList.DeepCopy()
+		deleteListWithNeighbor.Insert(neighborNode.id)
 		// delete all existing connections before re-assigning
 		neighborNode.connections = map[int][]uint64{}
-		neighborNode.Unlock()
 		if err := h.commitLog.ClearLinks(neighbor); err != nil {
 			return err
 		}
 
 		if err := h.findAndConnectNeighbors(neighborNode, entryPointID, neighborVec,
-			neighborLevel, h.currentMaximumLayer, deleteList); err != nil {
+			neighborLevel, h.currentMaximumLayer, deleteListWithNeighbor); err != nil {
 			return errors.Wrap(err, "find and connect neighbors")
 		}
+		h.unmarkAsMaintenance(neighborNode.id)
 	}
 
 	return nil
@@ -332,9 +336,10 @@ func (h *hnsw) findNewGlobalEntrypoint(denyList helpers.AllowList, targetLevel i
 				continue
 			}
 
-			candidate.RLock()
+			// TODO: explain why we have a Lock and not an RLock here
+			candidate.Lock()
 			candidateLevel := candidate.level
-			candidate.RUnlock()
+			candidate.Unlock()
 
 			if candidateLevel != l {
 				// not reaching up to the current level, skip in hope of finding another candidate
@@ -384,9 +389,9 @@ func (h *hnsw) findNewLocalEntrypoint(denyList helpers.AllowList, targetLevel in
 				continue
 			}
 
-			candidate.RLock()
+			candidate.Lock()
 			candidateLevel := candidate.level
-			candidate.RUnlock()
+			candidate.Unlock()
 
 			if candidateLevel != l {
 				// not reaching up to the current level, skip in hope of finding another candidate
@@ -428,4 +433,12 @@ func (h *hnsw) addTombstone(id uint64) error {
 	h.tombstones[id] = struct{}{}
 	h.Unlock()
 	return h.commitLog.AddTombstone(id)
+}
+
+// WORKAROUND, should really be maintenance
+func (h *hnsw) deleteTombstone(id uint64) error {
+	h.Lock()
+	delete(h.tombstones, id)
+	h.Unlock()
+	return nil
 }

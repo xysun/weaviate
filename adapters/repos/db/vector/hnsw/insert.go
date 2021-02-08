@@ -66,6 +66,9 @@ func (h *hnsw) insert(node *vertex, nodeVec []float32) error {
 		return firstInsertError
 	}
 
+	h.markAsMaintenance(node.id)
+	defer h.unmarkAsMaintenance(node.id)
+
 	// initially use the "global" entrypoint which is guaranteed to be on the
 	// currently highest layer
 	entryPointID := h.entryPointID
@@ -77,11 +80,9 @@ func (h *hnsw) insert(node *vertex, nodeVec []float32) error {
 	targetLevel := int(math.Floor(-math.Log(rand.Float64()*h.levelNormalizer))) - 1
 
 	// before = time.Now()
-	node.Lock()
 	// m.addBuildingItemLocking(before)
 	node.level = targetLevel
 	node.connections = map[int][]uint64{}
-	node.Unlock()
 
 	// before = time.Now()
 	h.Lock()
@@ -100,14 +101,15 @@ func (h *hnsw) insert(node *vertex, nodeVec []float32) error {
 
 	h.Unlock()
 
+	denyList := h.tombstonesAsDenyList()
 	entryPointID, err = h.findBestEntrypointForNode(currentMaximumLayer, targetLevel,
-		entryPointID, nodeVec)
+		entryPointID, nodeVec, denyList)
 	if err != nil {
 		return errors.Wrap(err, "find best entrypoint")
 	}
 
 	if err := h.findAndConnectNeighbors(node, entryPointID, nodeVec,
-		targetLevel, currentMaximumLayer, nil); err != nil {
+		targetLevel, currentMaximumLayer, denyList); err != nil {
 		return errors.Wrap(err, "find and connect neighbors")
 	}
 

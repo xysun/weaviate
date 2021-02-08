@@ -15,6 +15,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/helpers"
@@ -58,7 +60,7 @@ func (h *hnsw) knnSearch(queryNodeID uint64, k int, ef int) ([]uint64, error) {
 		eps := &binarySearchTreeGeneric{}
 		eps.insert(entryPointID, entryPointDistance)
 
-		res, err := h.searchLayerByVector(queryVector, *eps, 1, level, nil)
+		res, err := h.searchLayerByVector(queryVector, *eps, 1, level, nil, nil)
 		if err != nil {
 			return nil, errors.Wrapf(err, "knn search: search layer at level %d", level)
 		}
@@ -69,7 +71,7 @@ func (h *hnsw) knnSearch(queryNodeID uint64, k int, ef int) ([]uint64, error) {
 
 	eps := &binarySearchTreeGeneric{}
 	eps.insert(entryPointID, entryPointDistance)
-	res, err := h.searchLayerByVector(queryVector, *eps, ef, 0, nil)
+	res, err := h.searchLayerByVector(queryVector, *eps, ef, 0, nil, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "knn search: search layer at level %d", 0)
 	}
@@ -89,7 +91,7 @@ func (h *hnsw) knnSearch(queryNodeID uint64, k int, ef int) ([]uint64, error) {
 
 func (h *hnsw) searchLayerByVector(queryVector []float32,
 	entrypoints binarySearchTreeGeneric, ef int, level int,
-	allowList helpers.AllowList) (*binarySearchTreeGeneric, error) {
+	allowList, denyList helpers.AllowList) (*binarySearchTreeGeneric, error) {
 	visited := newVisitedList(entrypoints)
 	candidates := &binarySearchTreeGeneric{}
 	results := &binarySearchTreeGeneric{}
@@ -120,11 +122,29 @@ func (h *hnsw) searchLayerByVector(queryVector []float32,
 			break
 		}
 
+		// // if denyList != nil {
+		// // 	fmt.Printf("current candidate: %d\ndeny List: %v\n", candidate.index, denyList.Contains(candidate.index))
+		// // }
+		// if denyList != nil && denyList.Contains(candidate.index) {
+		// 	fmt.Printf("skipping %d because it's on the deny list \n", candidate.index)
+		// 	continue
+		// }
+
+		// if h.hasTombstone(candidate.index) {
+		// 	fmt.Printf("\n\nnode %d not on the deny list but still has a tombstone!\n\n", candidate.index)
+		// 	continue
+		// }
+
+		// fmt.Printf("search trying to lock %d maintenance status\n", candidate.index)
+		ok, unlock := h.nodeUnderMaintenance(candidate.index)
+		if ok {
+			unlock()
+			continue
+		}
+
 		// before := time.Now()
-		h.RLock()
 		// m.addBuildingReadLocking(before)
 		candidateNode := h.nodes[candidate.index]
-		h.RUnlock()
 
 		if candidateNode == nil {
 			// could have been a node that already had a tombstone attached and was
@@ -132,8 +152,10 @@ func (h *hnsw) searchLayerByVector(queryVector []float32,
 			continue
 		}
 
-		// before = time.Now()
+		debugCtx, cancel := context.WithCancel(context.Background())
+		go debugLock(debugCtx, candidate.index, "ReadLock", "")
 		candidateNode.RLock()
+		cancel()
 		// m.addBuildingItemLocking(before)
 		connections := candidateNode.connections[level]
 		candidateNode.RUnlock()
@@ -143,6 +165,8 @@ func (h *hnsw) searchLayerByVector(queryVector []float32,
 			worstResultDistance); err != nil {
 			return nil, errors.Wrap(err, "extend candidates and results from neighbors")
 		}
+
+		unlock()
 	}
 
 	return results, nil
@@ -172,6 +196,12 @@ func (h *hnsw) insertViableEntrypointsAsCandidatesAndResults(
 		}
 
 		if h.hasTombstone(ep.index) {
+			continue
+		}
+
+		ok, unlock := h.nodeUnderMaintenance(ep.index)
+		defer unlock()
+		if ok {
 			continue
 		}
 
@@ -242,6 +272,11 @@ func (h *hnsw) extendCandidatesAndResultsFromNeighbors(candidates,
 				continue
 			}
 
+			// no need to lock as this is called under maintenanceLock anyway
+			if _, ok := h.maintenanceNodes[neighborID]; ok {
+				continue
+			}
+
 			results.insert(neighborID, distance)
 
 			// +1 because we have added one node size calculating the len
@@ -300,7 +335,10 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 		return nil, nil
 	}
 
+	debug := &strings.Builder{}
+
 	entryPointID := h.entryPointID
+	debug.WriteString(fmt.Sprintf("initial entry point is %d\n", entryPointID))
 	entryPointDistance, ok, err := h.distBetweenNodeAndVec(entryPointID, searchVec)
 	if err != nil {
 		return nil, errors.Wrap(err, "knn search: distance between entrypint and query node")
@@ -313,13 +351,15 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 
 	// stop at layer 1, not 0!
 	for level := h.currentMaximumLayer; level >= 1; level-- {
+		debug.WriteString(fmt.Sprintf("now on level %d\n", level))
 		eps := &binarySearchTreeGeneric{}
 		eps.insert(entryPointID, entryPointDistance)
 		// ignore allowList on layers > 0
-		res, err := h.searchLayerByVector(searchVec, *eps, 1, level, nil)
+		res, err := h.searchLayerByVector(searchVec, *eps, 1, level, nil, nil)
 		if err != nil {
 			return nil, errors.Wrapf(err, "knn search: search layer at level %d", level)
 		}
+		debug.WriteString(fmt.Sprintf("\tresults on level: %#v\n", len(res.flattenInOrder())))
 
 		// There might be situations where we did not find a better entrypoint at
 		// that particular level, so instead we're keeping whatever entrypoint we
@@ -329,15 +369,35 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 			best := res.minimum()
 			entryPointID = best.index
 			entryPointDistance = best.dist
+			debug.WriteString(fmt.Sprintf("\tfalling back to entrypint: %d\n", entryPointID))
 		}
 	}
 
+	debug.WriteString(fmt.Sprintf("now on level 0\n"))
 	eps := &binarySearchTreeGeneric{}
 	eps.insert(entryPointID, entryPointDistance)
-	res, err := h.searchLayerByVector(searchVec, *eps, ef, 0, allowList)
+
+	h.nodes[entryPointID].RLock()
+	debug.WriteString(fmt.Sprintf("level zero connections of node %d: %v\n",
+		entryPointID, len(h.nodes[entryPointID].connections[0])))
+	debug.WriteString(fmt.Sprintf("all connections: %#v\n", h.nodes[entryPointID].connections))
+
+	for _, conn := range h.nodes[entryPointID].connections[0] {
+		if allowList.Contains(conn) {
+			debug.WriteString(fmt.Sprintf("neighbor %d allowed\n", conn))
+		} else {
+			debug.WriteString(fmt.Sprintf("neighbor %d NOT allowed\n", conn))
+		}
+	}
+
+	h.nodes[entryPointID].RUnlock()
+
+	res, err := h.searchLayerByVector(searchVec, *eps, ef, 0, allowList, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "knn search: search layer at level %d", 0)
 	}
+
+	debug.WriteString(fmt.Sprintf("search returned %d objects\n", len(res.flattenInOrder())))
 
 	flat := res.flattenInOrder()
 	size := min(len(flat), k)
@@ -347,6 +407,10 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 			break
 		}
 		out[i] = elem.index
+	}
+
+	if len(out) == 0 {
+		fmt.Printf("%s\n\n", debug.String())
 	}
 
 	return out, nil
@@ -391,4 +455,19 @@ func (h *hnsw) selectNeighborsSimpleFromId(nodeId uint64, ids []uint64,
 	}
 
 	return h.selectNeighborsSimple(*bst, max, denyList), nil
+}
+
+func debugLock(ctx context.Context, id uint64, locktype, msg string) {
+	start := time.Now()
+
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		time.Sleep(1 * time.Second)
+		if time.Since(start) > 5000*time.Millisecond {
+			fmt.Printf("%w waiting for a %s on %d for %s", msg, locktype, id, time.Since(start))
+		}
+
+	}
 }

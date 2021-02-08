@@ -29,9 +29,11 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/nyaruka/phonenumbers v1.0.54
+	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v0.9.3 // indirect
 	github.com/rs/cors v1.5.0
+	github.com/sasha-s/go-deadlock v0.2.0
 	github.com/satori/go.uuid v0.0.0-20180103174451-36e9d2ebbde5
 	github.com/semi-technologies/contextionary v0.0.0-20200701085343-13c11a568705
 	github.com/sirupsen/logrus v1.6.0
