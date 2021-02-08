@@ -206,7 +206,7 @@ func (h *hnsw) reassignNeighborsOf(deleteList helpers.AllowList) error {
 		}
 
 		entryPointID, err := h.findBestEntrypointForNode(h.currentMaximumLayer,
-			neighborLevel, currentEntrypoint, neighborVec, deleteList)
+			neighborLevel, currentEntrypoint, neighborVec)
 		if err != nil {
 			return errors.Wrap(err, "find best entrypoint")
 		}
@@ -238,8 +238,6 @@ func (h *hnsw) reassignNeighborsOf(deleteList helpers.AllowList) error {
 		}
 
 		h.markAsMaintenance(neighborNode.id)
-		deleteListWithNeighbor := deleteList.DeepCopy()
-		deleteListWithNeighbor.Insert(neighborNode.id)
 		// delete all existing connections before re-assigning
 		neighborNode.connections = map[int][]uint64{}
 		if err := h.commitLog.ClearLinks(neighbor); err != nil {
@@ -247,7 +245,7 @@ func (h *hnsw) reassignNeighborsOf(deleteList helpers.AllowList) error {
 		}
 
 		if err := h.findAndConnectNeighbors(neighborNode, entryPointID, neighborVec,
-			neighborLevel, h.currentMaximumLayer, deleteListWithNeighbor); err != nil {
+			neighborLevel, h.currentMaximumLayer, deleteList); err != nil {
 			return errors.Wrap(err, "find and connect neighbors")
 		}
 		h.unmarkAsMaintenance(neighborNode.id)
@@ -336,10 +334,9 @@ func (h *hnsw) findNewGlobalEntrypoint(denyList helpers.AllowList, targetLevel i
 				continue
 			}
 
-			// TODO: explain why we have a Lock and not an RLock here
-			candidate.Lock()
+			candidate.RLock()
 			candidateLevel := candidate.level
-			candidate.Unlock()
+			candidate.RUnlock()
 
 			if candidateLevel != l {
 				// not reaching up to the current level, skip in hope of finding another candidate
@@ -389,9 +386,9 @@ func (h *hnsw) findNewLocalEntrypoint(denyList helpers.AllowList, targetLevel in
 				continue
 			}
 
-			candidate.Lock()
+			candidate.RLock()
 			candidateLevel := candidate.level
-			candidate.Unlock()
+			candidate.RUnlock()
 
 			if candidateLevel != l {
 				// not reaching up to the current level, skip in hope of finding another candidate
@@ -433,12 +430,4 @@ func (h *hnsw) addTombstone(id uint64) error {
 	h.tombstones[id] = struct{}{}
 	h.Unlock()
 	return h.commitLog.AddTombstone(id)
-}
-
-// WORKAROUND, should really be maintenance
-func (h *hnsw) deleteTombstone(id uint64) error {
-	h.Lock()
-	delete(h.tombstones, id)
-	h.Unlock()
-	return nil
 }

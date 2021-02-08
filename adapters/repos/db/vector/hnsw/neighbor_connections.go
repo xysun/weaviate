@@ -118,7 +118,7 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 	// 	fmt.Printf("delete list in do at level: %#v\n", n.denyList)
 	// }
 	results, err := n.graph.searchLayerByVector(n.nodeVec, *n.results, n.graph.efConstruction,
-		level, nil, n.denyList)
+		level, nil)
 	if err != nil {
 		return errors.Wrapf(err, "find neighbors: search layer at level %d", level)
 	}

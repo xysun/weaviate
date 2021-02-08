@@ -60,7 +60,7 @@ func (h *hnsw) knnSearch(queryNodeID uint64, k int, ef int) ([]uint64, error) {
 		eps := &binarySearchTreeGeneric{}
 		eps.insert(entryPointID, entryPointDistance)
 
-		res, err := h.searchLayerByVector(queryVector, *eps, 1, level, nil, nil)
+		res, err := h.searchLayerByVector(queryVector, *eps, 1, level, nil)
 		if err != nil {
 			return nil, errors.Wrapf(err, "knn search: search layer at level %d", level)
 		}
@@ -71,7 +71,7 @@ func (h *hnsw) knnSearch(queryNodeID uint64, k int, ef int) ([]uint64, error) {
 
 	eps := &binarySearchTreeGeneric{}
 	eps.insert(entryPointID, entryPointDistance)
-	res, err := h.searchLayerByVector(queryVector, *eps, ef, 0, nil, nil)
+	res, err := h.searchLayerByVector(queryVector, *eps, ef, 0, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "knn search: search layer at level %d", 0)
 	}
@@ -91,7 +91,7 @@ func (h *hnsw) knnSearch(queryNodeID uint64, k int, ef int) ([]uint64, error) {
 
 func (h *hnsw) searchLayerByVector(queryVector []float32,
 	entrypoints binarySearchTreeGeneric, ef int, level int,
-	allowList, denyList helpers.AllowList) (*binarySearchTreeGeneric, error) {
+	allowList helpers.AllowList) (*binarySearchTreeGeneric, error) {
 	visited := newVisitedList(entrypoints)
 	candidates := &binarySearchTreeGeneric{}
 	results := &binarySearchTreeGeneric{}
@@ -355,7 +355,7 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 		eps := &binarySearchTreeGeneric{}
 		eps.insert(entryPointID, entryPointDistance)
 		// ignore allowList on layers > 0
-		res, err := h.searchLayerByVector(searchVec, *eps, 1, level, nil, nil)
+		res, err := h.searchLayerByVector(searchVec, *eps, 1, level, nil)
 		if err != nil {
 			return nil, errors.Wrapf(err, "knn search: search layer at level %d", level)
 		}
@@ -392,7 +392,7 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 
 	h.nodes[entryPointID].RUnlock()
 
-	res, err := h.searchLayerByVector(searchVec, *eps, ef, 0, allowList, nil)
+	res, err := h.searchLayerByVector(searchVec, *eps, ef, 0, allowList)
 	if err != nil {
 		return nil, errors.Wrapf(err, "knn search: search layer at level %d", 0)
 	}

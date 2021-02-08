@@ -20,8 +20,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sasha-s/go-deadlock"
-	"github.com/semi-technologies/weaviate/adapters/repos/db/helpers"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/storobj"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 	"github.com/sirupsen/logrus"
@@ -29,7 +27,7 @@ import (
 
 type hnsw struct {
 	// global lock to prevent concurrent map read/write, etc.
-	deadlock.RWMutex
+	sync.RWMutex
 
 	// certain operations related to deleting, such as finding a new entrypoint
 	// can only run sequentially, this separate lock helps assuring this without
@@ -59,7 +57,7 @@ type hnsw struct {
 	entryPointID uint64
 
 	maintenanceNodes map[uint64]struct{}
-	maintenanceLock  *deadlock.RWMutex
+	maintenanceLock  *sync.RWMutex
 
 	// ef parameter used in construction phases, should be higher than ef during querying
 	efConstruction int
@@ -162,7 +160,7 @@ func New(cfg Config, uc UserConfig) (*hnsw, error) {
 		initialInsertOnce: &sync.Once{},
 		cleanupInterval:   time.Duration(uc.CleanupIntervalSeconds) * time.Second,
 		maintenanceNodes:  map[uint64]struct{}{},
-		maintenanceLock:   &deadlock.RWMutex{},
+		maintenanceLock:   &sync.RWMutex{},
 	}
 
 	if err := index.init(cfg); err != nil {
@@ -272,7 +270,7 @@ func New(cfg Config, uc UserConfig) (*hnsw, error) {
 // }
 
 func (h *hnsw) findBestEntrypointForNode(currentMaxLevel, targetLevel int,
-	entryPointID uint64, nodeVec []float32, denyList helpers.AllowList) (uint64, error) {
+	entryPointID uint64, nodeVec []float32) (uint64, error) {
 	// in case the new target is lower than the current max, we need to search
 	// each layer for a better candidate and update the candidate
 	for level := currentMaxLevel; level > targetLevel; level-- {
@@ -287,7 +285,7 @@ func (h *hnsw) findBestEntrypointForNode(currentMaxLevel, targetLevel int,
 		}
 
 		tmpBST.insert(entryPointID, dist)
-		res, err := h.searchLayerByVector(nodeVec, *tmpBST, 1, level, nil, denyList)
+		res, err := h.searchLayerByVector(nodeVec, *tmpBST, 1, level, nil)
 		if err != nil {
 			return 0,
 				errors.Wrapf(err, "update candidate: search layer at level %d", level)
@@ -304,7 +302,7 @@ func (h *hnsw) findBestEntrypointForNode(currentMaxLevel, targetLevel int,
 
 type vertex struct {
 	id uint64
-	deadlock.RWMutex
+	sync.RWMutex
 	level       int
 	connections map[int][]uint64 // map[level][]connectedId
 }

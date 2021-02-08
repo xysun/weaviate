@@ -103,7 +103,7 @@ func (h *hnsw) insert(node *vertex, nodeVec []float32) error {
 
 	denyList := h.tombstonesAsDenyList()
 	entryPointID, err = h.findBestEntrypointForNode(currentMaximumLayer, targetLevel,
-		entryPointID, nodeVec, denyList)
+		entryPointID, nodeVec)
 	if err != nil {
 		return errors.Wrap(err, "find best entrypoint")
 	}
