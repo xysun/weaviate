@@ -93,7 +93,7 @@ func (ec *errorCompounder) toError() error {
 }
 
 const (
-	DefaultCleanupIntervalSeconds = 1 * 60
+	DefaultCleanupIntervalSeconds = 5 * 60
 	DefaultMaxConnections         = 64
 	DefaultEFConstruction         = 128
 	DefaultVectorCacheMaxObjects  = 500000
