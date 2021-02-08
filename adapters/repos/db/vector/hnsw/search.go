@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/helpers"
@@ -100,6 +99,12 @@ func (h *hnsw) searchLayerByVector(queryVector []float32,
 	h.insertViableEntrypointsAsCandidatesAndResults(entrypoints, candidates,
 		results, level, allowList)
 
+	debug := &strings.Builder{}
+
+	if level == 0 {
+		debug.WriteString(fmt.Sprintf("entrypoints in beginning: %v\n", entrypoints.flattenInOrder()))
+	}
+
 	for candidates.root != nil { // efficient way to see if the len is > 0
 		candidate := candidates.minimum()
 		candidates.delete(candidate.index, candidate.dist)
@@ -136,11 +141,11 @@ func (h *hnsw) searchLayerByVector(queryVector []float32,
 		// }
 
 		// fmt.Printf("search trying to lock %d maintenance status\n", candidate.index)
-		ok, unlock := h.nodeUnderMaintenance(candidate.index)
-		if ok {
-			unlock()
-			continue
-		}
+		// ok, unlock := h.nodeUnderMaintenance(candidate.index)
+		// if ok {
+		// 	unlock()
+		// 	continue
+		// }
 
 		// before := time.Now()
 		// m.addBuildingReadLocking(before)
@@ -152,13 +157,14 @@ func (h *hnsw) searchLayerByVector(queryVector []float32,
 			continue
 		}
 
-		debugCtx, cancel := context.WithCancel(context.Background())
-		go debugLock(debugCtx, candidate.index, "ReadLock", "")
 		candidateNode.RLock()
-		cancel()
 		// m.addBuildingItemLocking(before)
 		connections := candidateNode.connections[level]
 		candidateNode.RUnlock()
+
+		if results.root == nil && level == 0 {
+			debug.WriteString(fmt.Sprintf("BEFORE: result length %d, candidate length: %d\n", len(results.flattenInOrder()), len(candidates.flattenInOrder())))
+		}
 
 		if err := h.extendCandidatesAndResultsFromNeighbors(candidates, results,
 			connections, visited, distancer, ef, level, allowList,
@@ -166,7 +172,19 @@ func (h *hnsw) searchLayerByVector(queryVector []float32,
 			return nil, errors.Wrap(err, "extend candidates and results from neighbors")
 		}
 
-		unlock()
+		if results.root == nil && level == 0 {
+			debug.WriteString(fmt.Sprintf("AFTER: result length %d, candidate length: %d\n", len(results.flattenInOrder()), len(candidates.flattenInOrder())))
+		}
+
+		// unlock()
+	}
+
+	if level == 0 {
+		debug.WriteString(fmt.Sprintf("results: %v\n", results.flattenInOrder()))
+	}
+
+	if len(results.flattenInOrder()) < 2 {
+		fmt.Printf("%s", debug.String())
 	}
 
 	return results, nil
@@ -199,11 +217,11 @@ func (h *hnsw) insertViableEntrypointsAsCandidatesAndResults(
 			continue
 		}
 
-		ok, unlock := h.nodeUnderMaintenance(ep.index)
-		defer unlock()
-		if ok {
-			continue
-		}
+		// ok, unlock := h.nodeUnderMaintenance(ep.index)
+		// defer unlock()
+		// if ok {
+		// 	continue
+		// }
 
 		results.insert(ep.index, ep.dist)
 	}
@@ -272,10 +290,10 @@ func (h *hnsw) extendCandidatesAndResultsFromNeighbors(candidates,
 				continue
 			}
 
-			// no need to lock as this is called under maintenanceLock anyway
-			if _, ok := h.maintenanceNodes[neighborID]; ok {
-				continue
-			}
+			// // no need to lock as this is called under maintenanceLock anyway
+			// if _, ok := h.maintenanceNodes[neighborID]; ok {
+			// 	continue
+			// }
 
 			results.insert(neighborID, distance)
 
@@ -331,6 +349,9 @@ func (h *hnsw) handleDeletedNode(docID uint64) {
 
 func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 	ef int, allowList helpers.AllowList) ([]uint64, error) {
+	h.maintenanceLock.RLock()
+	defer h.maintenanceLock.RUnlock()
+
 	if h.isEmpty() {
 		return nil, nil
 	}
@@ -355,6 +376,10 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 		eps := &binarySearchTreeGeneric{}
 		eps.insert(entryPointID, entryPointDistance)
 		// ignore allowList on layers > 0
+		ef = 1
+		if level < 3 {
+			ef = 10
+		}
 		res, err := h.searchLayerByVector(searchVec, *eps, 1, level, nil)
 		if err != nil {
 			return nil, errors.Wrapf(err, "knn search: search layer at level %d", level)
@@ -366,31 +391,41 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 		// had before (i.e. either from a previous level or even the main
 		// entrypoint)
 		if res.root != nil {
-			best := res.minimum()
-			entryPointID = best.index
-			entryPointDistance = best.dist
-			debug.WriteString(fmt.Sprintf("\tfalling back to entrypint: %d\n", entryPointID))
+			best := res.flattenInOrder()
+
+			for i, cand := range best {
+				_, ok := h.maintenanceNodes[cand.index]
+				if ok {
+					fmt.Printf("\ndiscarding cand %d as it is under maintenance\n\n", i)
+				} else {
+					entryPointID = cand.index
+					entryPointDistance = cand.dist
+					debug.WriteString(fmt.Sprintf("updating to %dth entrypoint: %d\n", i, entryPointID))
+					break
+				}
+
+				fmt.Printf("\n\nFOUND NO CANDIDATE OUT OF ALL %d!!!!\n\n", ef)
+			}
 		}
 	}
 
-	debug.WriteString(fmt.Sprintf("now on level 0\n"))
+	debug.WriteString("now on level 0\n")
 	eps := &binarySearchTreeGeneric{}
 	eps.insert(entryPointID, entryPointDistance)
 
 	h.nodes[entryPointID].RLock()
 	debug.WriteString(fmt.Sprintf("level zero connections of node %d: %v\n",
 		entryPointID, len(h.nodes[entryPointID].connections[0])))
-	debug.WriteString(fmt.Sprintf("all connections: %#v\n", h.nodes[entryPointID].connections))
-
-	for _, conn := range h.nodes[entryPointID].connections[0] {
-		if allowList.Contains(conn) {
-			debug.WriteString(fmt.Sprintf("neighbor %d allowed\n", conn))
-		} else {
-			debug.WriteString(fmt.Sprintf("neighbor %d NOT allowed\n", conn))
-		}
-	}
-
+	debug.WriteString(fmt.Sprintf("all nodes under maintenance: %+v\n", h.maintenanceNodes))
 	h.nodes[entryPointID].RUnlock()
+
+	// for _, conn := range h.nodes[entryPointID].connections[0] {
+	// 	if allowList.Contains(conn) {
+	// 		debug.WriteString(fmt.Sprintf("neighbor %d allowed\n", conn))
+	// 	} else {
+	// 		debug.WriteString(fmt.Sprintf("neighbor %d NOT allowed\n", conn))
+	// 	}
+	// }
 
 	res, err := h.searchLayerByVector(searchVec, *eps, ef, 0, allowList)
 	if err != nil {
@@ -455,19 +490,4 @@ func (h *hnsw) selectNeighborsSimpleFromId(nodeId uint64, ids []uint64,
 	}
 
 	return h.selectNeighborsSimple(*bst, max, denyList), nil
-}
-
-func debugLock(ctx context.Context, id uint64, locktype, msg string) {
-	start := time.Now()
-
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		time.Sleep(1 * time.Second)
-		if time.Since(start) > 5000*time.Millisecond {
-			fmt.Printf("%w waiting for a %s on %d for %s", msg, locktype, id, time.Since(start))
-		}
-
-	}
 }

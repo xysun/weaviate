@@ -47,7 +47,7 @@ func targetContained(haystack []uint64, needle uint64) bool {
 
 // WARNING: findAndConnectNeighbors is assumed to be called from situations
 // where the caller already holds a Lock (write lock) on the node. Make sure to
-// be in possesion of a lock when calling this method or you'll risk concurrent
+// be in possession of a lock when calling this method or you'll risk concurrent
 // map read/writes and/or logical errors
 func (h *hnsw) findAndConnectNeighbors(node *vertex,
 	entryPointID uint64, nodeVec []float32, targetLevel, currentMaxLevel int,
@@ -65,6 +65,7 @@ type neighborFinderConnector struct {
 	graph           *hnsw
 	node            *vertex
 	entryPointID    uint64
+	entryPointDist  float32
 	nodeVec         []float32
 	targetLevel     int
 	currentMaxLevel int
@@ -100,6 +101,7 @@ func (n *neighborFinderConnector) Do() error {
 			"it has been flagged for cleanup and should be fixed in the next cleanup cycle")
 	}
 
+	n.entryPointDist = dist // for later use
 	n.results.insert(n.entryPointID, dist)
 	// neighborsAtLevel := make(map[int][]uint32) // for distributed spike
 
@@ -114,9 +116,39 @@ func (n *neighborFinderConnector) Do() error {
 }
 
 func (n *neighborFinderConnector) doAtLevel(level int) error {
+	// n.graph.maintenanceLock.RLock()
+	// defer n.graph.maintenanceLock.RUnlock()
+
 	// if n.denyList != nil {
 	// 	fmt.Printf("delete list in do at level: %#v\n", n.denyList)
 	// }
+
+	if _, ok := n.graph.maintenanceNodes[n.results.root.index]; ok {
+		fmt.Printf("need to find an alternative for ep %d\n", n.results.root.index)
+		haveAlternative := false
+		for i, ep := range n.results.flattenInOrder() {
+			if haveAlternative {
+				break
+			}
+			if i == 0 {
+				continue
+			}
+
+			if _, ok := n.graph.maintenanceNodes[ep.index]; !ok {
+				fmt.Printf("found an alternative among the existing ones\n")
+				haveAlternative = true
+			}
+		}
+
+		if !haveAlternative {
+			fmt.Printf("level %d: falling back to global EP since we didn't have an alternative\n", level)
+			fmt.Printf("local ep was %d, global ep is %d\n", n.results.root.index, n.entryPointID)
+			// n.graph.Dump()
+			n.results.insert(n.entryPointID, n.entryPointDist)
+
+		}
+	}
+
 	results, err := n.graph.searchLayerByVector(n.nodeVec, *n.results, n.graph.efConstruction,
 		level, nil)
 	if err != nil {
@@ -124,6 +156,10 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 	}
 
 	n.removeSelfFromResults()
+
+	// if level == 0 && len(results.flattenInOrder()) < 30 {
+	// 	fmt.Printf("Node %d:___ NFC: creating less than 30 connections:\n", n.node.id)
+	// }
 
 	neighbors := n.graph.selectNeighborsSimple(*results, n.graph.maximumConnections,
 		n.denyList)
@@ -142,11 +178,11 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 
 func (n *neighborFinderConnector) connectNeighborAtLevel(neighborID uint64,
 	level int) error {
-	ok, unlock := n.graph.nodeUnderMaintenance(neighborID)
-	defer unlock()
-	if ok {
-		return nil
-	}
+	// ok, unlock := n.graph.nodeUnderMaintenance(neighborID)
+	// defer unlock()
+	// if ok {
+	// 	return nil
+	// }
 
 	neighbor := n.graph.nodeByID(neighborID)
 	if skip := n.skipNeighbor(neighbor); skip {

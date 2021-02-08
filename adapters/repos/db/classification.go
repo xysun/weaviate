@@ -15,7 +15,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"time"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/pkg/errors"
@@ -70,29 +69,29 @@ func (db *DB) AggregateNeighbors(ctx context.Context, vector []float32,
 	}
 
 	out, err := NewKnnAggregator(res, vector).Aggregate(k, properties)
-	if len(out) == 0 {
-		for i := 0; i < 5; i++ {
-			fmt.Printf("\n\n\n\ntrying same search again\n")
-			res, err := db.VectorClassSearch(ctx, traverser.GetParams{
-				ClassName:    class,
-				SearchVector: vector,
-				Pagination: &filters.Pagination{
-					Limit: k,
-				},
-				Filters: mergedFilter,
-			})
-			if err != nil {
-				fmt.Println(err)
-			}
+	// if len(out) == 0 {
+	// for i := 0; i < 5; i++ {
+	// 	fmt.Printf("\n\n\n\ntrying same search again\n")
+	// 	res, err := db.VectorClassSearch(ctx, traverser.GetParams{
+	// 		ClassName:    class,
+	// 		SearchVector: vector,
+	// 		Pagination: &filters.Pagination{
+	// 			Limit: k,
+	// 		},
+	// 		Filters: mergedFilter,
+	// 	})
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 	}
 
-			fmt.Printf("found %d results\n", len(res))
-			if len(res) > 0 {
-				// return NewKnnAggregator(res, vector).Aggregate(k, properties)
-				break
-			}
-			time.Sleep(200 * time.Millisecond)
-		}
-	}
+	// 	fmt.Printf("found %d results\n", len(res))
+	// 	if len(res) > 0 {
+	// 		// return NewKnnAggregator(res, vector).Aggregate(k, properties)
+	// 		break
+	// 	}
+	// 	time.Sleep(200 * time.Millisecond)
+	// }
+	// }
 
 	return out, err
 }

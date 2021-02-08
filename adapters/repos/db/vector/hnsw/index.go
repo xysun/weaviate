@@ -292,8 +292,11 @@ func (h *hnsw) findBestEntrypointForNode(currentMaxLevel, targetLevel int,
 		}
 		if res.root != nil {
 			// if we could find a new entrypoint, use it
-			entryPointID = res.minimum().index
 			// in case everything was tombstoned, stick with the existing one
+			if _, ok := h.maintenanceNodes[res.root.index]; !ok {
+				// but not if the entrypoint is under maintenance
+				entryPointID = res.minimum().index
+			}
 		}
 	}
 
@@ -469,11 +472,4 @@ func (h *hnsw) unmarkAsMaintenance(id uint64) {
 	defer h.maintenanceLock.Unlock()
 
 	delete(h.maintenanceNodes, id)
-}
-
-func (h *hnsw) nodeUnderMaintenance(id uint64) (bool, func()) {
-	h.maintenanceLock.RLock()
-
-	_, ok := h.maintenanceNodes[id]
-	return ok, func() { h.maintenanceLock.RUnlock() }
 }
