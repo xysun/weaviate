@@ -124,8 +124,8 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 	// }
 	// TODO: investigate why the nil check is necessary - should there ever be a
 	// situation where the ep is nil?
-	firstEp := n.results.root.index
-	if _, ok := n.graph.maintenanceNodes[firstEp]; ok {
+	// firstEp := n.results.root.index
+	if n.node.isUnderMaintenance() {
 		fmt.Printf("need to find an alternative for ep %d\n", n.results.root.index)
 		haveAlternative := false
 		for i, ep := range n.results.flattenInOrder() {
@@ -136,18 +136,26 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 				continue
 			}
 
-			if _, ok := n.graph.maintenanceNodes[ep.index]; !ok {
+			if !n.graph.nodeByID(ep.index).isUnderMaintenance() {
 				fmt.Printf("found an alternative among the existing ones\n")
 				haveAlternative = true
 			}
 		}
 
 		if !haveAlternative {
+			globalEP := n.graph.entryPointID
+			dist, ok, err := n.graph.distBetweenNodeAndVec(globalEP, n.nodeVec)
+			if err != nil {
+				return errors.Wrapf(err, "calculate distance between insert node and final entrypoint")
+			}
+			if !ok {
+				return fmt.Errorf("entrypoint was deleted in the object store, " +
+					"it has been flagged for cleanup and should be fixed in the next cleanup cycle")
+			}
 			fmt.Printf("level %d: falling back to global EP since we didn't have an alternative\n", level)
-			fmt.Printf("local ep was %d, global ep is %d\n", n.results.root.index, n.entryPointID)
+			fmt.Printf("local ep was %d, global ep is %d\n", n.results.root.index, globalEP)
 			// n.graph.Dump()
-			n.results.insert(n.entryPointID, n.entryPointDist)
-
+			n.results.insert(globalEP, dist)
 		}
 	}
 

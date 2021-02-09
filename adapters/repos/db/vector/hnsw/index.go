@@ -293,7 +293,7 @@ func (h *hnsw) findBestEntrypointForNode(currentMaxLevel, targetLevel int,
 		if res.root != nil {
 			// if we could find a new entrypoint, use it
 			// in case everything was tombstoned, stick with the existing one
-			if _, ok := h.maintenanceNodes[res.root.index]; !ok {
+			if !h.nodeByID(res.root.index).isUnderMaintenance() {
 				// but not if the entrypoint is under maintenance
 				entryPointID = res.minimum().index
 			}
@@ -308,6 +308,28 @@ type vertex struct {
 	sync.RWMutex
 	level       int
 	connections map[int][]uint64 // map[level][]connectedId
+	maintenance bool
+}
+
+func (v *vertex) markAsMaintenance() {
+	v.Lock()
+	defer v.Unlock()
+
+	v.maintenance = true
+}
+
+func (v *vertex) unmarkAsMaintenance() {
+	v.Lock()
+	defer v.Unlock()
+
+	v.maintenance = false
+}
+
+func (v *vertex) isUnderMaintenance() bool {
+	v.RLock()
+	defer v.RUnlock()
+
+	return v.maintenance
 }
 
 func (v *vertex) connectionsAtLevel(level int) []uint64 {

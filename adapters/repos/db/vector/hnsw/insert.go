@@ -66,9 +66,7 @@ func (h *hnsw) insert(node *vertex, nodeVec []float32) error {
 		return firstInsertError
 	}
 
-	h.markAsMaintenance(node.id)
-
-	h.maintenanceLock.RLock()
+	node.markAsMaintenance()
 
 	// initially use the "global" entrypoint which is guaranteed to be on the
 	// currently highest layer
@@ -114,8 +112,7 @@ func (h *hnsw) insert(node *vertex, nodeVec []float32) error {
 	}
 
 	// go h.insertHook(nodeId, targetLevel, neighborsAtLevel)
-	h.maintenanceLock.RUnlock()
-	h.unmarkAsMaintenance(node.id)
+	node.unmarkAsMaintenance()
 
 	if targetLevel > h.currentMaximumLayer {
 		// before = time.Now()

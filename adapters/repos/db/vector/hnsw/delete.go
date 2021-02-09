@@ -205,13 +205,11 @@ func (h *hnsw) reassignNeighborsOf(deleteList helpers.AllowList) error {
 			continue
 		}
 
-		h.maintenanceLock.RLock()
 		entryPointID, err := h.findBestEntrypointForNode(h.currentMaximumLayer,
 			neighborLevel, currentEntrypoint, neighborVec)
 		if err != nil {
 			return errors.Wrap(err, "find best entrypoint")
 		}
-		h.maintenanceLock.RUnlock()
 
 		if entryPointID == neighbor {
 			fmt.Printf("neighbor %d is currently the entrypoint\n", neighbor)
@@ -240,20 +238,18 @@ func (h *hnsw) reassignNeighborsOf(deleteList helpers.AllowList) error {
 			fmt.Printf("setting %d as alternative entrypoint\n", alternative)
 		}
 
-		h.markAsMaintenance(neighborNode.id)
+		neighborNode.markAsMaintenance()
 		// delete all existing connections before re-assigning
 		neighborNode.connections = map[int][]uint64{}
 		if err := h.commitLog.ClearLinks(neighbor); err != nil {
 			return err
 		}
 
-		h.maintenanceLock.RLock()
 		if err := h.findAndConnectNeighbors(neighborNode, entryPointID, neighborVec,
 			neighborLevel, h.currentMaximumLayer, deleteList); err != nil {
 			return errors.Wrap(err, "find and connect neighbors")
 		}
-		h.maintenanceLock.RUnlock()
-		h.unmarkAsMaintenance(neighborNode.id)
+		neighborNode.unmarkAsMaintenance()
 	}
 
 	return nil
