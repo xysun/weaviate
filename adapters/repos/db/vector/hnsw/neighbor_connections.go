@@ -45,16 +45,9 @@ func targetContained(haystack []uint64, needle uint64) bool {
 	return false
 }
 
-// WARNING: findAndConnectNeighbors is assumed to be called from situations
-// where the caller already holds a Lock (write lock) on the node. Make sure to
-// be in possession of a lock when calling this method or you'll risk concurrent
-// map read/writes and/or logical errors
 func (h *hnsw) findAndConnectNeighbors(node *vertex,
 	entryPointID uint64, nodeVec []float32, targetLevel, currentMaxLevel int,
 	denyList helpers.AllowList) error {
-	// if denyList != nil {
-	// 	fmt.Printf("delete list in facn: %#v\n", denyList)
-	// }
 	nfc := newNeighborFinderConnector(h, node, entryPointID, nodeVec, targetLevel,
 		currentMaxLevel, denyList)
 
@@ -65,7 +58,6 @@ type neighborFinderConnector struct {
 	graph           *hnsw
 	node            *vertex
 	entryPointID    uint64
-	entryPointDist  float32
 	nodeVec         []float32
 	targetLevel     int
 	currentMaxLevel int
@@ -101,7 +93,6 @@ func (n *neighborFinderConnector) Do() error {
 			"it has been flagged for cleanup and should be fixed in the next cleanup cycle")
 	}
 
-	n.entryPointDist = dist // for later use
 	n.results.insert(n.entryPointID, dist)
 	// neighborsAtLevel := make(map[int][]uint32) // for distributed spike
 
@@ -116,47 +107,8 @@ func (n *neighborFinderConnector) Do() error {
 }
 
 func (n *neighborFinderConnector) doAtLevel(level int) error {
-	// n.graph.maintenanceLock.RLock()
-	// defer n.graph.maintenanceLock.RUnlock()
-
-	// if n.denyList != nil {
-	// 	fmt.Printf("delete list in do at level: %#v\n", n.denyList)
-	// }
-	// TODO: investigate why the nil check is necessary - should there ever be a
-	// situation where the ep is nil?
-	// firstEp := n.results.root.index
-	if n.node.isUnderMaintenance() {
-		// fmt.Printf("need to find an alternative for ep %d\n", n.results.root.index)
-		haveAlternative := false
-		for i, ep := range n.results.flattenInOrder() {
-			if haveAlternative {
-				break
-			}
-			if i == 0 {
-				continue
-			}
-
-			if !n.graph.nodeByID(ep.index).isUnderMaintenance() {
-				// fmt.Printf("found an alternative among the existing ones\n")
-				haveAlternative = true
-			}
-		}
-
-		if !haveAlternative {
-			globalEP := n.graph.entryPointID
-			dist, ok, err := n.graph.distBetweenNodeAndVec(globalEP, n.nodeVec)
-			if err != nil {
-				return errors.Wrapf(err, "calculate distance between insert node and final entrypoint")
-			}
-			if !ok {
-				return fmt.Errorf("entrypoint was deleted in the object store, " +
-					"it has been flagged for cleanup and should be fixed in the next cleanup cycle")
-			}
-			// fmt.Printf("level %d: falling back to global EP since we didn't have an alternative\n", level)
-			// fmt.Printf("local ep was %d, global ep is %d\n", n.results.root.index, globalEP)
-			// n.graph.Dump()
-			n.results.insert(globalEP, dist)
-		}
+	if err := n.replaceEntrypointsIfUnderMaintenance(); err != nil {
+		return err
 	}
 
 	results, err := n.graph.searchLayerByVector(n.nodeVec, *n.results, n.graph.efConstruction,
@@ -166,10 +118,6 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 	}
 
 	n.removeSelfFromResults()
-
-	// if level == 0 && len(results.flattenInOrder()) < 30 {
-	// 	fmt.Printf("Node %d:___ NFC: creating less than 30 connections:\n", n.node.id)
-	// }
 
 	neighbors := n.graph.selectNeighborsSimple(*results, n.graph.maximumConnections,
 		n.denyList)
@@ -186,14 +134,41 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 	return nil
 }
 
+func (n *neighborFinderConnector) replaceEntrypointsIfUnderMaintenance() error {
+	if n.node.isUnderMaintenance() {
+		haveAlternative := false
+		for i, ep := range n.results.flattenInOrder() {
+			if haveAlternative {
+				break
+			}
+			if i == 0 {
+				continue
+			}
+
+			if !n.graph.nodeByID(ep.index).isUnderMaintenance() {
+				haveAlternative = true
+			}
+		}
+
+		if !haveAlternative {
+			globalEP := n.graph.entryPointID
+			dist, ok, err := n.graph.distBetweenNodeAndVec(globalEP, n.nodeVec)
+			if err != nil {
+				return errors.Wrapf(err, "calculate distance between insert node and final entrypoint")
+			}
+			if !ok {
+				return fmt.Errorf("entrypoint was deleted in the object store, " +
+					"it has been flagged for cleanup and should be fixed in the next cleanup cycle")
+			}
+			n.results.insert(globalEP, dist)
+		}
+	}
+
+	return nil
+}
+
 func (n *neighborFinderConnector) connectNeighborAtLevel(neighborID uint64,
 	level int) error {
-	// ok, unlock := n.graph.nodeUnderMaintenance(neighborID)
-	// defer unlock()
-	// if ok {
-	// 	return nil
-	// }
-
 	neighbor := n.graph.nodeByID(neighborID)
 	if skip := n.skipNeighbor(neighbor); skip {
 		return nil

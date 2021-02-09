@@ -56,9 +56,6 @@ type hnsw struct {
 	// this point is always currentMaximumLayer
 	entryPointID uint64
 
-	maintenanceNodes map[uint64]struct{}
-	maintenanceLock  *sync.RWMutex
-
 	// ef parameter used in construction phases, should be higher than ef during querying
 	efConstruction int
 
@@ -159,8 +156,6 @@ func New(cfg Config, uc UserConfig) (*hnsw, error) {
 		deleteLock:        &sync.Mutex{},
 		initialInsertOnce: &sync.Once{},
 		cleanupInterval:   time.Duration(uc.CleanupIntervalSeconds) * time.Second,
-		maintenanceNodes:  map[uint64]struct{}{},
-		maintenanceLock:   &sync.RWMutex{},
 	}
 
 	if err := index.init(cfg); err != nil {
@@ -480,18 +475,4 @@ func (h *hnsw) Drop() error {
 	// cancel tombstone cleanup goroutine
 	h.cancel <- struct{}{}
 	return nil
-}
-
-func (h *hnsw) markAsMaintenance(id uint64) {
-	h.maintenanceLock.Lock()
-	defer h.maintenanceLock.Unlock()
-
-	h.maintenanceNodes[id] = struct{}{}
-}
-
-func (h *hnsw) unmarkAsMaintenance(id uint64) {
-	h.maintenanceLock.Lock()
-	defer h.maintenanceLock.Unlock()
-
-	delete(h.maintenanceNodes, id)
 }

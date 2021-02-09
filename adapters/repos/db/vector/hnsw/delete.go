@@ -13,7 +13,6 @@ package hnsw
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -122,7 +121,6 @@ func (h *hnsw) CleanUpTombstonedNodes() error {
 		return nil
 	}
 
-	fmt.Printf("delete list in early cutn: %#v\n", deleteList)
 	if err := h.reassignNeighborsOf(deleteList); err != nil {
 		return errors.Wrap(err, "reassign neighbor edges")
 	}
@@ -212,7 +210,6 @@ func (h *hnsw) reassignNeighborsOf(deleteList helpers.AllowList) error {
 		}
 
 		if entryPointID == neighbor {
-			fmt.Printf("neighbor %d is currently the entrypoint\n", neighbor)
 			// if we use ourselves as entrypoint and delete all connections in the
 			// next step, we won't find any neighbors, so we need to use an
 			// alternative entryPoint in this round
@@ -231,16 +228,18 @@ func (h *hnsw) reassignNeighborsOf(deleteList helpers.AllowList) error {
 
 			tmpDenyList := deleteList.DeepCopy()
 			tmpDenyList.Insert(entryPointID)
+
 			alternative, level := h.findNewLocalEntrypoint(tmpDenyList, h.currentMaximumLayer,
 				entryPointID)
 			neighborLevel = level // reduce in case no neighbor is at our level
 			entryPointID = alternative
-			fmt.Printf("setting %d as alternative entrypoint\n", alternative)
 		}
 
 		neighborNode.markAsMaintenance()
+		neighborNode.Lock()
 		// delete all existing connections before re-assigning
 		neighborNode.connections = map[int][]uint64{}
+		neighborNode.Unlock()
 		if err := h.commitLog.ClearLinks(neighbor); err != nil {
 			return err
 		}
