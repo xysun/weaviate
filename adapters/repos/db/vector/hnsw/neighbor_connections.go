@@ -126,7 +126,7 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 	// situation where the ep is nil?
 	// firstEp := n.results.root.index
 	if n.node.isUnderMaintenance() {
-		fmt.Printf("need to find an alternative for ep %d\n", n.results.root.index)
+		// fmt.Printf("need to find an alternative for ep %d\n", n.results.root.index)
 		haveAlternative := false
 		for i, ep := range n.results.flattenInOrder() {
 			if haveAlternative {
@@ -137,7 +137,7 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 			}
 
 			if !n.graph.nodeByID(ep.index).isUnderMaintenance() {
-				fmt.Printf("found an alternative among the existing ones\n")
+				// fmt.Printf("found an alternative among the existing ones\n")
 				haveAlternative = true
 			}
 		}
@@ -152,8 +152,8 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 				return fmt.Errorf("entrypoint was deleted in the object store, " +
 					"it has been flagged for cleanup and should be fixed in the next cleanup cycle")
 			}
-			fmt.Printf("level %d: falling back to global EP since we didn't have an alternative\n", level)
-			fmt.Printf("local ep was %d, global ep is %d\n", n.results.root.index, globalEP)
+			// fmt.Printf("level %d: falling back to global EP since we didn't have an alternative\n", level)
+			// fmt.Printf("local ep was %d, global ep is %d\n", n.results.root.index, globalEP)
 			// n.graph.Dump()
 			n.results.insert(globalEP, dist)
 		}

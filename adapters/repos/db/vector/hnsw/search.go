@@ -15,7 +15,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/helpers"
@@ -356,7 +355,7 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 		return nil, nil
 	}
 
-	debug := &strings.Builder{}
+	// debug := &strings.Builder{}
 
 	entryPointID := h.entryPointID
 	// debug.WriteString(fmt.Sprintf("initial entry point is %d\n", entryPointID))
@@ -384,7 +383,7 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 		if err != nil {
 			return nil, errors.Wrapf(err, "knn search: search layer at level %d", level)
 		}
-		debug.WriteString(fmt.Sprintf("\tresults on level: %#v\n", len(res.flattenInOrder())))
+		// debug.WriteString(fmt.Sprintf("\tresults on level: %#v\n", len(res.flattenInOrder())))
 
 		// There might be situations where we did not find a better entrypoint at
 		// that particular level, so instead we're keeping whatever entrypoint we
@@ -413,11 +412,11 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 	eps := &binarySearchTreeGeneric{}
 	eps.insert(entryPointID, entryPointDistance)
 
-	h.nodes[entryPointID].RLock()
-	debug.WriteString(fmt.Sprintf("level zero connections of node %d: %v\n",
-		entryPointID, len(h.nodes[entryPointID].connections[0])))
-	debug.WriteString(fmt.Sprintf("all nodes under maintenance: %+v\n", h.maintenanceNodes))
-	h.nodes[entryPointID].RUnlock()
+	// h.nodes[entryPointID].RLock()
+	// debug.WriteString(fmt.Sprintf("level zero connections of node %d: %v\n",
+	// 	entryPointID, len(h.nodes[entryPointID].connections[0])))
+	// debug.WriteString(fmt.Sprintf("all nodes under maintenance: %+v\n", h.maintenanceNodes))
+	// h.nodes[entryPointID].RUnlock()
 
 	// for _, conn := range h.nodes[entryPointID].connections[0] {
 	// 	if allowList.Contains(conn) {
@@ -444,9 +443,9 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 		out[i] = elem.index
 	}
 
-	if len(out) == 0 {
-		fmt.Printf("%s\n\n", debug.String())
-	}
+	// if len(out) == 0 {
+	// 	fmt.Printf("%s\n\n", debug.String())
+	// }
 
 	return out, nil
 }
