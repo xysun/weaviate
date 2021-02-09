@@ -122,8 +122,10 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 	// if n.denyList != nil {
 	// 	fmt.Printf("delete list in do at level: %#v\n", n.denyList)
 	// }
-
-	if _, ok := n.graph.maintenanceNodes[n.results.root.index]; ok {
+	// TODO: investigate why the nil check is necessary - should there ever be a
+	// situation where the ep is nil?
+	firstEp := n.results.root.index
+	if _, ok := n.graph.maintenanceNodes[firstEp]; ok {
 		fmt.Printf("need to find an alternative for ep %d\n", n.results.root.index)
 		haveAlternative := false
 		for i, ep := range n.results.flattenInOrder() {
