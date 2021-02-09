@@ -376,9 +376,9 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 		eps.insert(entryPointID, entryPointDistance)
 		// ignore allowList on layers > 0
 		localEf := 1
-		if level < 3 {
-			localEf = 10
-		}
+		// if level < 3 {
+		// 	localEf = 3
+		// }
 		res, err := h.searchLayerByVector(searchVec, *eps, localEf, level, nil)
 		if err != nil {
 			return nil, errors.Wrapf(err, "knn search: search layer at level %d", level)
@@ -403,7 +403,7 @@ func (h *hnsw) knnSearchByVector(searchVec []float32, k int,
 					break
 				}
 
-				fmt.Printf("\n\nFOUND NO CANDIDATE OUT OF ALL %d!!!!\n\n", ef)
+				fmt.Printf("\n\nFOUND NO CANDIDATE OUT OF ALL %d!!!!\n\n", localEf)
 			}
 		}
 	}
