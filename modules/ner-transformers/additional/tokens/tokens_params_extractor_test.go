@@ -12,10 +12,10 @@
 package tokens
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_parseTokenArguments(t *testing.T) {
@@ -36,9 +36,9 @@ func Test_parseTokenArguments(t *testing.T) {
 			name: "Should create with all params",
 			args: args{
 				args: []*ast.Argument{
-					createArg("certainty", "0.9"),
+					createArg("certainty", "0.4"),
 					createArg("limit", "1"),
-					createListArg("properties", []interface{}{"prop1", "prop2"}), // "[\"prop1\"]"), // ,
+					createListArg("properties", []string{"prop1", "prop2"}),
 				},
 			},
 			want: &Params{
@@ -51,9 +51,8 @@ func Test_parseTokenArguments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &TokenProvider{}
-			if got := p.parseTokenArguments(tt.args.args); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parseTokenArguments() = %v, want %v", got, tt.want)
-			}
+			actual := p.parseTokenArguments(tt.args.args)
+			assert.Equal(t, tt.want, actual)
 		})
 	}
 }
@@ -75,20 +74,27 @@ func createArg(name string, value string) *ast.Argument {
 	return a
 }
 
-func createListArg(name string, values []interface{}) *ast.Argument {
+func createListArg(name string, valuesIn []string) *ast.Argument {
 	n := ast.Name{
 		Value: name,
 	}
-	val := ast.Value{}
+
+	valuesAst := make([]ast.Value, len(valuesIn))
+	for i, value := range valuesIn {
+		valuesAst[i] = &ast.StringValue{
+			Kind:  "Kind",
+			Value: value,
+		}
+	}
 
 	vals := ast.ListValue{
 		Kind:   "Kind",
-		Values: values,
+		Values: valuesAst,
 	}
 	arg := ast.Argument{
 		Name:  ast.NewName(&n),
 		Kind:  "Kind",
-		Value: ast.NewStringValue(&val),
+		Value: &vals,
 	}
 	a := ast.NewArgument(&arg)
 	return a
