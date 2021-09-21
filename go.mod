@@ -21,7 +21,7 @@ require (
 	github.com/graphql-go/graphql v0.7.9
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mitchellh/mapstructure v1.4.1 // indirect
+	github.com/mitchellh/mapstructure v1.4.2 // indirect
 	github.com/nyaruka/phonenumbers v1.0.54
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/cachecontrol v0.0.0-20201205024021-ac21108117ac // indirect
@@ -34,7 +34,7 @@ require (
 	github.com/willf/bitset v1.1.11 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
 	go.etcd.io/bbolt v1.3.5
-	go.mongodb.org/mongo-driver v1.7.1 // indirect
+	go.mongodb.org/mongo-driver v1.7.2 // indirect
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 	golang.org/x/sys v0.0.0-20210510120138-977fb7262007
 	golang.org/x/tools v0.1.5 // indirect
