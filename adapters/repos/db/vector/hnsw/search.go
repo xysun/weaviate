@@ -103,7 +103,10 @@ func (h *hnsw) searchLayerByVector(queryVector []float32,
 		}
 
 		candidateNode.Lock()
-		connections := candidateNode.connections[level]
+		connections := make([]uint64, len(candidateNode.connections[level]))
+		for i, conn := range candidateNode.connections[level] {
+			connections[i] = conn
+		}
 		candidateNode.Unlock()
 
 		for _, neighborID := range connections {
