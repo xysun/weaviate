@@ -50,6 +50,7 @@ language: go
 install:  
   # - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
   # - chmod +x ./cc-test-reporter
+  - ./tools/gen-code-from-swagger.sh || travis_terminate 1
   - wget https://raw.githubusercontent.com/creativesoftwarefdn/semver-tool/master/src/semver
   - chmod +x semver
 before_script:
