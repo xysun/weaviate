@@ -61,3 +61,26 @@ func BenchmarkDot(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkHamming(b *testing.B) {
+	dims := []int{12, 24, 32, 64, 96}
+	for _, dim := range dims {
+		b.Run(fmt.Sprintf("%d bytes", dim), func(b *testing.B) {
+			b.Run("pure go", func(b *testing.B) { benchmarkHammingGo(b, dim) })
+		})
+	}
+}
+
+func benchmarkHammingGo(b *testing.B, dims int) {
+	rand.Seed(time.Now().UnixNano())
+
+	vec1 := make([]byte, dims)
+	vec2 := make([]byte, dims)
+	rand.Read(vec1)
+	rand.Read(vec2)
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		NewHammingProvider().SingleDist(vec1, vec2)
+	}
+}

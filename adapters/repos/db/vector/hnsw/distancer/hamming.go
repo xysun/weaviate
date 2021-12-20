@@ -1,6 +1,10 @@
 package distancer
 
-import "github.com/pkg/errors"
+import (
+	"math/bits"
+
+	"github.com/pkg/errors"
+)
 
 type HammingProvider struct{}
 
@@ -11,13 +15,7 @@ func NewHammingProvider() HammingProvider {
 var hammingImplementation = func(a, b []byte) int {
 	sum := 0
 	for i := range a {
-		for pos := 0; pos < 8; pos++ {
-			val := (a[i] ^ b[i]) & (1 << pos)
-			if val > 0 {
-				sum++
-			}
-
-		}
+		sum += bits.OnesCount8(a[i] ^ b[i])
 	}
 
 	return sum
