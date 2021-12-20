@@ -26,6 +26,8 @@ import (
 	"github.com/semi-technologies/weaviate/adapters/repos/db/propertyspecific"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
+	hnsw_binary "github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw_binary"
+	distancer_binary "github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw_binary/distancer"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/noop"
 	"github.com/semi-technologies/weaviate/entities/models"
 	"github.com/semi-technologies/weaviate/entities/schema"
@@ -36,17 +38,18 @@ import (
 // database files for all the objects it owns. How a shard is determined for a
 // target object (e.g. Murmur hash, etc.) is still open at this point
 type Shard struct {
-	index            *Index // a reference to the underlying index, which in turn contains schema information
-	name             string
-	store            *lsmkv.Store
-	counter          *indexcounter.Counter
-	vectorIndex      VectorIndex
-	invertedRowCache *inverted.RowCacher
-	metrics          *Metrics
-	propertyIndices  propertyspecific.Indices
-	deletedDocIDs    *docid.InMemDeletedTracker
-	cleanupInterval  time.Duration
-	cleanupCancel    chan struct{}
+	index             *Index // a reference to the underlying index, which in turn contains schema information
+	name              string
+	store             *lsmkv.Store
+	counter           *indexcounter.Counter
+	vectorIndex       VectorIndex
+	vectorIndexBinary VectorIndexBinary
+	invertedRowCache  *inverted.RowCacher
+	metrics           *Metrics
+	propertyIndices   propertyspecific.Indices
+	deletedDocIDs     *docid.InMemDeletedTracker
+	cleanupInterval   time.Duration
+	cleanupCancel     chan struct{}
 }
 
 func NewShard(ctx context.Context, shardName string, index *Index) (*Shard, error) {
@@ -69,7 +72,7 @@ func NewShard(ctx context.Context, shardName string, index *Index) (*Shard, erro
 
 	if hnswUserConfig.Skip {
 		s.vectorIndex = noop.NewIndex()
-	} else {
+	} else if !hnswUserConfig.BinaryMode {
 		vi, err := hnsw.New(hnsw.Config{
 			Logger:   index.logger,
 			RootPath: s.index.Config.RootPath,
@@ -87,6 +90,33 @@ func NewShard(ctx context.Context, shardName string, index *Index) (*Shard, erro
 		s.vectorIndex = vi
 
 		defer vi.PostStartup()
+	} else {
+		vi, err := hnsw_binary.New(hnsw_binary.Config{
+			Logger:   index.logger,
+			RootPath: s.index.Config.RootPath,
+			ID:       s.ID(),
+			MakeCommitLoggerThunk: func() (hnsw_binary.CommitLogger, error) {
+				return hnsw_binary.NewCommitLogger(s.index.Config.RootPath, s.ID(), 10*time.Second,
+					index.logger)
+			},
+			VectorForIDThunk: s.binaryVectorByIndexID,
+			DistanceProvider: distancer_binary.NewHammingProvider(),
+		}, hnsw_binary.UserConfig{
+			Skip:                   hnswUserConfig.Skip,
+			CleanupIntervalSeconds: hnswUserConfig.CleanupIntervalSeconds,
+			MaxConnections:         hnswUserConfig.MaxConnections,
+			EFConstruction:         hnswUserConfig.EFConstruction,
+			EF:                     hnswUserConfig.EF,
+			VectorCacheMaxObjects:  hnswUserConfig.VectorCacheMaxObjects,
+			FlatSearchCutoff:       hnswUserConfig.VectorCacheMaxObjects,
+		})
+		if err != nil {
+			return nil, errors.Wrapf(err, "init shard %q: hnsw index", s.ID())
+		}
+		s.vectorIndexBinary = vi
+
+		defer vi.PostStartup()
+
 	}
 
 	err := s.initDBFile(ctx)

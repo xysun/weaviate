@@ -155,6 +155,61 @@ func (s *Shard) vectorByIndexID(ctx context.Context, indexID uint64) ([]float32,
 	return storobj.VectorFromBinary(bytes)
 }
 
+func (s *Shard) binaryVectorByIndexID(ctx context.Context, indexID uint64) ([]byte, error) {
+	keyBuf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(keyBuf, indexID)
+
+	bytes, err := s.store.Bucket(helpers.ObjectsBucketLSM).
+		GetBySecondary(0, keyBuf)
+	if err != nil {
+		return nil, err
+	}
+
+	if bytes == nil {
+		return nil, storobj.NewErrNotFoundf(indexID,
+			"uuid found for docID, but object is nil")
+	}
+
+	vector, err := storobj.VectorFromBinary(bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: this should happen on write not on read for optimal performance!!
+	// TODO: THis should probably not happen at a storage level, so that we can support custom hashes, too
+	return vectorToBPRBinary(vector), nil
+}
+
+func vectorToBPRBinary(in []float32) []byte {
+	size := len(in) / 8
+	if len(in)%8 > 0 {
+		size += 1
+	}
+
+	out := make([]byte, size)
+
+	for sourcePos := 0; sourcePos < len(in); sourcePos += 8 {
+		start := sourcePos
+		end := sourcePos + 8
+		if end >= len(in) {
+			end = len(in) - 1
+		}
+
+		b := byte(0)
+		binaryIndex := 7
+		for i := start; i < end; i++ {
+			if in[i] > 0 {
+				b = b | (1 << binaryIndex)
+			}
+			binaryIndex--
+		}
+
+		out[sourcePos/8] = b
+	}
+
+	return out
+}
+
 func (s *Shard) objectSearch(ctx context.Context, limit int,
 	filters *filters.LocalFilter, additional additional.Properties) ([]*storobj.Object, error) {
 	if filters == nil {
@@ -184,9 +239,21 @@ func (s *Shard) objectVectorSearch(ctx context.Context, searchVector []float32,
 	}
 	invertedTook := time.Since(beforeAll)
 	beforeVector := time.Now()
-	ids, dists, err := s.vectorIndex.SearchByVector(searchVector, limit, allowList)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "vector search")
+	var ids []uint64
+	var dists []float32
+	var err error
+
+	if s.vectorIndex != nil {
+		ids, dists, err = s.vectorIndex.SearchByVector(searchVector, limit, allowList)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "vector search")
+		}
+	} else {
+		vectorBinary := vectorToBPRBinary(searchVector)
+		ids, dists, err = s.vectorIndexBinary.SearchByVector(vectorBinary, limit, allowList)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "vector search")
+		}
 	}
 
 	if len(ids) == 0 {
@@ -206,7 +273,7 @@ func (s *Shard) objectVectorSearch(ctx context.Context, searchVector []float32,
 			"inverted_took":         uint64(invertedTook),
 			"hnsw_took":             uint64(hnswTook),
 			"retrieve_objects_took": uint64(objectsTook),
-		}).Trace("completed filtered vector search")
+		}).Debug("completed filtered vector search")
 
 	return objs, dists, nil
 }

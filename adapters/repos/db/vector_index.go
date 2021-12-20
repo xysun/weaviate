@@ -26,3 +26,13 @@ type VectorIndex interface {
 	Drop() error
 	Flush() error
 }
+
+// For BPR experiment
+type VectorIndexBinary interface {
+	Add(id uint64, vector []byte) error
+	Delete(id uint64) error
+	SearchByVector(vector []byte, k int, allow helpers.AllowList) ([]uint64, []float32, error)
+	UpdateUserConfig(updated schema.VectorIndexConfig) error
+	Drop() error
+	Flush() error
+}

@@ -111,6 +111,7 @@ type UserConfig struct {
 	EF                     int  `json:"ef"`
 	VectorCacheMaxObjects  int  `json:"vectorCacheMaxObjects"`
 	FlatSearchCutoff       int  `json:"flatSearchCutoff"`
+	BinaryMode             bool `json:"binaryMode"`
 }
 
 // IndexType returns the type of the underlying vector index, thus making sure
@@ -128,6 +129,7 @@ func (c *UserConfig) SetDefaults() {
 	c.EF = DefaultEF
 	c.Skip = DefaultSkip
 	c.FlatSearchCutoff = DefaultFlatSearchCutoff
+	c.BinaryMode = false
 }
 
 // ParseUserConfig from an unknown input value, as this is not further
@@ -183,6 +185,12 @@ func ParseUserConfig(input interface{}) (schema.VectorIndexConfig, error) {
 
 	if err := optionalBoolFromMap(asMap, "skip", func(v bool) {
 		uc.Skip = v
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalBoolFromMap(asMap, "binaryMode", func(v bool) {
+		uc.BinaryMode = v
 	}); err != nil {
 		return uc, err
 	}

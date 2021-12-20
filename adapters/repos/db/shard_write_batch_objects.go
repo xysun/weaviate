@@ -253,9 +253,17 @@ func (b *objectsBatcher) flushWALs(ctx context.Context) {
 		}
 	}
 
-	if err := b.shard.vectorIndex.Flush(); err != nil {
-		for i := range b.objects {
-			b.setErrorAtIndex(err, i)
+	if b.shard.vectorIndex != nil {
+		if err := b.shard.vectorIndex.Flush(); err != nil {
+			for i := range b.objects {
+				b.setErrorAtIndex(err, i)
+			}
+		}
+	} else {
+		if err := b.shard.vectorIndexBinary.Flush(); err != nil {
+			for i := range b.objects {
+				b.setErrorAtIndex(err, i)
+			}
 		}
 	}
 }

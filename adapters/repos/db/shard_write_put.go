@@ -49,8 +49,14 @@ func (s *Shard) putObject(ctx context.Context, object *storobj.Object) error {
 		return errors.Wrap(err, "flush all buffered WALs")
 	}
 
-	if err := s.vectorIndex.Flush(); err != nil {
-		return errors.Wrap(err, "flush all vector index buffered WALs")
+	if s.vectorIndex != nil {
+		if err := s.vectorIndex.Flush(); err != nil {
+			return errors.Wrap(err, "flush all vector index buffered WALs")
+		}
+	} else {
+		if err := s.vectorIndexBinary.Flush(); err != nil {
+			return errors.Wrap(err, "flush all vector index buffered WALs")
+		}
 	}
 
 	return nil
@@ -59,13 +65,26 @@ func (s *Shard) putObject(ctx context.Context, object *storobj.Object) error {
 func (s *Shard) updateVectorIndex(vector []float32,
 	status objectInsertStatus) error {
 	if status.docIDChanged {
-		if err := s.vectorIndex.Delete(status.oldDocID); err != nil {
-			return errors.Wrapf(err, "delete doc id %d from vector index", status.oldDocID)
+		if s.vectorIndex != nil {
+			if err := s.vectorIndex.Delete(status.oldDocID); err != nil {
+				return errors.Wrapf(err, "delete doc id %d from vector index", status.oldDocID)
+			}
+		} else {
+			if err := s.vectorIndexBinary.Delete(status.oldDocID); err != nil {
+				return errors.Wrapf(err, "delete doc id %d from vector index", status.oldDocID)
+			}
 		}
 	}
 
-	if err := s.vectorIndex.Add(status.docID, vector); err != nil {
-		return errors.Wrapf(err, "insert doc id %d to vector index", status.docID)
+	if s.vectorIndex != nil {
+		if err := s.vectorIndex.Add(status.docID, vector); err != nil {
+			return errors.Wrapf(err, "insert doc id %d to vector index", status.docID)
+		}
+	} else {
+		binaryVector := vectorToBPRBinary(vector)
+		if err := s.vectorIndexBinary.Add(status.docID, binaryVector); err != nil {
+			return errors.Wrapf(err, "insert doc id %d to vector index", status.docID)
+		}
 	}
 
 	return nil
