@@ -15,6 +15,7 @@ import (
 	"bufio"
 	"context"
 	"io"
+	"log"
 	"os"
 	"time"
 
@@ -37,6 +38,7 @@ func (h *hnsw) init(cfg Config) error {
 
 	h.commitLog = cl
 	h.registerMaintainence()
+
 
 	return nil
 }
@@ -148,6 +150,10 @@ func (h *hnsw) registerTombstoneCleanup() {
 // getVectorForID.
 func (h *hnsw) PostStartup() {
 	h.prefillCache()
+
+	if err := h.buildDiskSnapshot(); err != nil {
+		log.Print(err)
+	}
 }
 
 func (h *hnsw) prefillCache() {
