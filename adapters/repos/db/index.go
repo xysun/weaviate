@@ -607,7 +607,7 @@ func (i *Index) IncomingExists(ctx context.Context, shardName string,
 
 func (i *Index) objectSearch(ctx context.Context, limit int,
 	filters *filters.LocalFilter,
-	additional additional.Properties) ([]*storobj.Object, error) {
+	additional additional.Properties, pagination *filters.Pagination) ([]*storobj.Object, error) {
 	shardNames := i.getSchema.ShardingState(i.Config.ClassName.String()).
 		AllPhysicalShards()
 
@@ -622,7 +622,7 @@ func (i *Index) objectSearch(ctx context.Context, limit int,
 
 		if local {
 			shard := i.Shards[shardName]
-			res, err = shard.objectSearch(ctx, limit, filters, additional)
+			res, err = shard.objectSearch(ctx, limit, filters, additional, pagination)
 			if err != nil {
 				return nil, errors.Wrapf(err, "shard %s", shard.ID())
 			}
@@ -715,7 +715,7 @@ func (i *Index) IncomingSearch(ctx context.Context, shardName string,
 	}
 
 	if searchVector == nil {
-		res, err := shard.objectSearch(ctx, limit, filters, additional)
+		res, err := shard.objectSearch(ctx, limit, filters, additional, nil)
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "shard %s", shard.ID())
 		}

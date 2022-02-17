@@ -14,8 +14,9 @@ package filters
 // Pagination for now only contains a limit parameter, but might be extended in
 // the future
 type Pagination struct {
-	Offset int
-	Limit  int
+	Offset  int
+	StartID string
+	Limit   int
 }
 
 // ExtractPaginationFromArgs gets the limit key out of a map. Not specific to
@@ -31,12 +32,15 @@ func ExtractPaginationFromArgs(args map[string]interface{}) (*Pagination, error)
 		limit = -1
 	}
 
+	startID := args["startID"]
+
 	if !offsetOk && !limitOk {
 		return nil, nil
 	}
 
 	return &Pagination{
-		Offset: offset.(int),
-		Limit:  limit.(int),
+		Offset:  offset.(int),
+		Limit:   limit.(int),
+		StartID: startID.(string),
 	}, nil
 }

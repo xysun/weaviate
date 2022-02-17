@@ -156,9 +156,9 @@ func (s *Shard) vectorByIndexID(ctx context.Context, indexID uint64) ([]float32,
 }
 
 func (s *Shard) objectSearch(ctx context.Context, limit int,
-	filters *filters.LocalFilter, additional additional.Properties) ([]*storobj.Object, error) {
+	filters *filters.LocalFilter, additional additional.Properties, pagination *filters.Pagination) ([]*storobj.Object, error) {
 	if filters == nil {
-		return s.objectList(ctx, limit, additional)
+		return s.objectList(ctx, limit, additional, pagination)
 	}
 
 	return inverted.NewSearcher(s.store, s.index.getSchema.GetSchemaSkipAuth(),
@@ -248,20 +248,37 @@ func (s *Shard) objectsByDocID(ids []uint64,
 }
 
 func (s *Shard) objectList(ctx context.Context, limit int,
-	additional additional.Properties) ([]*storobj.Object, error) {
+	additional additional.Properties, pagination *filters.Pagination) ([]*storobj.Object, error) {
 	out := make([]*storobj.Object, limit)
 	i := 0
 	cursor := s.store.Bucket(helpers.ObjectsBucketLSM).Cursor()
 	defer cursor.Close()
 
-	for k, v := cursor.First(); k != nil && i < limit; k, v = cursor.Next() {
-		obj, err := storobj.FromBinary(v)
+	if len(pagination.StartID) > 0 {
+		id := uuid.MustParse(pagination.StartID)
+		idBytes, err := id.MarshalBinary()
 		if err != nil {
-			return nil, errors.Wrapf(err, "unmarhsal item %d", i)
+			return nil, err
 		}
+		for k, v := cursor.Seek(idBytes); k != nil && i < limit; k, v = cursor.Next() {
+			obj, err := storobj.FromBinary(v)
+			if err != nil {
+				return nil, errors.Wrapf(err, "unmarhsal item %d", i)
+			}
 
-		out[i] = obj
-		i++
+			out[i] = obj
+			i++
+		}
+	} else {
+		for k, v := cursor.First(); k != nil && i < limit; k, v = cursor.Next() {
+			obj, err := storobj.FromBinary(v)
+			if err != nil {
+				return nil, errors.Wrapf(err, "unmarhsal item %d", i)
+			}
+
+			out[i] = obj
+			i++
+		}
 	}
 
 	return out[:i], nil

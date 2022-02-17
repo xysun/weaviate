@@ -209,6 +209,10 @@ func buildGetClassField(classObject *graphql.Object,
 				Description: descriptions.After,
 				Type:        graphql.Int,
 			},
+			"startID": &graphql.ArgumentConfig{
+				// Description: descriptions.After,
+				Type: graphql.String,
+			},
 
 			"nearVector": nearVectorArgument(class.Class),
 			"nearObject": nearObjectArgument(class.Class),

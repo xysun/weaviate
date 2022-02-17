@@ -59,7 +59,7 @@ func (db *DB) ClassSearch(ctx context.Context,
 	}
 
 	res, err := idx.objectSearch(ctx, totalLimit,
-		params.Filters, params.AdditionalProperties)
+		params.Filters, params.AdditionalProperties, params.Pagination)
 	if err != nil {
 		return nil, errors.Wrapf(err, "object search at index %s", idx.ID())
 	}
@@ -155,12 +155,12 @@ func (db *DB) VectorSearch(ctx context.Context, vector []float32, offset, limit 
 
 func (d *DB) ObjectSearch(ctx context.Context, offset, limit int, filters *filters.LocalFilter,
 	additional additional.Properties) (search.Results, error) {
-	return d.objectSearch(ctx, offset, limit, filters, additional)
+	return d.objectSearch(ctx, offset, limit, filters, additional, nil)
 }
 
 func (d *DB) objectSearch(ctx context.Context, offset, limit int,
 	filters *filters.LocalFilter,
-	additional additional.Properties) (search.Results, error) {
+	additional additional.Properties, pagination *filters.Pagination) (search.Results, error) {
 	var found search.Results
 
 	totalLimit := offset + limit
@@ -168,7 +168,7 @@ func (d *DB) objectSearch(ctx context.Context, offset, limit int,
 	// painfully slow on large schemas
 	for _, index := range d.indices {
 		// TODO support all additional props
-		res, err := index.objectSearch(ctx, totalLimit, filters, additional)
+		res, err := index.objectSearch(ctx, totalLimit, filters, additional, pagination)
 		if err != nil {
 			return nil, errors.Wrapf(err, "search index %s", index.ID())
 		}
