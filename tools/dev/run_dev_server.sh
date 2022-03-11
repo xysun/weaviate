@@ -68,14 +68,29 @@ case $CONFIG in
     ;;
 
   local-transformers)
-      CONTEXTIONARY_URL=localhost:9999 \
       QUERY_DEFAULTS_LIMIT=20 \
       ORIGIN=http://localhost:8080 \
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true \
       DEFAULT_VECTORIZER_MODULE=text2vec-transformers \
       PERSISTENCE_DATA_PATH="./data" \
-      TRANSFORMERS_INFERENCE_API="http://localhost:8000" \
+      TRANSFORMERS_INFERENCE_API="http://localhost:8080" \
       ENABLE_MODULES="text2vec-transformers" \
+      go run ./cmd/weaviate-server \
+        --scheme http \
+        --host "127.0.0.1" \
+        --port 8080 \
+        --read-timeout=600s \
+        --write-timeout=600s
+    ;;
+
+  local-mighty)
+      QUERY_DEFAULTS_LIMIT=20 \
+      ORIGIN=http://localhost:8080 \
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true \
+      DEFAULT_VECTORIZER_MODULE=text2vec-mighty \
+      PERSISTENCE_DATA_PATH="./data" \
+      MIGHTY_INFERENCE_API="http://localhost:5050" \
+      ENABLE_MODULES="text2vec-mighty" \
       go run ./cmd/weaviate-server \
         --scheme http \
         --host "127.0.0.1" \

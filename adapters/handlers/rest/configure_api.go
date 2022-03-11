@@ -43,6 +43,7 @@ import (
 	modqna "github.com/semi-technologies/weaviate/modules/qna-transformers"
 	modspellcheck "github.com/semi-technologies/weaviate/modules/text-spellcheck"
 	modcontextionary "github.com/semi-technologies/weaviate/modules/text2vec-contextionary"
+	modmighty "github.com/semi-technologies/weaviate/modules/text2vec-mighty"
 	modopenai "github.com/semi-technologies/weaviate/modules/text2vec-openai"
 	modtransformers "github.com/semi-technologies/weaviate/modules/text2vec-transformers"
 	"github.com/semi-technologies/weaviate/usecases/classification"
@@ -375,6 +376,14 @@ func registerModules(appState *state.State) error {
 		appState.Logger.
 			WithField("action", "startup").
 			WithField("module", "text2vec-transformers").
+			Debug("enabled module")
+	}
+
+	if _, ok := enabledModules["text2vec-mighty"]; ok {
+		appState.Modules.Register(modmighty.New())
+		appState.Logger.
+			WithField("action", "startup").
+			WithField("module", "text2vec-mighty").
 			Debug("enabled module")
 	}
 
