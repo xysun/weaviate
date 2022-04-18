@@ -13,6 +13,7 @@ package rest
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -20,7 +21,10 @@ import (
 	"github.com/rs/cors"
 	"github.com/semi-technologies/weaviate/adapters/handlers/rest/state"
 	"github.com/semi-technologies/weaviate/adapters/handlers/rest/swagger_middleware"
+	"github.com/semi-technologies/weaviate/entities/filters"
+	"github.com/semi-technologies/weaviate/entities/search"
 	"github.com/semi-technologies/weaviate/usecases/modules"
+	"github.com/semi-technologies/weaviate/usecases/traverser"
 	"github.com/sirupsen/logrus"
 )
 
@@ -77,6 +81,62 @@ func makeAddModuleHandlers(modules *modules.Provider) func(http.Handler) http.Ha
 	}
 }
 
+func makeRESTVectorSearch(appState *state.State) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		prefix := "/v1/objects/SemanticUnit/_search"
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if url := r.URL.String(); len(url) >= len(prefix) && url[:len(prefix)] == prefix {
+				serveRESTVectorSearch(appState, w, r)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+type RESTSearchParams struct {
+	NearVector RESTSearchParamsNearVector `json:"nearVector"`
+	Limit      int                        `json:"limit"`
+}
+
+type RESTSearchParamsNearVector struct {
+	Vector []float32 `json:"vector"`
+}
+
+func serveRESTVectorSearch(appState *state.State, w http.ResponseWriter, r *http.Request) {
+	className := "SemanticUnit"
+	var params RESTSearchParams
+
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		fmt.Printf("returning bad request\n")
+		return
+	}
+
+	results := search.PreAllocateRawResults(params.Limit, 1_500)
+	err := appState.DB.PreallocatedVectorSearch(r.Context(), traverser.GetParams{
+		ClassName: className,
+		Pagination: &filters.Pagination{
+			Limit: params.Limit,
+		},
+		SearchVector: params.NearVector.Vector,
+	}, results)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		fmt.Printf("returning search error\n")
+		return
+	}
+
+	if err := results.WriteJSON(w); err != nil {
+		fmt.Println(err.Error())
+		w.Write([]byte(fmt.Sprintf(`{"error":"%s"}`, err.Error())))
+	}
+}
+
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics
 // Contains "x-api-key", "x-api-token" for legacy reasons, older interfaces might need these headers.
@@ -93,6 +153,7 @@ func makeSetupGlobalMiddleware(appState *state.State) func(http.Handler) http.Ha
 		handler = addLiveAndReadyness(handler)
 		handler = addHandleRoot(handler)
 		handler = makeAddModuleHandlers(appState.Modules)(handler)
+		handler = makeRESTVectorSearch(appState)(handler)
 		handler = addInjectHeadersIntoContext(handler)
 
 		return handler

@@ -141,6 +141,7 @@ func configureAPI(api *operations.WeaviateAPI) http.Handler {
 	}, remoteIndexClient, appState.Cluster) // TODO client
 	vectorMigrator = db.NewMigrator(repo, appState.Logger)
 	vectorRepo = repo
+	appState.DB = repo
 	migrator = vectorMigrator
 	explorer = traverser.NewExplorer(repo, libvectorizer.NormalizedDistance,
 		appState.Logger, appState.Modules)

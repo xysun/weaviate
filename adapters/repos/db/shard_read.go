@@ -268,7 +268,7 @@ func (s *Shard) objectsByDocID(ids []uint64,
 			continue
 		}
 
-		unmarshalled, err := storobj.FromBinaryOptional(res, additional)
+		unmarshalled, err := storobj.FromBinaryOptionalLowAlloc(res, additional)
 		if err != nil {
 			return nil, errors.Wrapf(err, "unmarshal data object at position %d", i)
 		}

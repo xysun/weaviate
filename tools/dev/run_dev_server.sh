@@ -7,7 +7,7 @@ cd "$( dirname "${BASH_SOURCE[0]}" )"/../..
 
 export GO111MODULE=on
 export DEVELOPMENT_UI=on
-export LOG_LEVEL=debug
+export LOG_LEVEL=normal
 export LOG_FORMAT=text
 export ENABLE_EXPERIMENTAL_BM25=true
 

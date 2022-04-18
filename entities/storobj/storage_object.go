@@ -17,8 +17,10 @@ import (
 	"encoding/json"
 	"io"
 	"math"
+	"strconv"
 	"strings"
 
+	"github.com/buger/jsonparser"
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -135,6 +137,98 @@ func FromBinaryOptional(data []byte,
 	}
 
 	if err := ko.parseObject(
+		strfmt.UUID(uuidParsed.String()),
+		createTime,
+		updateTime,
+		string(className),
+		schema,
+		meta,
+		vectorWeights,
+	); err != nil {
+		return nil, errors.Wrap(err, "parse")
+	}
+
+	return ko, nil
+}
+
+func FromBinaryOptionalLowAlloc(data []byte,
+	addProp additional.Properties) (*Object, error) {
+	ko := &Object{}
+	offset := 0
+	le := binary.LittleEndian
+
+	version := uint8(data[offset])
+	offset += 1
+	if version != 1 {
+		return nil, errors.Errorf("unsupported binary marshaller version %d", version)
+	}
+
+	ko.docID = le.Uint64(data[offset : offset+8])
+	offset += 8
+
+	// advance offset by 1, this used to be the kindByte which is no longer in
+	// use
+	offset += 1
+
+	ko.MarshallerVersion = version
+	uuidBytes := data[offset : offset+16]
+	offset += 16
+
+	createTime := int64(le.Uint64(data[offset : offset+8]))
+	offset += 8
+
+	updateTime := int64(le.Uint64(data[offset : offset+8]))
+	offset += 8
+
+	vectorLength := le.Uint16(data[offset : offset+2])
+	offset += 2
+
+	if addProp.Vector {
+		ko.Vector = make([]float32, vectorLength)
+		for i := range ko.Vector {
+			raw := le.Uint32(data[offset : offset+4])
+			offset += 4
+
+			ko.Vector[i] = math.Float32frombits(raw)
+		}
+
+	} else {
+		offset += int(vectorLength) * 4
+	}
+
+	classNameLength := le.Uint16(data[offset : offset+2])
+	offset += 2
+
+	className := data[offset : offset+int(classNameLength)]
+	offset += int(classNameLength)
+
+	schemaLength := le.Uint32(data[offset : offset+4])
+	offset += 4
+
+	schema := data[offset : offset+int(schemaLength)]
+	offset += int(schemaLength)
+
+	metaLength := le.Uint32(data[offset : offset+4])
+	offset += 4
+
+	var meta []byte
+	if addProp.Classification || len(addProp.ModuleParams) > 0 {
+		meta = data[offset : offset+int(metaLength)]
+	}
+	offset += int(metaLength)
+
+	vectorWeightsLength := le.Uint32(data[offset : offset+4])
+	offset += 4
+
+	vectorWeights := data[offset : offset+int(vectorWeightsLength)]
+	offset += int(vectorWeightsLength)
+
+	uuidParsed, err := uuid.FromBytes(uuidBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ko.parseObjectLowAlloc(
 		strfmt.UUID(uuidParsed.String()),
 		createTime,
 		updateTime,
@@ -506,6 +600,72 @@ func (ko *Object) parseObject(uuid strfmt.UUID, create, update int64, className 
 	if err := json.Unmarshal(schemaB, &schema); err != nil {
 		return err
 	}
+
+	if err := ko.enrichSchemaTypes(schema); err != nil {
+		return errors.Wrap(err, "enrich schema datatypes")
+	}
+
+	var additionalProperties models.AdditionalProperties
+	if len(additionalB) > 0 {
+		if err := json.Unmarshal(additionalB, &additionalProperties); err != nil {
+			return err
+		}
+
+		if prop, ok := additionalProperties["classification"]; ok {
+			if classificationMap, ok := prop.(map[string]interface{}); ok {
+				marshalled, err := json.Marshal(classificationMap)
+				if err != nil {
+					return err
+				}
+				var classification additional.Classification
+				err = json.Unmarshal(marshalled, &classification)
+				if err != nil {
+					return err
+				}
+				additionalProperties["classification"] = &classification
+			}
+		}
+	}
+
+	var vectorWeights interface{}
+	if err := json.Unmarshal(vectorWeightsB, &vectorWeights); err != nil {
+		return err
+	}
+
+	ko.Object = models.Object{
+		Class:              className,
+		CreationTimeUnix:   create,
+		LastUpdateTimeUnix: update,
+		ID:                 uuid,
+		Properties:         schema,
+		VectorWeights:      vectorWeights,
+		Additional:         additionalProperties,
+	}
+
+	return nil
+}
+
+func (ko *Object) parseObjectLowAlloc(uuid strfmt.UUID, create, update int64,
+	className string, schemaB []byte, additionalB []byte, vectorWeightsB []byte) error {
+
+	schema := map[string]interface{}{}
+	jsonparser.ObjectEach(schemaB,
+		func(key, value []byte, dataType jsonparser.ValueType, offset int) error {
+			switch dataType {
+			case jsonparser.String:
+				schema[string(key)] = string(value)
+			case jsonparser.Number:
+				asFloat, err := strconv.ParseFloat(string(value), 64)
+				if err != nil {
+					return err
+				}
+
+				schema[string(key)] = asFloat
+			default:
+				return errors.Errorf("unsupported data type: %s\n", dataType)
+			}
+			return nil
+		})
 
 	if err := ko.enrichSchemaTypes(schema); err != nil {
 		return errors.Wrap(err, "enrich schema datatypes")

@@ -78,7 +78,7 @@ func TestStorageObjectMarshalling(t *testing.T) {
 	})
 }
 
-func TestStorageObjectUnmarshallingSpecificProps(t *testing.T) {
+func marshalExampleClassToBinary(t require.TestingT) (*Object, []byte) {
 	before := FromObject(
 		&models.Object{
 			Class:              "MyFavoriteClass",
@@ -112,8 +112,28 @@ func TestStorageObjectUnmarshallingSpecificProps(t *testing.T) {
 	asBinary, err := before.MarshalBinary()
 	require.Nil(t, err)
 
-	t.Run("without any optional", func(t *testing.T) {
+	return before, asBinary
+}
+
+func TestStorageObjectUnmarshallingSpecificProps(t *testing.T) {
+	before, asBinary := marshalExampleClassToBinary(t)
+
+	t.Run("without any optional - classic", func(t *testing.T) {
 		after, err := FromBinaryOptional(asBinary, additional.Properties{})
+		require.Nil(t, err)
+
+		t.Run("compare", func(t *testing.T) {
+			// modify before to match expectations of after
+			before.Object.Additional = nil
+			before.Vector = nil
+			assert.Equal(t, before, after)
+
+			assert.Equal(t, before.docID, after.docID)
+		})
+	})
+
+	t.Run("without any optional - alloc-friendly", func(t *testing.T) {
+		after, err := FromBinaryOptionalLowAlloc(asBinary, additional.Properties{})
 		require.Nil(t, err)
 
 		t.Run("compare", func(t *testing.T) {
