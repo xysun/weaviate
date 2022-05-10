@@ -81,10 +81,24 @@ func (t *DiskTree) getAt(offset int64, key []byte) (Node, error) {
 }
 
 func (t *DiskTree) readNodeAt(offset int64) (dtNode, error) {
-	r := bytes.NewReader(t.data)
-	r.Seek(offset, io.SeekStart)
+	var out dtNode
+	keyLen := binary.LittleEndian.Uint32(t.data[offset : offset+4])
+	offset += 4
 
-	return t.readNode(r)
+	out.key = make([]byte, keyLen)
+	copy(out.key, t.data[offset:offset+int64(keyLen)])
+	offset += int64(keyLen)
+
+	out.startPos = binary.LittleEndian.Uint64(t.data[offset : offset+8])
+	offset += 8
+	out.endPos = binary.LittleEndian.Uint64(t.data[offset : offset+8])
+	offset += 8
+	out.leftChild = int64(binary.LittleEndian.Uint64(t.data[offset : offset+8]))
+	offset += 8
+	out.rightChild = int64(binary.LittleEndian.Uint64(t.data[offset : offset+8]))
+	offset += 8
+
+	return out, nil
 }
 
 func (t *DiskTree) readNode(r io.Reader) (dtNode, error) {
