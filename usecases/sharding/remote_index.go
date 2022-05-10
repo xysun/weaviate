@@ -71,10 +71,14 @@ type RemoteIndexClient interface {
 		ids []strfmt.UUID) ([]*storobj.Object, error)
 	SearchShard(ctx context.Context, hostname, indexName, shardName string,
 		searchVector []float32, limit int, filters *filters.LocalFilter,
-		keywordRanking *searchparams.KeywordRanking,
+		keywordRanking *searchparams.KeywordRanking, sort []filters.Sort,
 		additional additional.Properties) ([]*storobj.Object, []float32, error)
 	Aggregate(ctx context.Context, hostname, indexName, shardName string,
 		params aggregation.Params) (*aggregation.Result, error)
+	FindDocIDs(ctx context.Context, hostName, indexName, shardName string,
+		filters *filters.LocalFilter) ([]uint64, error)
+	DeleteObjectBatch(ctx context.Context, hostName, indexName, shardName string,
+		docIDs []uint64, dryRun bool) objects.BatchSimpleObjects
 }
 
 func (ri *RemoteIndex) PutObject(ctx context.Context, shardName string,
@@ -214,7 +218,7 @@ func (ri *RemoteIndex) MultiGetObjects(ctx context.Context, shardName string,
 
 func (ri *RemoteIndex) SearchShard(ctx context.Context, shardName string,
 	searchVector []float32, limit int, filters *filters.LocalFilter,
-	keywordRanking *searchparams.KeywordRanking,
+	keywordRanking *searchparams.KeywordRanking, sort []filters.Sort,
 	additional additional.Properties) ([]*storobj.Object, []float32, error) {
 	shard, ok := ri.stateGetter.ShardingState(ri.class).Physical[shardName]
 	if !ok {
@@ -227,7 +231,7 @@ func (ri *RemoteIndex) SearchShard(ctx context.Context, shardName string,
 	}
 
 	return ri.client.SearchShard(ctx, host, ri.class, shardName, searchVector, limit,
-		filters, keywordRanking, additional)
+		filters, keywordRanking, sort, additional)
 }
 
 func (ri *RemoteIndex) Aggregate(ctx context.Context, shardName string,
@@ -243,4 +247,36 @@ func (ri *RemoteIndex) Aggregate(ctx context.Context, shardName string,
 	}
 
 	return ri.client.Aggregate(ctx, host, ri.class, shardName, params)
+}
+
+func (ri *RemoteIndex) FindDocIDs(ctx context.Context, shardName string,
+	filters *filters.LocalFilter) ([]uint64, error) {
+	shard, ok := ri.stateGetter.ShardingState(ri.class).Physical[shardName]
+	if !ok {
+		return nil, errors.Errorf("class %s has no physical shard %q", ri.class, shardName)
+	}
+
+	host, ok := ri.nodeResolver.NodeHostname(shard.BelongsToNode)
+	if !ok {
+		return nil, errors.Errorf("resolve node name %q to host", shard.BelongsToNode)
+	}
+
+	return ri.client.FindDocIDs(ctx, host, ri.class, shardName, filters)
+}
+
+func (ri *RemoteIndex) DeleteObjectBatch(ctx context.Context, shardName string,
+	docIDs []uint64, dryRun bool) objects.BatchSimpleObjects {
+	shard, ok := ri.stateGetter.ShardingState(ri.class).Physical[shardName]
+	if !ok {
+		err := errors.Errorf("class %s has no physical shard %q", ri.class, shardName)
+		return objects.BatchSimpleObjects{objects.BatchSimpleObject{Err: err}}
+	}
+
+	host, ok := ri.nodeResolver.NodeHostname(shard.BelongsToNode)
+	if !ok {
+		err := errors.Errorf("resolve node name %q to host", shard.BelongsToNode)
+		return objects.BatchSimpleObjects{objects.BatchSimpleObject{Err: err}}
+	}
+
+	return ri.client.DeleteObjectBatch(ctx, host, ri.class, shardName, docIDs, dryRun)
 }

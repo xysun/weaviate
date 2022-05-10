@@ -33,19 +33,27 @@ import (
 
 func TestShard_UpdateStatus(t *testing.T) {
 	ctx := testCtx()
-	shd := testShard(ctx)
+	className := "TestClass"
+	shd, idx := testShard(ctx, className)
 
 	amount := 10
 
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}(shd.index.Config.RootPath)
+
 	t.Run("insert data into shard", func(t *testing.T) {
 		for i := 0; i < amount; i++ {
-			obj := testObject()
+			obj := testObject(className)
 
 			err := shd.putObject(ctx, obj)
 			require.Nil(t, err)
 		}
 
-		objs, err := shd.objectList(ctx, amount, additional.Properties{})
+		objs, err := shd.objectList(ctx, amount, nil, additional.Properties{}, shd.index.Config.ClassName)
 		require.Nil(t, err)
 		require.Equal(t, amount, len(objs))
 	})
@@ -54,7 +62,7 @@ func TestShard_UpdateStatus(t *testing.T) {
 		err := shd.updateStatus(storagestate.StatusReadOnly.String())
 		require.Nil(t, err)
 
-		err = shd.putObject(ctx, testObject())
+		err = shd.putObject(ctx, testObject(className))
 		require.EqualError(t, err, storagestate.ErrStatusReadOnly.Error())
 	})
 
@@ -62,12 +70,14 @@ func TestShard_UpdateStatus(t *testing.T) {
 		err := shd.updateStatus(storagestate.StatusReady.String())
 		require.Nil(t, err)
 
-		err = shd.putObject(ctx, testObject())
+		err = shd.putObject(ctx, testObject(className))
 		require.Nil(t, err)
 	})
+
+	require.Nil(t, idx.drop())
 }
 
-func TestReadOnlyShard_HaltCompaction(t *testing.T) {
+func TestShard_ReadOnly_HaltCompaction(t *testing.T) {
 	amount := 10000
 	sizePerValue := 8
 	bucketName := "testbucket"
@@ -75,7 +85,7 @@ func TestReadOnlyShard_HaltCompaction(t *testing.T) {
 	keys := make([][]byte, amount)
 	values := make([][]byte, amount)
 
-	shd := testShard(context.Background())
+	shd, idx := testShard(context.Background(), "TestClass")
 
 	defer func(path string) {
 		err := os.RemoveAll(path)
@@ -141,6 +151,12 @@ func TestReadOnlyShard_HaltCompaction(t *testing.T) {
 		}
 	})
 
-	t.Logf("drop shard")
-	require.Nil(t, shd.drop(true))
+	t.Run("update shard status to ready", func(t *testing.T) {
+		err := shd.updateStatus(storagestate.StatusReady.String())
+		require.Nil(t, err)
+
+		time.Sleep(time.Second)
+	})
+
+	require.Nil(t, idx.drop())
 }

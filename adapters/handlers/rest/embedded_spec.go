@@ -48,7 +48,7 @@ func init() {
       "url": "https://github.com/semi-technologies",
       "email": "hello@semi.technology"
     },
-    "version": "1.12.2"
+    "version": "1.13.0"
   },
   "basePath": "/v1",
   "paths": {
@@ -211,6 +211,59 @@ func init() {
         "x-available-in-websocket": false,
         "x-serviceIds": [
           "weaviate.local.add"
+        ]
+      },
+      "delete": {
+        "description": "Delete Objects in bulk that match a certain filter.",
+        "tags": [
+          "batch",
+          "objects"
+        ],
+        "summary": "Deletes Objects based on a match filter as a batch.",
+        "operationId": "batch.objects.delete",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/BatchDelete"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded, see response body to get detailed information about each batched item.",
+            "schema": {
+              "$ref": "#/definitions/BatchDeleteResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized or invalid credentials."
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "422": {
+            "description": "Request body is well-formed (i.e., syntactically correct), but semantically erroneous. Are you sure the class is defined in the configuration file?",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "An error has occurred while trying to fulfill the request. Most likely the ErrorResponse will contain more information about the error.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-available-in-mqtt": false,
+        "x-available-in-websocket": false,
+        "x-serviceIds": [
+          "weaviate.local.manipulate"
         ]
       }
     },
@@ -548,6 +601,12 @@ func init() {
           },
           {
             "$ref": "#/parameters/CommonIncludeParameterQuery"
+          },
+          {
+            "$ref": "#/parameters/CommonSortParameterQuery"
+          },
+          {
+            "$ref": "#/parameters/CommonOrderParameterQuery"
           }
         ],
         "responses": {
@@ -1600,6 +1659,125 @@ func init() {
         }
       }
     },
+    "BatchDelete": {
+      "type": "object",
+      "properties": {
+        "dryRun": {
+          "description": "If true, objects will not be deleted yet, but merely listed. Defaults to false.",
+          "type": "boolean",
+          "default": false
+        },
+        "match": {
+          "description": "Outlines how to find the objects to be deleted.",
+          "type": "object",
+          "properties": {
+            "class": {
+              "description": "Class (name) which objects will be deleted.",
+              "type": "string",
+              "example": "City"
+            },
+            "where": {
+              "description": "Filter to limit the objects to be deleted.",
+              "type": "object",
+              "$ref": "#/definitions/WhereFilter"
+            }
+          }
+        },
+        "output": {
+          "description": "Controls the verbosity of the output, possible values are: \"minimal\", \"verbose\". Defaults to \"minimal\".",
+          "type": "string",
+          "default": "minimal"
+        }
+      }
+    },
+    "BatchDeleteResponse": {
+      "description": "Delete Objects response.",
+      "type": "object",
+      "properties": {
+        "dryRun": {
+          "description": "If true, objects will not be deleted yet, but merely listed. Defaults to false.",
+          "type": "boolean",
+          "default": false
+        },
+        "match": {
+          "description": "Outlines how to find the objects to be deleted.",
+          "type": "object",
+          "properties": {
+            "class": {
+              "description": "Class (name) which objects will be deleted.",
+              "type": "string",
+              "example": "City"
+            },
+            "where": {
+              "description": "Filter to limit the objects to be deleted.",
+              "type": "object",
+              "$ref": "#/definitions/WhereFilter"
+            }
+          }
+        },
+        "output": {
+          "description": "Controls the verbosity of the output, possible values are: \"minimal\", \"verbose\". Defaults to \"minimal\".",
+          "type": "string",
+          "default": "minimal"
+        },
+        "results": {
+          "type": "object",
+          "properties": {
+            "failed": {
+              "description": "How many objects should have been deleted but could not be deleted.",
+              "type": "number",
+              "format": "int64",
+              "x-omitempty": false
+            },
+            "limit": {
+              "description": "The most amount of objects that can be deleted in a single query, equals QUERY_MAXIMUM_RESULTS.",
+              "type": "number",
+              "format": "int64",
+              "x-omitempty": false
+            },
+            "matches": {
+              "description": "How many objects were matched by the filter.",
+              "type": "number",
+              "format": "int64",
+              "x-omitempty": false
+            },
+            "objects": {
+              "description": "With output set to \"minimal\" only objects with error occurred will the be described. Successfully deleted objects would be ommitted. Output set to \"verbose\" will list all of the objets with their respective statuses.",
+              "type": "array",
+              "items": {
+                "description": "Results for this specific Object.",
+                "format": "object",
+                "properties": {
+                  "errors": {
+                    "$ref": "#/definitions/ErrorResponse"
+                  },
+                  "id": {
+                    "description": "ID of the Object.",
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "status": {
+                    "type": "string",
+                    "default": "SUCCESS",
+                    "enum": [
+                      "SUCCESS",
+                      "DRYRUN",
+                      "FAILED"
+                    ]
+                  }
+                }
+              }
+            },
+            "successful": {
+              "description": "How many objects were successfully deleted in this round.",
+              "type": "number",
+              "format": "int64",
+              "x-omitempty": false
+            }
+          }
+        }
+      }
+    },
     "BatchReference": {
       "properties": {
         "from": {
@@ -2126,6 +2304,10 @@ func init() {
           "description": "Asynchronous index clean up happens every n seconds",
           "type": "number",
           "format": "int"
+        },
+        "indexTimestamps": {
+          "description": "Index each object by its internal timestamps",
+          "type": "boolean"
         },
         "stopwords": {
           "$ref": "#/definitions/StopwordConfig"
@@ -2773,6 +2955,18 @@ func init() {
       "description": "The starting index of the result window. Default value is 0.",
       "name": "offset",
       "in": "query"
+    },
+    "CommonOrderParameterQuery": {
+      "type": "string",
+      "description": "Order parameter to tell how to order (asc or desc) data within given field",
+      "name": "order",
+      "in": "query"
+    },
+    "CommonSortParameterQuery": {
+      "type": "string",
+      "description": "Sort parameter to pass an information about the names of the sort fields",
+      "name": "sort",
+      "in": "query"
     }
   },
   "securityDefinitions": {
@@ -2839,7 +3033,7 @@ func init() {
       "url": "https://github.com/semi-technologies",
       "email": "hello@semi.technology"
     },
-    "version": "1.12.2"
+    "version": "1.13.0"
   },
   "basePath": "/v1",
   "paths": {
@@ -3002,6 +3196,59 @@ func init() {
         "x-available-in-websocket": false,
         "x-serviceIds": [
           "weaviate.local.add"
+        ]
+      },
+      "delete": {
+        "description": "Delete Objects in bulk that match a certain filter.",
+        "tags": [
+          "batch",
+          "objects"
+        ],
+        "summary": "Deletes Objects based on a match filter as a batch.",
+        "operationId": "batch.objects.delete",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/BatchDelete"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request succeeded, see response body to get detailed information about each batched item.",
+            "schema": {
+              "$ref": "#/definitions/BatchDeleteResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized or invalid credentials."
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "422": {
+            "description": "Request body is well-formed (i.e., syntactically correct), but semantically erroneous. Are you sure the class is defined in the configuration file?",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "An error has occurred while trying to fulfill the request. Most likely the ErrorResponse will contain more information about the error.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-available-in-mqtt": false,
+        "x-available-in-websocket": false,
+        "x-serviceIds": [
+          "weaviate.local.manipulate"
         ]
       }
     },
@@ -3350,6 +3597,18 @@ func init() {
             "type": "string",
             "description": "Include additional information, such as classification infos. Allowed values include: classification, vector, interpretation",
             "name": "include",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Sort parameter to pass an information about the names of the sort fields",
+            "name": "sort",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Order parameter to tell how to order (asc or desc) data within given field",
+            "name": "order",
             "in": "query"
           }
         ],
@@ -4406,6 +4665,196 @@ func init() {
         }
       }
     },
+    "BatchDelete": {
+      "type": "object",
+      "properties": {
+        "dryRun": {
+          "description": "If true, objects will not be deleted yet, but merely listed. Defaults to false.",
+          "type": "boolean",
+          "default": false
+        },
+        "match": {
+          "description": "Outlines how to find the objects to be deleted.",
+          "type": "object",
+          "properties": {
+            "class": {
+              "description": "Class (name) which objects will be deleted.",
+              "type": "string",
+              "example": "City"
+            },
+            "where": {
+              "description": "Filter to limit the objects to be deleted.",
+              "type": "object",
+              "$ref": "#/definitions/WhereFilter"
+            }
+          }
+        },
+        "output": {
+          "description": "Controls the verbosity of the output, possible values are: \"minimal\", \"verbose\". Defaults to \"minimal\".",
+          "type": "string",
+          "default": "minimal"
+        }
+      }
+    },
+    "BatchDeleteMatch": {
+      "description": "Outlines how to find the objects to be deleted.",
+      "type": "object",
+      "properties": {
+        "class": {
+          "description": "Class (name) which objects will be deleted.",
+          "type": "string",
+          "example": "City"
+        },
+        "where": {
+          "description": "Filter to limit the objects to be deleted.",
+          "type": "object",
+          "$ref": "#/definitions/WhereFilter"
+        }
+      }
+    },
+    "BatchDeleteResponse": {
+      "description": "Delete Objects response.",
+      "type": "object",
+      "properties": {
+        "dryRun": {
+          "description": "If true, objects will not be deleted yet, but merely listed. Defaults to false.",
+          "type": "boolean",
+          "default": false
+        },
+        "match": {
+          "description": "Outlines how to find the objects to be deleted.",
+          "type": "object",
+          "properties": {
+            "class": {
+              "description": "Class (name) which objects will be deleted.",
+              "type": "string",
+              "example": "City"
+            },
+            "where": {
+              "description": "Filter to limit the objects to be deleted.",
+              "type": "object",
+              "$ref": "#/definitions/WhereFilter"
+            }
+          }
+        },
+        "output": {
+          "description": "Controls the verbosity of the output, possible values are: \"minimal\", \"verbose\". Defaults to \"minimal\".",
+          "type": "string",
+          "default": "minimal"
+        },
+        "results": {
+          "type": "object",
+          "properties": {
+            "failed": {
+              "description": "How many objects should have been deleted but could not be deleted.",
+              "type": "number",
+              "format": "int64",
+              "x-omitempty": false
+            },
+            "limit": {
+              "description": "The most amount of objects that can be deleted in a single query, equals QUERY_MAXIMUM_RESULTS.",
+              "type": "number",
+              "format": "int64",
+              "x-omitempty": false
+            },
+            "matches": {
+              "description": "How many objects were matched by the filter.",
+              "type": "number",
+              "format": "int64",
+              "x-omitempty": false
+            },
+            "objects": {
+              "description": "With output set to \"minimal\" only objects with error occurred will the be described. Successfully deleted objects would be ommitted. Output set to \"verbose\" will list all of the objets with their respective statuses.",
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/BatchDeleteResponseResultsObjectsItems0"
+              }
+            },
+            "successful": {
+              "description": "How many objects were successfully deleted in this round.",
+              "type": "number",
+              "format": "int64",
+              "x-omitempty": false
+            }
+          }
+        }
+      }
+    },
+    "BatchDeleteResponseMatch": {
+      "description": "Outlines how to find the objects to be deleted.",
+      "type": "object",
+      "properties": {
+        "class": {
+          "description": "Class (name) which objects will be deleted.",
+          "type": "string",
+          "example": "City"
+        },
+        "where": {
+          "description": "Filter to limit the objects to be deleted.",
+          "type": "object",
+          "$ref": "#/definitions/WhereFilter"
+        }
+      }
+    },
+    "BatchDeleteResponseResults": {
+      "type": "object",
+      "properties": {
+        "failed": {
+          "description": "How many objects should have been deleted but could not be deleted.",
+          "type": "number",
+          "format": "int64",
+          "x-omitempty": false
+        },
+        "limit": {
+          "description": "The most amount of objects that can be deleted in a single query, equals QUERY_MAXIMUM_RESULTS.",
+          "type": "number",
+          "format": "int64",
+          "x-omitempty": false
+        },
+        "matches": {
+          "description": "How many objects were matched by the filter.",
+          "type": "number",
+          "format": "int64",
+          "x-omitempty": false
+        },
+        "objects": {
+          "description": "With output set to \"minimal\" only objects with error occurred will the be described. Successfully deleted objects would be ommitted. Output set to \"verbose\" will list all of the objets with their respective statuses.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BatchDeleteResponseResultsObjectsItems0"
+          }
+        },
+        "successful": {
+          "description": "How many objects were successfully deleted in this round.",
+          "type": "number",
+          "format": "int64",
+          "x-omitempty": false
+        }
+      }
+    },
+    "BatchDeleteResponseResultsObjectsItems0": {
+      "description": "Results for this specific Object.",
+      "format": "object",
+      "properties": {
+        "errors": {
+          "$ref": "#/definitions/ErrorResponse"
+        },
+        "id": {
+          "description": "ID of the Object.",
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "type": "string",
+          "default": "SUCCESS",
+          "enum": [
+            "SUCCESS",
+            "DRYRUN",
+            "FAILED"
+          ]
+        }
+      }
+    },
     "BatchReference": {
       "properties": {
         "from": {
@@ -5020,6 +5469,10 @@ func init() {
           "description": "Asynchronous index clean up happens every n seconds",
           "type": "number",
           "format": "int"
+        },
+        "indexTimestamps": {
+          "description": "Index each object by its internal timestamps",
+          "type": "boolean"
         },
         "stopwords": {
           "$ref": "#/definitions/StopwordConfig"
@@ -5693,6 +6146,18 @@ func init() {
       "default": 0,
       "description": "The starting index of the result window. Default value is 0.",
       "name": "offset",
+      "in": "query"
+    },
+    "CommonOrderParameterQuery": {
+      "type": "string",
+      "description": "Order parameter to tell how to order (asc or desc) data within given field",
+      "name": "order",
+      "in": "query"
+    },
+    "CommonSortParameterQuery": {
+      "type": "string",
+      "description": "Sort parameter to pass an information about the names of the sort fields",
+      "name": "sort",
       "in": "query"
     }
   },

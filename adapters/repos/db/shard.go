@@ -29,6 +29,7 @@ import (
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/noop"
+	"github.com/semi-technologies/weaviate/entities/filters"
 	"github.com/semi-technologies/weaviate/entities/models"
 	"github.com/semi-technologies/weaviate/entities/schema"
 	"github.com/semi-technologies/weaviate/entities/storagestate"
@@ -245,14 +246,63 @@ func (s *Shard) addIDProperty(ctx context.Context) error {
 	}
 
 	err := s.store.CreateOrLoadBucket(ctx,
-		helpers.BucketFromPropNameLSM(helpers.PropertyNameID),
+		helpers.BucketFromPropNameLSM(filters.InternalPropID),
 		lsmkv.WithStrategy(lsmkv.StrategySetCollection))
 	if err != nil {
 		return err
 	}
 
 	err = s.store.CreateOrLoadBucket(ctx,
-		helpers.HashBucketFromPropNameLSM(helpers.PropertyNameID),
+		helpers.HashBucketFromPropNameLSM(filters.InternalPropID),
+		lsmkv.WithStrategy(lsmkv.StrategyReplace))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Shard) addTimestampProperties(ctx context.Context) error {
+	if s.isReadOnly() {
+		return storagestate.ErrStatusReadOnly
+	}
+
+	if err := s.addCreationTimeUnixProperty(ctx); err != nil {
+		return err
+	}
+	if err := s.addLastUpdateTimeUnixProperty(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Shard) addCreationTimeUnixProperty(ctx context.Context) error {
+	err := s.store.CreateOrLoadBucket(ctx,
+		helpers.BucketFromPropNameLSM(filters.InternalPropCreationTimeUnix),
+		lsmkv.WithStrategy(lsmkv.StrategySetCollection))
+	if err != nil {
+		return err
+	}
+	err = s.store.CreateOrLoadBucket(ctx,
+		helpers.HashBucketFromPropNameLSM(filters.InternalPropCreationTimeUnix),
+		lsmkv.WithStrategy(lsmkv.StrategyReplace))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Shard) addLastUpdateTimeUnixProperty(ctx context.Context) error {
+	err := s.store.CreateOrLoadBucket(ctx,
+		helpers.BucketFromPropNameLSM(filters.InternalPropLastUpdateTimeUnix),
+		lsmkv.WithStrategy(lsmkv.StrategySetCollection))
+	if err != nil {
+		return err
+	}
+	err = s.store.CreateOrLoadBucket(ctx,
+		helpers.HashBucketFromPropNameLSM(filters.InternalPropLastUpdateTimeUnix),
 		lsmkv.WithStrategy(lsmkv.StrategyReplace))
 	if err != nil {
 		return err

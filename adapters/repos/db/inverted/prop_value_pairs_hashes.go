@@ -40,8 +40,10 @@ func (pv *propValuePair) cacheable() bool {
 
 func (pv *propValuePair) fetchHashes(s *Searcher) error {
 	if pv.operator.OnValue() {
-		if pv.prop == "id" {
-			pv.prop = helpers.PropertyNameID
+		if pv.prop == filters.InternalPropBackwardsCompatID {
+			// the user-specified ID is considered legacy. we
+			// support backwards compatibility with this prop
+			pv.prop = filters.InternalPropID
 			pv.hasFrequency = false
 		}
 

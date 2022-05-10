@@ -199,32 +199,45 @@ func testCtx() context.Context {
 	return ctx
 }
 
-func testShard(ctx context.Context) *Shard {
+func testShard(ctx context.Context, className string) (*Shard, *Index) {
 	dirName := fmt.Sprintf("./testdata/%d", rand.Intn(10000000))
 
 	shardState := singleShardState()
-	schemaGetter := &fakeSchemaGetter{shardState: shardState}
+	sch := schema.Schema{
+		Objects: &models.Schema{
+			Classes: []*models.Class{{Class: className}},
+		},
+	}
+	schemaGetter := &fakeSchemaGetter{shardState: shardState, schema: sch}
 
 	idx := &Index{
-		Config:                IndexConfig{RootPath: dirName},
+		Config:                IndexConfig{RootPath: dirName, ClassName: schema.ClassName(className)},
 		invertedIndexConfig:   schema.InvertedIndexConfig{CleanupIntervalSeconds: 1},
-		vectorIndexUserConfig: hnsw.UserConfig{CleanupIntervalSeconds: 1},
+		vectorIndexUserConfig: hnsw.UserConfig{Skip: true},
 		logger:                logrus.New(),
 		getSchema:             schemaGetter,
+		Shards:                map[string]*Shard{},
 	}
 
-	shd, err := NewShard(ctx, "testshard", idx)
+	shardName := shardState.AllPhysicalShards()[0]
+
+	shd, err := NewShard(ctx, shardName, idx)
 	if err != nil {
 		panic(err)
 	}
 
-	return shd
+	idx.Shards[shardName] = shd
+
+	return shd, idx
 }
 
-func testObject() *storobj.Object {
+func testObject(className string) *storobj.Object {
 	return &storobj.Object{
 		MarshallerVersion: 1,
-		Object:            models.Object{ID: strfmt.UUID(uuid.NewString())},
-		Vector:            []float32{1, 2, 3},
+		Object: models.Object{
+			ID:    strfmt.UUID(uuid.NewString()),
+			Class: className,
+		},
+		Vector: []float32{1, 2, 3},
 	}
 }

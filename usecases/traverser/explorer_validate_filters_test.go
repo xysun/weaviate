@@ -14,6 +14,7 @@ package traverser
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -29,6 +30,9 @@ import (
 )
 
 func Test_Explorer_GetClass_WithFilters(t *testing.T) {
+	valueNameFromDataType := func(dt schema.DataType) string {
+		return "value" + strings.ToUpper(string(dt[0])) + string(dt[1:])
+	}
 	log, _ := test.NewNullLogger()
 	type test struct {
 		name          string
@@ -328,8 +332,9 @@ func Test_Explorer_GetClass_WithFilters(t *testing.T) {
 				name: "filter by id with wrong type",
 				filters: buildFilter(filters.OperatorEqual, []interface{}{"id"},
 					schema.DataTypeInt, "foo"),
-				expectedError: errors.Errorf("invalid 'where' filter: using special path " +
-					"[\"id\"] to filter by uuid: must use \"valueString\" to specify the id"),
+				expectedError: errors.Errorf(
+					"invalid 'where' filter: using [\"_id\"] to filter by uuid: " +
+						"must use \"valueString\" to specify the id"),
 			},
 		},
 	}

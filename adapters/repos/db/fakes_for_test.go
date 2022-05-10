@@ -142,7 +142,7 @@ func (f *fakeRemoteClient) MultiGetObjects(ctx context.Context, hostName, indexN
 
 func (f *fakeRemoteClient) SearchShard(ctx context.Context, hostName, indexName,
 	shardName string, vector []float32, limit int,
-	filters *filters.LocalFilter, _ *searchparams.KeywordRanking,
+	filters *filters.LocalFilter, _ *searchparams.KeywordRanking, sort []filters.Sort,
 	additional additional.Properties) ([]*storobj.Object, []float32, error) {
 	return nil, nil, nil
 }
@@ -154,6 +154,16 @@ func (f *fakeRemoteClient) Aggregate(ctx context.Context, hostName, indexName,
 
 func (f *fakeRemoteClient) BatchAddReferences(ctx context.Context, hostName,
 	indexName, shardName string, refs objects.BatchReferences) []error {
+	return nil
+}
+
+func (f *fakeRemoteClient) FindDocIDs(ctx context.Context, hostName, indexName, shardName string,
+	filters *filters.LocalFilter) ([]uint64, error) {
+	return nil, nil
+}
+
+func (f *fakeRemoteClient) DeleteObjectBatch(ctx context.Context, hostName, indexName, shardName string,
+	docIDs []uint64, dryRun bool) objects.BatchSimpleObjects {
 	return nil
 }
 

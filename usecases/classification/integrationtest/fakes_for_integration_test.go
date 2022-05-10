@@ -345,7 +345,7 @@ func (f *fakeRemoteClient) MergeObject(ctx context.Context, hostName, indexName,
 
 func (f *fakeRemoteClient) SearchShard(ctx context.Context, hostName, indexName,
 	shardName string, vector []float32, limit int, filters *filters.LocalFilter,
-	keywordRanking *searchparams.KeywordRanking,
+	keywordRanking *searchparams.KeywordRanking, sort []filters.Sort,
 	additional additional.Properties) ([]*storobj.Object, []float32, error) {
 	return nil, nil, nil
 }
@@ -368,6 +368,16 @@ func (f *fakeRemoteClient) BatchAddReferences(ctx context.Context, hostName,
 func (f *fakeRemoteClient) Aggregate(ctx context.Context, hostName, indexName,
 	shardName string, params aggregation.Params) (*aggregation.Result, error) {
 	return nil, nil
+}
+
+func (f *fakeRemoteClient) FindDocIDs(ctx context.Context, hostName, indexName, shardName string,
+	filters *filters.LocalFilter) ([]uint64, error) {
+	return nil, nil
+}
+
+func (f *fakeRemoteClient) DeleteObjectBatch(ctx context.Context, hostName, indexName, shardName string,
+	docIDs []uint64, dryRun bool) objects.BatchSimpleObjects {
+	return nil
 }
 
 type fakeNodeResolver struct{}
