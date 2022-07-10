@@ -92,17 +92,17 @@ func (s *Shard) mergeObjectInStorage(merge objects.MergeDocument,
 // id increases will be made, but instead the old doc ID will be re-used. This
 // is only possible if the following two conditions are met:
 //
-// 1. We only add to the inverted index, but there is nothing which requires
-//    cleaning up. Example `name: "John"` is updated to `name: "John Doe"`,
-//    this is valid because we only add new entry for "Doe", but do not alter
-//    the existing entry for "John"
-//    An invalid update would be `name:"John"` is updated to `name:"Diane"`,
-//    this would require a cleanup for the existing link from "John" to this
-//    doc id, which is not possible. The only way to clean up is to increase
-//    the doc id and delete all entries for the old one
+//  1. We only add to the inverted index, but there is nothing which requires
+//     cleaning up. Example `name: "John"` is updated to `name: "John Doe"`,
+//     this is valid because we only add new entry for "Doe", but do not alter
+//     the existing entry for "John"
+//     An invalid update would be `name:"John"` is updated to `name:"Diane"`,
+//     this would require a cleanup for the existing link from "John" to this
+//     doc id, which is not possible. The only way to clean up is to increase
+//     the doc id and delete all entries for the old one
 //
-// 2. The vector position is not altered. Vector Indices cannot be mutated
-//    therefore a vector update would not be reflected
+//  2. The vector position is not altered. Vector Indices cannot be mutated
+//     therefore a vector update would not be reflected
 //
 // The above makes this a perfect candidate for a batch reference update as
 // this alters neither the vector position, nor does it remove anything from
