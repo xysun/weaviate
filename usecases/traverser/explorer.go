@@ -259,6 +259,10 @@ func (e *Explorer) searchResultsToGetResponse(ctx context.Context,
 			}
 		}
 
+		if params.KeywordRanking != nil && params.AdditionalProperties.Distance {
+			additionalProperties["distance"] = -res.Dist
+		}
+
 		if searchVector != nil {
 			// Dist is between 0..2, we need to reduce to the user space of 0..1
 			normalizedResultDist := res.Dist / 2

@@ -62,15 +62,21 @@ func (db *DB) ClassSearch(ctx context.Context,
 		return nil, errors.Wrapf(err, "invalid pagination params")
 	}
 
-	res, err := idx.objectSearch(ctx, totalLimit, params.Filters,
+	res, dists, err := idx.objectSearch(ctx, totalLimit, params.Filters,
 		params.KeywordRanking, params.Sort, params.AdditionalProperties)
 	if err != nil {
 		return nil, errors.Wrapf(err, "object search at index %s", idx.ID())
 	}
 
-	return db.enrichRefsForList(ctx,
-		storobj.SearchResults(db.getStoreObjects(res, params.Pagination), params.AdditionalProperties),
-		params.Properties, params.AdditionalProperties)
+	if dists == nil || len(dists) != len(res) {
+		return db.enrichRefsForList(ctx,
+			storobj.SearchResults(db.getStoreObjects(res, params.Pagination), params.AdditionalProperties),
+			params.Properties, params.AdditionalProperties)
+	} else {
+		return db.enrichRefsForList(ctx,
+			storobj.SearchResultsWithDists(db.getStoreObjects(res, params.Pagination), params.AdditionalProperties, dists),
+			params.Properties, params.AdditionalProperties)
+	}
 }
 
 func (db *DB) VectorClassSearch(ctx context.Context,
@@ -189,7 +195,7 @@ func (d *DB) Query(ctx context.Context, q *objects.QueryInput) (search.Results, 
 	if idx == nil {
 		return nil, &objects.Error{Msg: "class not found " + q.Class, Code: objects.StatusNotFound}
 	}
-	res, err := idx.objectSearch(ctx, totalLimit, q.Filters, nil, q.Sort, q.Additional)
+	res, _, err := idx.objectSearch(ctx, totalLimit, q.Filters, nil, q.Sort, q.Additional)
 	if err != nil {
 		return nil, &objects.Error{Msg: "search index " + idx.ID(), Code: objects.StatusInternalServerError, Err: err}
 	}
@@ -219,7 +225,7 @@ func (d *DB) objectSearch(ctx context.Context, offset, limit int,
 	// painfully slow on large schemas
 	for _, index := range d.indices {
 		// TODO support all additional props
-		res, err := index.objectSearch(ctx, totalLimit, filters, nil, sort, additional)
+		res, _, err := index.objectSearch(ctx, totalLimit, filters, nil, sort, additional)
 		if err != nil {
 			return nil, errors.Wrapf(err, "search index %s", index.ID())
 		}
