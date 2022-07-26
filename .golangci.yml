@@ -5,6 +5,7 @@ linters:
     - misspell
     - bodyclose
     - gofumpt
+    - govet
 
 issues:
   exclude-rules:
