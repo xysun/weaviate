@@ -137,15 +137,15 @@ func command(app string, arguments []string, wait_for_completion bool) error {
 }
 
 func readCurrentBenchmarkResults() benchmarkResult {
-	benchmarkFile, err := os.Open("benchmark_results.json")
+	benchmark_file, err := os.Open("benchmark_results.json")
 	if err != nil {
 		fmt.Print("No benchmark file present.")
 		return make(benchmarkResult)
 	}
-	defer benchmarkFile.Close()
+	defer benchmark_file.Close()
 
 	var result benchmarkResult
-	jsonParser := json.NewDecoder(benchmarkFile)
+	jsonParser := json.NewDecoder(benchmark_file)
 	if err = jsonParser.Decode(&result); err != nil {
 		panic("Could not parse existing benchmark file.")
 	}
