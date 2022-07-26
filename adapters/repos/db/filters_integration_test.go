@@ -98,7 +98,8 @@ var (
 )
 
 func prepareCarTestSchemaAndData(repo *DB,
-	migrator *Migrator, schemaGetter *fakeSchemaGetter) func(t *testing.T) {
+	migrator *Migrator, schemaGetter *fakeSchemaGetter,
+) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Run("creating the class", func(t *testing.T) {
 			require.Nil(t,
@@ -450,7 +451,8 @@ func testPrimitivePropsWithLimit(repo *DB) func(t *testing.T) {
 }
 
 func testChainedPrimitiveProps(repo *DB,
-	migrator *Migrator) func(t *testing.T) {
+	migrator *Migrator,
+) func(t *testing.T) {
 	return func(t *testing.T) {
 		type test struct {
 			name        string
@@ -558,7 +560,8 @@ func buildSortFilter(path []string, order string) filters.Sort {
 }
 
 func compoundFilter(operator filters.Operator,
-	operands ...*filters.LocalFilter) *filters.LocalFilter {
+	operands ...*filters.LocalFilter,
+) *filters.LocalFilter {
 	clauses := make([]filters.Clause, len(operands), len(operands))
 	for i, filter := range operands {
 		clauses[i] = *filter.Root

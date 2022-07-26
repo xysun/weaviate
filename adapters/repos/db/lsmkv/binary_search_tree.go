@@ -91,7 +91,8 @@ type binarySearchNode struct {
 
 // returns net additions of insert in bytes
 func (n *binarySearchNode) insert(key, value []byte,
-	secondaryKeys [][]byte) (netAdditions int) {
+	secondaryKeys [][]byte,
+) (netAdditions int) {
 	if bytes.Equal(key, n.key) {
 		// since the key already exists, we only need to take the difference
 		// between the existing value and the new one to determine net change

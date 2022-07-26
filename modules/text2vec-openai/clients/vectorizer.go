@@ -64,17 +64,20 @@ func New(apiKey string, logger logrus.FieldLogger) *vectorizer {
 }
 
 func (v *vectorizer) Vectorize(ctx context.Context, input string,
-	config ent.VectorizationConfig) (*ent.VectorizationResult, error) {
+	config ent.VectorizationConfig,
+) (*ent.VectorizationResult, error) {
 	return v.vectorize(ctx, input, v.docUrl(config.Type, config.Model))
 }
 
 func (v *vectorizer) VectorizeQuery(ctx context.Context, input string,
-	config ent.VectorizationConfig) (*ent.VectorizationResult, error) {
+	config ent.VectorizationConfig,
+) (*ent.VectorizationResult, error) {
 	return v.vectorize(ctx, input, v.queryUrl(config.Type, config.Model))
 }
 
 func (v *vectorizer) vectorize(ctx context.Context, input string,
-	url string) (*ent.VectorizationResult, error) {
+	url string,
+) (*ent.VectorizationResult, error) {
 	body, err := json.Marshal(embeddingsRequest{
 		Input: input,
 	})

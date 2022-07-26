@@ -67,7 +67,8 @@ type diskIndex interface {
 }
 
 func newSegment(path string, logger logrus.FieldLogger, metrics *Metrics,
-	existsLower existsOnLowerSegmentsFn) (*segment, error) {
+	existsLower existsOnLowerSegmentsFn,
+) (*segment, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "open file")

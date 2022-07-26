@@ -240,7 +240,8 @@ func ParseUserConfig(input interface{}) (schema.VectorIndexConfig, error) {
 }
 
 func optionalIntFromMap(in map[string]interface{}, name string,
-	setFn func(v int)) error {
+	setFn func(v int),
+) error {
 	value, ok := in[name]
 	if !ok {
 		return nil
@@ -266,7 +267,8 @@ func optionalIntFromMap(in map[string]interface{}, name string,
 }
 
 func optionalBoolFromMap(in map[string]interface{}, name string,
-	setFn func(v bool)) error {
+	setFn func(v bool),
+) error {
 	value, ok := in[name]
 	if !ok {
 		return nil
@@ -282,7 +284,8 @@ func optionalBoolFromMap(in map[string]interface{}, name string,
 }
 
 func optionalStringFromMap(in map[string]interface{}, name string,
-	setFn func(v string)) error {
+	setFn func(v string),
+) error {
 	value, ok := in[name]
 	if !ok {
 		return nil

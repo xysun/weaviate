@@ -316,7 +316,8 @@ func New(cfg Config, uc UserConfig) (*hnsw, error) {
 // }
 
 func (h *hnsw) findBestEntrypointForNode(currentMaxLevel, targetLevel int,
-	entryPointID uint64, nodeVec []float32) (uint64, error) {
+	entryPointID uint64, nodeVec []float32,
+) (uint64, error) {
 	// in case the new target is lower than the current max, we need to search
 	// each layer for a better candidate and update the candidate
 	for level := currentMaxLevel; level > targetLevel; level-- {

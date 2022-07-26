@@ -32,7 +32,8 @@ func NewClusterClassifications(httpClient *http.Client) *ClusterClassifications 
 }
 
 func (c *ClusterClassifications) OpenTransaction(ctx context.Context, host string,
-	tx *cluster.Transaction) error {
+	tx *cluster.Transaction,
+) error {
 	path := "/classifications/transactions/"
 	method := http.MethodPost
 	url := url.URL{Scheme: "http", Host: host, Path: path}
@@ -76,7 +77,8 @@ func (c *ClusterClassifications) OpenTransaction(ctx context.Context, host strin
 }
 
 func (c *ClusterClassifications) AbortTransaction(ctx context.Context, host string,
-	tx *cluster.Transaction) error {
+	tx *cluster.Transaction,
+) error {
 	path := "/classifications/transactions/" + tx.ID
 	method := http.MethodDelete
 	url := url.URL{Scheme: "http", Host: host, Path: path}
@@ -100,7 +102,8 @@ func (c *ClusterClassifications) AbortTransaction(ctx context.Context, host stri
 }
 
 func (c *ClusterClassifications) CommitTransaction(ctx context.Context, host string,
-	tx *cluster.Transaction) error {
+	tx *cluster.Transaction,
+) error {
 	path := "/classifications/transactions/" + tx.ID + "/commit"
 	method := http.MethodPut
 	url := url.URL{Scheme: "http", Host: host, Path: path}

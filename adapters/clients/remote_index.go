@@ -43,7 +43,8 @@ func NewRemoteIndex(httpClient *http.Client) *RemoteIndex {
 }
 
 func (c *RemoteIndex) PutObject(ctx context.Context, hostName, indexName,
-	shardName string, obj *storobj.Object) error {
+	shardName string, obj *storobj.Object,
+) error {
 	path := fmt.Sprintf("/indices/%s/shards/%s/objects", indexName, shardName)
 	method := http.MethodPost
 	url := url.URL{Scheme: "http", Host: hostName, Path: path}
@@ -84,7 +85,8 @@ func duplicateErr(in error, count int) []error {
 }
 
 func (c *RemoteIndex) BatchPutObjects(ctx context.Context, hostName, indexName,
-	shardName string, objs []*storobj.Object) []error {
+	shardName string, objs []*storobj.Object,
+) []error {
 	path := fmt.Sprintf("/indices/%s/shards/%s/objects", indexName, shardName)
 	method := http.MethodPost
 	url := url.URL{Scheme: "http", Host: hostName, Path: path}
@@ -129,7 +131,8 @@ func (c *RemoteIndex) BatchPutObjects(ctx context.Context, hostName, indexName,
 }
 
 func (c *RemoteIndex) BatchAddReferences(ctx context.Context, hostName, indexName,
-	shardName string, refs objects.BatchReferences) []error {
+	shardName string, refs objects.BatchReferences,
+) []error {
 	path := fmt.Sprintf("/indices/%s/shards/%s/references", indexName, shardName)
 	method := http.MethodPost
 	url := url.URL{Scheme: "http", Host: hostName, Path: path}
@@ -175,7 +178,8 @@ func (c *RemoteIndex) BatchAddReferences(ctx context.Context, hostName, indexNam
 
 func (c *RemoteIndex) GetObject(ctx context.Context, hostName, indexName,
 	shardName string, id strfmt.UUID, selectProps search.SelectProperties,
-	additional additional.Properties) (*storobj.Object, error) {
+	additional additional.Properties,
+) (*storobj.Object, error) {
 	selectPropsBytes, err := json.Marshal(selectProps)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal selectProps props")
@@ -239,7 +243,8 @@ func (c *RemoteIndex) GetObject(ctx context.Context, hostName, indexName,
 }
 
 func (c *RemoteIndex) Exists(ctx context.Context, hostName, indexName,
-	shardName string, id strfmt.UUID) (bool, error) {
+	shardName string, id strfmt.UUID,
+) (bool, error) {
 	path := fmt.Sprintf("/indices/%s/shards/%s/objects/%s", indexName, shardName, id)
 	method := http.MethodGet
 	url := url.URL{Scheme: "http", Host: hostName, Path: path}
@@ -274,7 +279,8 @@ func (c *RemoteIndex) Exists(ctx context.Context, hostName, indexName,
 }
 
 func (c *RemoteIndex) DeleteObject(ctx context.Context, hostName, indexName,
-	shardName string, id strfmt.UUID) error {
+	shardName string, id strfmt.UUID,
+) error {
 	path := fmt.Sprintf("/indices/%s/shards/%s/objects/%s", indexName, shardName, id)
 	method := http.MethodDelete
 	url := url.URL{Scheme: "http", Host: hostName, Path: path}
@@ -306,7 +312,8 @@ func (c *RemoteIndex) DeleteObject(ctx context.Context, hostName, indexName,
 }
 
 func (c *RemoteIndex) MergeObject(ctx context.Context, hostName, indexName,
-	shardName string, mergeDoc objects.MergeDocument) error {
+	shardName string, mergeDoc objects.MergeDocument,
+) error {
 	path := fmt.Sprintf("/indices/%s/shards/%s/objects/%s", indexName, shardName,
 		mergeDoc.ID)
 	method := http.MethodPatch
@@ -340,7 +347,8 @@ func (c *RemoteIndex) MergeObject(ctx context.Context, hostName, indexName,
 }
 
 func (c *RemoteIndex) MultiGetObjects(ctx context.Context, hostName, indexName,
-	shardName string, ids []strfmt.UUID) ([]*storobj.Object, error) {
+	shardName string, ids []strfmt.UUID,
+) ([]*storobj.Object, error) {
 	idsBytes, err := json.Marshal(ids)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal selectProps props")
@@ -399,7 +407,8 @@ func (c *RemoteIndex) MultiGetObjects(ctx context.Context, hostName, indexName,
 func (c *RemoteIndex) SearchShard(ctx context.Context, hostName, indexName,
 	shardName string, vector []float32, limit int, filters *filters.LocalFilter,
 	keywordRanking *searchparams.KeywordRanking, sort []filters.Sort,
-	additional additional.Properties) ([]*storobj.Object, []float32, error) {
+	additional additional.Properties,
+) ([]*storobj.Object, []float32, error) {
 	paramsBytes, err := clusterapi.IndicesPayloads.SearchParams.
 		Marshal(vector, limit, filters, keywordRanking, sort, additional)
 	if err != nil {
@@ -447,7 +456,8 @@ func (c *RemoteIndex) SearchShard(ctx context.Context, hostName, indexName,
 }
 
 func (c *RemoteIndex) Aggregate(ctx context.Context, hostName, indexName,
-	shardName string, params aggregation.Params) (*aggregation.Result, error) {
+	shardName string, params aggregation.Params,
+) (*aggregation.Result, error) {
 	paramsBytes, err := clusterapi.IndicesPayloads.AggregationParams.
 		Marshal(params)
 	if err != nil {
@@ -496,7 +506,8 @@ func (c *RemoteIndex) Aggregate(ctx context.Context, hostName, indexName,
 }
 
 func (c *RemoteIndex) FindDocIDs(ctx context.Context, hostName, indexName,
-	shardName string, filters *filters.LocalFilter) ([]uint64, error) {
+	shardName string, filters *filters.LocalFilter,
+) ([]uint64, error) {
 	paramsBytes, err := clusterapi.IndicesPayloads.FindDocIDsParams.Marshal(filters)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal request payload")
@@ -543,7 +554,8 @@ func (c *RemoteIndex) FindDocIDs(ctx context.Context, hostName, indexName,
 }
 
 func (c *RemoteIndex) DeleteObjectBatch(ctx context.Context, hostName, indexName, shardName string,
-	docIDs []uint64, dryRun bool) objects.BatchSimpleObjects {
+	docIDs []uint64, dryRun bool,
+) objects.BatchSimpleObjects {
 	path := fmt.Sprintf("/indices/%s/shards/%s/objects", indexName, shardName)
 	method := http.MethodDelete
 	url := url.URL{Scheme: "http", Host: hostName, Path: path}

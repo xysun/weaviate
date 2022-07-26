@@ -83,7 +83,8 @@ func (f *fakeInspector) reset() {
 }
 
 func (f *fakeInspector) GetWords(ctx context.Context,
-	concept string) (*models.C11yWordsResponse, error) {
+	concept string,
+) (*models.C11yWordsResponse, error) {
 	return &models.C11yWordsResponse{
 		IndividualWords: []*models.C11yWordsResponseIndividualWordsItems0{
 			{

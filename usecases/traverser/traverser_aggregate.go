@@ -21,7 +21,8 @@ import (
 
 // Aggregate resolves meta queries
 func (t *Traverser) Aggregate(ctx context.Context, principal *models.Principal,
-	params *aggregation.Params) (interface{}, error) {
+	params *aggregation.Params,
+) (interface{}, error) {
 	err := t.authorizer.Authorize(principal, "get", "traversal/*")
 	if err != nil {
 		return nil, err

@@ -32,7 +32,8 @@ func NewClusterSchema(httpClient *http.Client) *ClusterSchema {
 }
 
 func (c *ClusterSchema) OpenTransaction(ctx context.Context, host string,
-	tx *cluster.Transaction) error {
+	tx *cluster.Transaction,
+) error {
 	path := "/schema/transactions/"
 	method := http.MethodPost
 	url := url.URL{Scheme: "http", Host: host, Path: path}
@@ -76,7 +77,8 @@ func (c *ClusterSchema) OpenTransaction(ctx context.Context, host string,
 }
 
 func (c *ClusterSchema) AbortTransaction(ctx context.Context, host string,
-	tx *cluster.Transaction) error {
+	tx *cluster.Transaction,
+) error {
 	path := "/schema/transactions/" + tx.ID
 	method := http.MethodDelete
 	url := url.URL{Scheme: "http", Host: host, Path: path}
@@ -100,7 +102,8 @@ func (c *ClusterSchema) AbortTransaction(ctx context.Context, host string,
 }
 
 func (c *ClusterSchema) CommitTransaction(ctx context.Context, host string,
-	tx *cluster.Transaction) error {
+	tx *cluster.Transaction,
+) error {
 	path := "/schema/transactions/" + tx.ID + "/commit"
 	method := http.MethodPut
 	url := url.URL{Scheme: "http", Host: host, Path: path}

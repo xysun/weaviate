@@ -29,7 +29,8 @@ import (
 
 // AddObjects Class Instances in batch to the connected DB
 func (b *BatchManager) AddObjects(ctx context.Context, principal *models.Principal,
-	objects []*models.Object, fields []*string) (BatchObjects, error) {
+	objects []*models.Object, fields []*string,
+) (BatchObjects, error) {
 	err := b.authorizer.Authorize(principal, "create", "batch/objects")
 	if err != nil {
 		return nil, err
@@ -56,7 +57,8 @@ func (b *BatchManager) AddObjects(ctx context.Context, principal *models.Princip
 }
 
 func (b *BatchManager) addObjects(ctx context.Context, principal *models.Principal,
-	classes []*models.Object, fields []*string) (BatchObjects, error) {
+	classes []*models.Object, fields []*string,
+) (BatchObjects, error) {
 	beforePreProcessing := time.Now()
 	if err := b.validateObjectForm(classes); err != nil {
 		return nil, NewErrInvalidUserInput("invalid param 'objects': %v", err)
@@ -105,7 +107,8 @@ func (b *BatchManager) validateObjectForm(classes []*models.Object) error {
 }
 
 func (b *BatchManager) validateObjectsConcurrently(ctx context.Context, principal *models.Principal,
-	classes []*models.Object, fields []*string) BatchObjects {
+	classes []*models.Object, fields []*string,
+) BatchObjects {
 	fieldsToKeep := determineResponseFields(fields)
 	c := make(chan BatchObject, len(classes))
 
@@ -124,7 +127,8 @@ func (b *BatchManager) validateObjectsConcurrently(ctx context.Context, principa
 
 func (b *BatchManager) validateObject(ctx context.Context, principal *models.Principal,
 	wg *sync.WaitGroup, concept *models.Object, originalIndex int, resultsC *chan BatchObject,
-	fieldsToKeep map[string]struct{}) {
+	fieldsToKeep map[string]struct{},
+) {
 	defer wg.Done()
 
 	var id strfmt.UUID

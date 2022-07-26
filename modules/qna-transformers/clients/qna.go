@@ -40,7 +40,8 @@ func New(origin string, logger logrus.FieldLogger) *qna {
 }
 
 func (v *qna) Answer(ctx context.Context,
-	text, question string) (*ent.AnswerResult, error) {
+	text, question string,
+) (*ent.AnswerResult, error) {
 	body, err := json.Marshal(answersInput{
 		Text:     text,
 		Question: question,

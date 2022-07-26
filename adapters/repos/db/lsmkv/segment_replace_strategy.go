@@ -116,7 +116,8 @@ func (i *segment) replaceStratParseDataWithKey(in []byte) (segmentReplaceNode, e
 }
 
 func (i *segment) replaceStratParseDataWithKeyInto(in []byte,
-	node *segmentReplaceNode) error {
+	node *segmentReplaceNode,
+) error {
 	if len(in) == 0 {
 		return NotFound
 	}

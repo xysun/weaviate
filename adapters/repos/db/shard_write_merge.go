@@ -54,7 +54,8 @@ func (s *Shard) mergeObject(ctx context.Context, merge objects.MergeDocument) er
 }
 
 func (s *Shard) mergeObjectInStorage(merge objects.MergeDocument,
-	idBytes []byte) (*storobj.Object, objectInsertStatus, error) {
+	idBytes []byte,
+) (*storobj.Object, objectInsertStatus, error) {
 	bucket := s.store.Bucket(helpers.ObjectsBucketLSM)
 	previous, err := bucket.Get([]byte(idBytes))
 	if err != nil {
@@ -108,7 +109,8 @@ func (s *Shard) mergeObjectInStorage(merge objects.MergeDocument,
 // this alters neither the vector position, nor does it remove anything from
 // the inverted index
 func (s *Shard) mutableMergeObjectLSM(merge objects.MergeDocument,
-	idBytes []byte) (mutableMergeResult, error) {
+	idBytes []byte,
+) (mutableMergeResult, error) {
 	bucket := s.store.Bucket(helpers.ObjectsBucketLSM)
 	out := mutableMergeResult{}
 
@@ -154,7 +156,8 @@ type mutableMergeResult struct {
 }
 
 func (s *Shard) mergeObjectData(previous []byte,
-	merge objects.MergeDocument) (*storobj.Object, *storobj.Object, error) {
+	merge objects.MergeDocument,
+) (*storobj.Object, *storobj.Object, error) {
 	var previousObj *storobj.Object
 	if len(previous) == 0 {
 		// DocID must be overwritten after status check, simply set to initial
@@ -175,7 +178,8 @@ func (s *Shard) mergeObjectData(previous []byte,
 }
 
 func mergeProps(previous *storobj.Object,
-	merge objects.MergeDocument) *storobj.Object {
+	merge objects.MergeDocument,
+) *storobj.Object {
 	next := previous.DeepCopyDangerous()
 	properties, ok := next.Properties().(map[string]interface{})
 	if !ok || properties == nil {

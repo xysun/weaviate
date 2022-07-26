@@ -97,7 +97,8 @@ type fakeProxy struct {
 }
 
 func (f *fakeProxy) AddExtension(ctx context.Context,
-	ext *models.C11yExtension) error {
+	ext *models.C11yExtension,
+) error {
 	return f.err
 }
 

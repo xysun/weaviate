@@ -48,7 +48,8 @@ type batchRepoNew interface {
 func NewBatchManager(vectorRepo BatchVectorRepo, vectorizer VectorizerProvider,
 	locks locks, schemaManager schemaManager, config *config.WeaviateConfig,
 	logger logrus.FieldLogger, authorizer authorizer,
-	metrics *monitoring.PrometheusMetrics) *BatchManager {
+	metrics *monitoring.PrometheusMetrics,
+) *BatchManager {
 	return &BatchManager{
 		config:             config,
 		locks:              locks,

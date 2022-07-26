@@ -41,17 +41,20 @@ func New(originPassage, originQuery string, logger logrus.FieldLogger) *vectoriz
 }
 
 func (v *vectorizer) VectorizeObject(ctx context.Context, input string,
-	config ent.VectorizationConfig) (*ent.VectorizationResult, error) {
+	config ent.VectorizationConfig,
+) (*ent.VectorizationResult, error) {
 	return v.vectorize(ctx, input, config, v.urlPassage)
 }
 
 func (v *vectorizer) VectorizeQuery(ctx context.Context, input string,
-	config ent.VectorizationConfig) (*ent.VectorizationResult, error) {
+	config ent.VectorizationConfig,
+) (*ent.VectorizationResult, error) {
 	return v.vectorize(ctx, input, config, v.urlQuery)
 }
 
 func (v *vectorizer) vectorize(ctx context.Context, input string,
-	config ent.VectorizationConfig, url func(string) string) (*ent.VectorizationResult, error) {
+	config ent.VectorizationConfig, url func(string) string,
+) (*ent.VectorizationResult, error) {
 	body, err := json.Marshal(vecRequest{
 		Text: input,
 		Config: vecRequestConfig{

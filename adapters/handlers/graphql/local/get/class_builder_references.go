@@ -22,7 +22,8 @@ import (
 )
 
 func (b *classBuilder) referenceField(propertyType schema.PropertyDataType,
-	property *models.Property, className string) *graphql.Field {
+	property *models.Property, className string,
+) *graphql.Field {
 	refClasses := propertyType.Classes()
 	propertyName := strings.Title(property.Name)
 	dataTypeClasses := []*graphql.Object{}

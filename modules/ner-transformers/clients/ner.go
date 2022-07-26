@@ -59,7 +59,8 @@ func New(origin string, logger logrus.FieldLogger) *ner {
 }
 
 func (v *ner) GetTokens(ctx context.Context, property,
-	text string) ([]ent.TokenResult, error) {
+	text string,
+) ([]ent.TokenResult, error) {
 	body, err := json.Marshal(nerInput{
 		Text: text,
 	})

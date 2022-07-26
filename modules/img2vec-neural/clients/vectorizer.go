@@ -39,7 +39,8 @@ func New(origin string, logger logrus.FieldLogger) *vectorizer {
 }
 
 func (v *vectorizer) Vectorize(ctx context.Context,
-	id, image string) (*ent.VectorizationResult, error) {
+	id, image string,
+) (*ent.VectorizationResult, error) {
 	body, err := json.Marshal(vecRequest{
 		ID:    id,
 		Image: image,

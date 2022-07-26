@@ -681,7 +681,8 @@ func TestRefFilters_MergingWithAndOperator(t *testing.T) {
 }
 
 func filterCarParkedAtGarage(dataType schema.DataType,
-	prop string, operator filters.Operator, value interface{}) *filters.LocalFilter {
+	prop string, operator filters.Operator, value interface{},
+) *filters.LocalFilter {
 	return &filters.LocalFilter{
 		Root: &filters.Clause{
 			Operator: operator,
@@ -718,7 +719,8 @@ func filterCarParkedCount(operator filters.Operator, value int) *filters.LocalFi
 }
 
 func filterDrivesCarParkedAtGarage(dataType schema.DataType,
-	prop string, operator filters.Operator, value interface{}) *filters.LocalFilter {
+	prop string, operator filters.Operator, value interface{},
+) *filters.LocalFilter {
 	return &filters.LocalFilter{
 		Root: &filters.Clause{
 			Operator: operator,

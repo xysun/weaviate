@@ -40,7 +40,8 @@ func commitLogDirectory(rootPath, name string) string {
 
 func NewCommitLogger(rootPath, name string,
 	maintainenceInterval time.Duration, logger logrus.FieldLogger,
-	opts ...CommitlogOption) (*hnswCommitLogger, error) {
+	opts ...CommitlogOption,
+) (*hnswCommitLogger, error) {
 	l := &hnswCommitLogger{
 		cancel:               make(chan struct{}),
 		cancelComplete:       make(chan struct{}),
@@ -199,7 +200,8 @@ func removeTmpScratchFiles(in []fs.FileInfo) []fs.FileInfo {
 }
 
 func removeTmpCombiningFiles(dirPath string,
-	in []fs.FileInfo) ([]fs.FileInfo, error) {
+	in []fs.FileInfo,
+) ([]fs.FileInfo, error) {
 	out := make([]fs.FileInfo, len(in))
 	i := 0
 	for _, info := range in {
@@ -316,7 +318,8 @@ func (l *hnswCommitLogger) ReplaceLinksAtLevel(nodeid uint64, level int, targets
 }
 
 func (l *hnswCommitLogger) AddLinkAtLevel(nodeid uint64, level int,
-	target uint64) error {
+	target uint64,
+) error {
 	l.Lock()
 	defer l.Unlock()
 

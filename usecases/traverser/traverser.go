@@ -64,7 +64,8 @@ func NewTraverser(config *config.WeaviateConfig, locks locks,
 	logger logrus.FieldLogger, authorizer authorizer,
 	vectorSearcher VectorSearcher,
 	explorer explorer, schemaGetter schema.SchemaGetter,
-	modulesProvider ModulesProvider) *Traverser {
+	modulesProvider ModulesProvider,
+) *Traverser {
 	return &Traverser{
 		config:           config,
 		locks:            locks,
