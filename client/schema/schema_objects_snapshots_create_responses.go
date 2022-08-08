@@ -75,26 +75,25 @@ func NewSchemaObjectsSnapshotsCreateOK() *SchemaObjectsSnapshotsCreateOK {
 	return &SchemaObjectsSnapshotsCreateOK{}
 }
 
-/*
-SchemaObjectsSnapshotsCreateOK handles this case with default header values.
+/*SchemaObjectsSnapshotsCreateOK handles this case with default header values.
 
 Snapshot process successfully started.
 */
 type SchemaObjectsSnapshotsCreateOK struct {
-	Payload *models.Snapshot
+	Payload *models.SnapshotMeta
 }
 
 func (o *SchemaObjectsSnapshotsCreateOK) Error() string {
-	return fmt.Sprintf("[POST /schema/{className}/snapshots][%d] schemaObjectsSnapshotsCreateOK  %+v", 200, o.Payload)
+	return fmt.Sprintf("[POST /schema/{className}/snapshots/{storageName}/{id}][%d] schemaObjectsSnapshotsCreateOK  %+v", 200, o.Payload)
 }
 
-func (o *SchemaObjectsSnapshotsCreateOK) GetPayload() *models.Snapshot {
+func (o *SchemaObjectsSnapshotsCreateOK) GetPayload() *models.SnapshotMeta {
 	return o.Payload
 }
 
 func (o *SchemaObjectsSnapshotsCreateOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
-	o.Payload = new(models.Snapshot)
+	o.Payload = new(models.SnapshotMeta)
 
 	// response payload
 	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
@@ -109,8 +108,7 @@ func NewSchemaObjectsSnapshotsCreateUnauthorized() *SchemaObjectsSnapshotsCreate
 	return &SchemaObjectsSnapshotsCreateUnauthorized{}
 }
 
-/*
-SchemaObjectsSnapshotsCreateUnauthorized handles this case with default header values.
+/*SchemaObjectsSnapshotsCreateUnauthorized handles this case with default header values.
 
 Unauthorized or invalid credentials.
 */
@@ -118,7 +116,7 @@ type SchemaObjectsSnapshotsCreateUnauthorized struct {
 }
 
 func (o *SchemaObjectsSnapshotsCreateUnauthorized) Error() string {
-	return fmt.Sprintf("[POST /schema/{className}/snapshots][%d] schemaObjectsSnapshotsCreateUnauthorized ", 401)
+	return fmt.Sprintf("[POST /schema/{className}/snapshots/{storageName}/{id}][%d] schemaObjectsSnapshotsCreateUnauthorized ", 401)
 }
 
 func (o *SchemaObjectsSnapshotsCreateUnauthorized) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -131,8 +129,7 @@ func NewSchemaObjectsSnapshotsCreateForbidden() *SchemaObjectsSnapshotsCreateFor
 	return &SchemaObjectsSnapshotsCreateForbidden{}
 }
 
-/*
-SchemaObjectsSnapshotsCreateForbidden handles this case with default header values.
+/*SchemaObjectsSnapshotsCreateForbidden handles this case with default header values.
 
 Forbidden
 */
@@ -141,7 +138,7 @@ type SchemaObjectsSnapshotsCreateForbidden struct {
 }
 
 func (o *SchemaObjectsSnapshotsCreateForbidden) Error() string {
-	return fmt.Sprintf("[POST /schema/{className}/snapshots][%d] schemaObjectsSnapshotsCreateForbidden  %+v", 403, o.Payload)
+	return fmt.Sprintf("[POST /schema/{className}/snapshots/{storageName}/{id}][%d] schemaObjectsSnapshotsCreateForbidden  %+v", 403, o.Payload)
 }
 
 func (o *SchemaObjectsSnapshotsCreateForbidden) GetPayload() *models.ErrorResponse {
@@ -165,8 +162,7 @@ func NewSchemaObjectsSnapshotsCreateUnprocessableEntity() *SchemaObjectsSnapshot
 	return &SchemaObjectsSnapshotsCreateUnprocessableEntity{}
 }
 
-/*
-SchemaObjectsSnapshotsCreateUnprocessableEntity handles this case with default header values.
+/*SchemaObjectsSnapshotsCreateUnprocessableEntity handles this case with default header values.
 
 Invalid create snapshot attempt.
 */
@@ -175,7 +171,7 @@ type SchemaObjectsSnapshotsCreateUnprocessableEntity struct {
 }
 
 func (o *SchemaObjectsSnapshotsCreateUnprocessableEntity) Error() string {
-	return fmt.Sprintf("[POST /schema/{className}/snapshots][%d] schemaObjectsSnapshotsCreateUnprocessableEntity  %+v", 422, o.Payload)
+	return fmt.Sprintf("[POST /schema/{className}/snapshots/{storageName}/{id}][%d] schemaObjectsSnapshotsCreateUnprocessableEntity  %+v", 422, o.Payload)
 }
 
 func (o *SchemaObjectsSnapshotsCreateUnprocessableEntity) GetPayload() *models.ErrorResponse {
@@ -199,8 +195,7 @@ func NewSchemaObjectsSnapshotsCreateInternalServerError() *SchemaObjectsSnapshot
 	return &SchemaObjectsSnapshotsCreateInternalServerError{}
 }
 
-/*
-SchemaObjectsSnapshotsCreateInternalServerError handles this case with default header values.
+/*SchemaObjectsSnapshotsCreateInternalServerError handles this case with default header values.
 
 An error has occurred while trying to fulfill the request. Most likely the ErrorResponse will contain more information about the error.
 */
@@ -209,7 +204,7 @@ type SchemaObjectsSnapshotsCreateInternalServerError struct {
 }
 
 func (o *SchemaObjectsSnapshotsCreateInternalServerError) Error() string {
-	return fmt.Sprintf("[POST /schema/{className}/snapshots][%d] schemaObjectsSnapshotsCreateInternalServerError  %+v", 500, o.Payload)
+	return fmt.Sprintf("[POST /schema/{className}/snapshots/{storageName}/{id}][%d] schemaObjectsSnapshotsCreateInternalServerError  %+v", 500, o.Payload)
 }
 
 func (o *SchemaObjectsSnapshotsCreateInternalServerError) GetPayload() *models.ErrorResponse {

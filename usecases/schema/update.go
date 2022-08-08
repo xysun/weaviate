@@ -241,8 +241,8 @@ func (m *Manager) updateClass(ctx context.Context, className string,
 }
 
 func (m *Manager) CreateSnapshot(ctx context.Context, principal *models.Principal,
-	className string, snapshot *models.Snapshot,
-) (*models.Snapshot, error) {
+	className string, snapshot *models.SnapshotMeta,
+) (*models.SnapshotMeta, error) {
 	err := m.authorizer.Authorize(principal, "add",
 		fmt.Sprintf("schema/%s/snapshots", className))
 	if err != nil {

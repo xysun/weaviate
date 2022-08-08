@@ -81,19 +81,30 @@ func NewSchemaObjectsSnapshotsRestoreOK() *SchemaObjectsSnapshotsRestoreOK {
 	return &SchemaObjectsSnapshotsRestoreOK{}
 }
 
-/*
-SchemaObjectsSnapshotsRestoreOK handles this case with default header values.
+/*SchemaObjectsSnapshotsRestoreOK handles this case with default header values.
 
 Snapshot restoring process successfully started.
 */
 type SchemaObjectsSnapshotsRestoreOK struct {
+	Payload *models.SnapshotRestoreMeta
 }
 
 func (o *SchemaObjectsSnapshotsRestoreOK) Error() string {
-	return fmt.Sprintf("[POST /schema/{className}/snapshots/{id}/restore][%d] schemaObjectsSnapshotsRestoreOK ", 200)
+	return fmt.Sprintf("[POST /schema/{className}/snapshots/{storageName}/{id}/restore][%d] schemaObjectsSnapshotsRestoreOK  %+v", 200, o.Payload)
+}
+
+func (o *SchemaObjectsSnapshotsRestoreOK) GetPayload() *models.SnapshotRestoreMeta {
+	return o.Payload
 }
 
 func (o *SchemaObjectsSnapshotsRestoreOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	o.Payload = new(models.SnapshotRestoreMeta)
+
+	// response payload
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
+		return err
+	}
 
 	return nil
 }
@@ -103,8 +114,7 @@ func NewSchemaObjectsSnapshotsRestoreUnauthorized() *SchemaObjectsSnapshotsResto
 	return &SchemaObjectsSnapshotsRestoreUnauthorized{}
 }
 
-/*
-SchemaObjectsSnapshotsRestoreUnauthorized handles this case with default header values.
+/*SchemaObjectsSnapshotsRestoreUnauthorized handles this case with default header values.
 
 Unauthorized or invalid credentials.
 */
@@ -112,7 +122,7 @@ type SchemaObjectsSnapshotsRestoreUnauthorized struct {
 }
 
 func (o *SchemaObjectsSnapshotsRestoreUnauthorized) Error() string {
-	return fmt.Sprintf("[POST /schema/{className}/snapshots/{id}/restore][%d] schemaObjectsSnapshotsRestoreUnauthorized ", 401)
+	return fmt.Sprintf("[POST /schema/{className}/snapshots/{storageName}/{id}/restore][%d] schemaObjectsSnapshotsRestoreUnauthorized ", 401)
 }
 
 func (o *SchemaObjectsSnapshotsRestoreUnauthorized) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -125,8 +135,7 @@ func NewSchemaObjectsSnapshotsRestoreForbidden() *SchemaObjectsSnapshotsRestoreF
 	return &SchemaObjectsSnapshotsRestoreForbidden{}
 }
 
-/*
-SchemaObjectsSnapshotsRestoreForbidden handles this case with default header values.
+/*SchemaObjectsSnapshotsRestoreForbidden handles this case with default header values.
 
 Forbidden
 */
@@ -135,7 +144,7 @@ type SchemaObjectsSnapshotsRestoreForbidden struct {
 }
 
 func (o *SchemaObjectsSnapshotsRestoreForbidden) Error() string {
-	return fmt.Sprintf("[POST /schema/{className}/snapshots/{id}/restore][%d] schemaObjectsSnapshotsRestoreForbidden  %+v", 403, o.Payload)
+	return fmt.Sprintf("[POST /schema/{className}/snapshots/{storageName}/{id}/restore][%d] schemaObjectsSnapshotsRestoreForbidden  %+v", 403, o.Payload)
 }
 
 func (o *SchemaObjectsSnapshotsRestoreForbidden) GetPayload() *models.ErrorResponse {
@@ -159,8 +168,7 @@ func NewSchemaObjectsSnapshotsRestoreNotFound() *SchemaObjectsSnapshotsRestoreNo
 	return &SchemaObjectsSnapshotsRestoreNotFound{}
 }
 
-/*
-SchemaObjectsSnapshotsRestoreNotFound handles this case with default header values.
+/*SchemaObjectsSnapshotsRestoreNotFound handles this case with default header values.
 
 Not Found - Snapshot does not exist
 */
@@ -168,7 +176,7 @@ type SchemaObjectsSnapshotsRestoreNotFound struct {
 }
 
 func (o *SchemaObjectsSnapshotsRestoreNotFound) Error() string {
-	return fmt.Sprintf("[POST /schema/{className}/snapshots/{id}/restore][%d] schemaObjectsSnapshotsRestoreNotFound ", 404)
+	return fmt.Sprintf("[POST /schema/{className}/snapshots/{storageName}/{id}/restore][%d] schemaObjectsSnapshotsRestoreNotFound ", 404)
 }
 
 func (o *SchemaObjectsSnapshotsRestoreNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -181,8 +189,7 @@ func NewSchemaObjectsSnapshotsRestoreUnprocessableEntity() *SchemaObjectsSnapsho
 	return &SchemaObjectsSnapshotsRestoreUnprocessableEntity{}
 }
 
-/*
-SchemaObjectsSnapshotsRestoreUnprocessableEntity handles this case with default header values.
+/*SchemaObjectsSnapshotsRestoreUnprocessableEntity handles this case with default header values.
 
 Invalid restore snapshot attempt.
 */
@@ -191,7 +198,7 @@ type SchemaObjectsSnapshotsRestoreUnprocessableEntity struct {
 }
 
 func (o *SchemaObjectsSnapshotsRestoreUnprocessableEntity) Error() string {
-	return fmt.Sprintf("[POST /schema/{className}/snapshots/{id}/restore][%d] schemaObjectsSnapshotsRestoreUnprocessableEntity  %+v", 422, o.Payload)
+	return fmt.Sprintf("[POST /schema/{className}/snapshots/{storageName}/{id}/restore][%d] schemaObjectsSnapshotsRestoreUnprocessableEntity  %+v", 422, o.Payload)
 }
 
 func (o *SchemaObjectsSnapshotsRestoreUnprocessableEntity) GetPayload() *models.ErrorResponse {
@@ -215,8 +222,7 @@ func NewSchemaObjectsSnapshotsRestoreInternalServerError() *SchemaObjectsSnapsho
 	return &SchemaObjectsSnapshotsRestoreInternalServerError{}
 }
 
-/*
-SchemaObjectsSnapshotsRestoreInternalServerError handles this case with default header values.
+/*SchemaObjectsSnapshotsRestoreInternalServerError handles this case with default header values.
 
 An error has occurred while trying to fulfill the request. Most likely the ErrorResponse will contain more information about the error.
 */
@@ -225,7 +231,7 @@ type SchemaObjectsSnapshotsRestoreInternalServerError struct {
 }
 
 func (o *SchemaObjectsSnapshotsRestoreInternalServerError) Error() string {
-	return fmt.Sprintf("[POST /schema/{className}/snapshots/{id}/restore][%d] schemaObjectsSnapshotsRestoreInternalServerError  %+v", 500, o.Payload)
+	return fmt.Sprintf("[POST /schema/{className}/snapshots/{storageName}/{id}/restore][%d] schemaObjectsSnapshotsRestoreInternalServerError  %+v", 500, o.Payload)
 }
 
 func (o *SchemaObjectsSnapshotsRestoreInternalServerError) GetPayload() *models.ErrorResponse {

@@ -66,8 +66,7 @@ func NewSchemaObjectsSnapshotsRestoreParamsWithHTTPClient(client *http.Client) *
 	}
 }
 
-/*
-SchemaObjectsSnapshotsRestoreParams contains all the parameters to send to the API endpoint
+/*SchemaObjectsSnapshotsRestoreParams contains all the parameters to send to the API endpoint
 for the schema objects snapshots restore operation typically these are written to a http.Request
 */
 type SchemaObjectsSnapshotsRestoreParams struct {
@@ -78,10 +77,15 @@ type SchemaObjectsSnapshotsRestoreParams struct {
 	*/
 	ClassName string
 	/*ID
-	  The Id of the snapshot
+	  The ID of a snapshot. Must be URL-safe and work as a filesystem path, only lowercase, numbers, underscore, minus characters allowed.
 
 	*/
 	ID string
+	/*StorageName
+	  Storage name e.g. filesystem, gcs, s3.
+
+	*/
+	StorageName string
 
 	timeout    time.Duration
 	Context    context.Context
@@ -143,6 +147,17 @@ func (o *SchemaObjectsSnapshotsRestoreParams) SetID(id string) {
 	o.ID = id
 }
 
+// WithStorageName adds the storageName to the schema objects snapshots restore params
+func (o *SchemaObjectsSnapshotsRestoreParams) WithStorageName(storageName string) *SchemaObjectsSnapshotsRestoreParams {
+	o.SetStorageName(storageName)
+	return o
+}
+
+// SetStorageName adds the storageName to the schema objects snapshots restore params
+func (o *SchemaObjectsSnapshotsRestoreParams) SetStorageName(storageName string) {
+	o.StorageName = storageName
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *SchemaObjectsSnapshotsRestoreParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -158,6 +173,11 @@ func (o *SchemaObjectsSnapshotsRestoreParams) WriteToRequest(r runtime.ClientReq
 
 	// path param id
 	if err := r.SetPathParam("id", o.ID); err != nil {
+		return err
+	}
+
+	// path param storageName
+	if err := r.SetPathParam("storageName", o.StorageName); err != nil {
 		return err
 	}
 

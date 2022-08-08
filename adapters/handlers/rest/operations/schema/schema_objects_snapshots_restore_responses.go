@@ -27,12 +27,16 @@ import (
 // SchemaObjectsSnapshotsRestoreOKCode is the HTTP code returned for type SchemaObjectsSnapshotsRestoreOK
 const SchemaObjectsSnapshotsRestoreOKCode int = 200
 
-/*
-SchemaObjectsSnapshotsRestoreOK Snapshot restoring process successfully started.
+/*SchemaObjectsSnapshotsRestoreOK Snapshot restoring process successfully started.
 
 swagger:response schemaObjectsSnapshotsRestoreOK
 */
 type SchemaObjectsSnapshotsRestoreOK struct {
+
+	/*
+	  In: Body
+	*/
+	Payload *models.SnapshotRestoreMeta `json:"body,omitempty"`
 }
 
 // NewSchemaObjectsSnapshotsRestoreOK creates SchemaObjectsSnapshotsRestoreOK with default headers values
@@ -41,19 +45,33 @@ func NewSchemaObjectsSnapshotsRestoreOK() *SchemaObjectsSnapshotsRestoreOK {
 	return &SchemaObjectsSnapshotsRestoreOK{}
 }
 
+// WithPayload adds the payload to the schema objects snapshots restore o k response
+func (o *SchemaObjectsSnapshotsRestoreOK) WithPayload(payload *models.SnapshotRestoreMeta) *SchemaObjectsSnapshotsRestoreOK {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the schema objects snapshots restore o k response
+func (o *SchemaObjectsSnapshotsRestoreOK) SetPayload(payload *models.SnapshotRestoreMeta) {
+	o.Payload = payload
+}
+
 // WriteResponse to the client
 func (o *SchemaObjectsSnapshotsRestoreOK) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
-	rw.Header().Del(runtime.HeaderContentType) //Remove Content-Type on empty responses
-
 	rw.WriteHeader(200)
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
+	}
 }
 
 // SchemaObjectsSnapshotsRestoreUnauthorizedCode is the HTTP code returned for type SchemaObjectsSnapshotsRestoreUnauthorized
 const SchemaObjectsSnapshotsRestoreUnauthorizedCode int = 401
 
-/*
-SchemaObjectsSnapshotsRestoreUnauthorized Unauthorized or invalid credentials.
+/*SchemaObjectsSnapshotsRestoreUnauthorized Unauthorized or invalid credentials.
 
 swagger:response schemaObjectsSnapshotsRestoreUnauthorized
 */
@@ -77,8 +95,7 @@ func (o *SchemaObjectsSnapshotsRestoreUnauthorized) WriteResponse(rw http.Respon
 // SchemaObjectsSnapshotsRestoreForbiddenCode is the HTTP code returned for type SchemaObjectsSnapshotsRestoreForbidden
 const SchemaObjectsSnapshotsRestoreForbiddenCode int = 403
 
-/*
-SchemaObjectsSnapshotsRestoreForbidden Forbidden
+/*SchemaObjectsSnapshotsRestoreForbidden Forbidden
 
 swagger:response schemaObjectsSnapshotsRestoreForbidden
 */
@@ -122,8 +139,7 @@ func (o *SchemaObjectsSnapshotsRestoreForbidden) WriteResponse(rw http.ResponseW
 // SchemaObjectsSnapshotsRestoreNotFoundCode is the HTTP code returned for type SchemaObjectsSnapshotsRestoreNotFound
 const SchemaObjectsSnapshotsRestoreNotFoundCode int = 404
 
-/*
-SchemaObjectsSnapshotsRestoreNotFound Not Found - Snapshot does not exist
+/*SchemaObjectsSnapshotsRestoreNotFound Not Found - Snapshot does not exist
 
 swagger:response schemaObjectsSnapshotsRestoreNotFound
 */
@@ -147,8 +163,7 @@ func (o *SchemaObjectsSnapshotsRestoreNotFound) WriteResponse(rw http.ResponseWr
 // SchemaObjectsSnapshotsRestoreUnprocessableEntityCode is the HTTP code returned for type SchemaObjectsSnapshotsRestoreUnprocessableEntity
 const SchemaObjectsSnapshotsRestoreUnprocessableEntityCode int = 422
 
-/*
-SchemaObjectsSnapshotsRestoreUnprocessableEntity Invalid restore snapshot attempt.
+/*SchemaObjectsSnapshotsRestoreUnprocessableEntity Invalid restore snapshot attempt.
 
 swagger:response schemaObjectsSnapshotsRestoreUnprocessableEntity
 */
@@ -192,8 +207,7 @@ func (o *SchemaObjectsSnapshotsRestoreUnprocessableEntity) WriteResponse(rw http
 // SchemaObjectsSnapshotsRestoreInternalServerErrorCode is the HTTP code returned for type SchemaObjectsSnapshotsRestoreInternalServerError
 const SchemaObjectsSnapshotsRestoreInternalServerErrorCode int = 500
 
-/*
-SchemaObjectsSnapshotsRestoreInternalServerError An error has occurred while trying to fulfill the request. Most likely the ErrorResponse will contain more information about the error.
+/*SchemaObjectsSnapshotsRestoreInternalServerError An error has occurred while trying to fulfill the request. Most likely the ErrorResponse will contain more information about the error.
 
 swagger:response schemaObjectsSnapshotsRestoreInternalServerError
 */

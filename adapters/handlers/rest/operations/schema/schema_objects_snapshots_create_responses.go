@@ -27,8 +27,7 @@ import (
 // SchemaObjectsSnapshotsCreateOKCode is the HTTP code returned for type SchemaObjectsSnapshotsCreateOK
 const SchemaObjectsSnapshotsCreateOKCode int = 200
 
-/*
-SchemaObjectsSnapshotsCreateOK Snapshot process successfully started.
+/*SchemaObjectsSnapshotsCreateOK Snapshot process successfully started.
 
 swagger:response schemaObjectsSnapshotsCreateOK
 */
@@ -37,7 +36,7 @@ type SchemaObjectsSnapshotsCreateOK struct {
 	/*
 	  In: Body
 	*/
-	Payload *models.Snapshot `json:"body,omitempty"`
+	Payload *models.SnapshotMeta `json:"body,omitempty"`
 }
 
 // NewSchemaObjectsSnapshotsCreateOK creates SchemaObjectsSnapshotsCreateOK with default headers values
@@ -47,13 +46,13 @@ func NewSchemaObjectsSnapshotsCreateOK() *SchemaObjectsSnapshotsCreateOK {
 }
 
 // WithPayload adds the payload to the schema objects snapshots create o k response
-func (o *SchemaObjectsSnapshotsCreateOK) WithPayload(payload *models.Snapshot) *SchemaObjectsSnapshotsCreateOK {
+func (o *SchemaObjectsSnapshotsCreateOK) WithPayload(payload *models.SnapshotMeta) *SchemaObjectsSnapshotsCreateOK {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the schema objects snapshots create o k response
-func (o *SchemaObjectsSnapshotsCreateOK) SetPayload(payload *models.Snapshot) {
+func (o *SchemaObjectsSnapshotsCreateOK) SetPayload(payload *models.SnapshotMeta) {
 	o.Payload = payload
 }
 
@@ -72,8 +71,7 @@ func (o *SchemaObjectsSnapshotsCreateOK) WriteResponse(rw http.ResponseWriter, p
 // SchemaObjectsSnapshotsCreateUnauthorizedCode is the HTTP code returned for type SchemaObjectsSnapshotsCreateUnauthorized
 const SchemaObjectsSnapshotsCreateUnauthorizedCode int = 401
 
-/*
-SchemaObjectsSnapshotsCreateUnauthorized Unauthorized or invalid credentials.
+/*SchemaObjectsSnapshotsCreateUnauthorized Unauthorized or invalid credentials.
 
 swagger:response schemaObjectsSnapshotsCreateUnauthorized
 */
@@ -97,8 +95,7 @@ func (o *SchemaObjectsSnapshotsCreateUnauthorized) WriteResponse(rw http.Respons
 // SchemaObjectsSnapshotsCreateForbiddenCode is the HTTP code returned for type SchemaObjectsSnapshotsCreateForbidden
 const SchemaObjectsSnapshotsCreateForbiddenCode int = 403
 
-/*
-SchemaObjectsSnapshotsCreateForbidden Forbidden
+/*SchemaObjectsSnapshotsCreateForbidden Forbidden
 
 swagger:response schemaObjectsSnapshotsCreateForbidden
 */
@@ -142,8 +139,7 @@ func (o *SchemaObjectsSnapshotsCreateForbidden) WriteResponse(rw http.ResponseWr
 // SchemaObjectsSnapshotsCreateUnprocessableEntityCode is the HTTP code returned for type SchemaObjectsSnapshotsCreateUnprocessableEntity
 const SchemaObjectsSnapshotsCreateUnprocessableEntityCode int = 422
 
-/*
-SchemaObjectsSnapshotsCreateUnprocessableEntity Invalid create snapshot attempt.
+/*SchemaObjectsSnapshotsCreateUnprocessableEntity Invalid create snapshot attempt.
 
 swagger:response schemaObjectsSnapshotsCreateUnprocessableEntity
 */
@@ -187,8 +183,7 @@ func (o *SchemaObjectsSnapshotsCreateUnprocessableEntity) WriteResponse(rw http.
 // SchemaObjectsSnapshotsCreateInternalServerErrorCode is the HTTP code returned for type SchemaObjectsSnapshotsCreateInternalServerError
 const SchemaObjectsSnapshotsCreateInternalServerErrorCode int = 500
 
-/*
-SchemaObjectsSnapshotsCreateInternalServerError An error has occurred while trying to fulfill the request. Most likely the ErrorResponse will contain more information about the error.
+/*SchemaObjectsSnapshotsCreateInternalServerError An error has occurred while trying to fulfill the request. Most likely the ErrorResponse will contain more information about the error.
 
 swagger:response schemaObjectsSnapshotsCreateInternalServerError
 */

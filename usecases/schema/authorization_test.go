@@ -98,7 +98,7 @@ func Test_Schema_Authorization(t *testing.T) {
 		},
 		{
 			methodName:       "CreateSnapshot",
-			additionalArgs:   []interface{}{"className", &models.Snapshot{}},
+			additionalArgs:   []interface{}{"className", &models.SnapshotMeta{}},
 			expectedVerb:     "add",
 			expectedResource: "schema/className/snapshots",
 		},

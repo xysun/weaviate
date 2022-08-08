@@ -182,7 +182,10 @@ func (s *schemaHandlers) createSnapshot(params schema.SchemaObjectsSnapshotsCrea
 	principal *models.Principal,
 ) middleware.Responder {
 	snapshot, err := s.manager.CreateSnapshot(params.HTTPRequest.Context(), principal,
-		params.ClassName, params.Body)
+		params.ClassName, &models.SnapshotMeta{
+			ID:          params.ID,
+			StorageName: params.StorageName,
+		})
 	if err != nil {
 		switch err.(type) {
 		case errors.Forbidden:

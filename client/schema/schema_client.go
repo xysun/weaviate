@@ -54,7 +54,11 @@ type ClientService interface {
 
 	SchemaObjectsSnapshotsCreate(params *SchemaObjectsSnapshotsCreateParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsSnapshotsCreateOK, error)
 
+	SchemaObjectsSnapshotsCreateStatus(params *SchemaObjectsSnapshotsCreateStatusParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsSnapshotsCreateStatusOK, error)
+
 	SchemaObjectsSnapshotsRestore(params *SchemaObjectsSnapshotsRestoreParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsSnapshotsRestoreOK, error)
+
+	SchemaObjectsSnapshotsRestoreStatus(params *SchemaObjectsSnapshotsRestoreStatusParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsSnapshotsRestoreStatusOK, error)
 
 	SchemaObjectsUpdate(params *SchemaObjectsUpdateParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsUpdateOK, error)
 
@@ -62,7 +66,7 @@ type ClientService interface {
 }
 
 /*
-SchemaDump dumps the current the database schema
+  SchemaDump dumps the current the database schema
 */
 func (a *Client) SchemaDump(params *SchemaDumpParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaDumpOK, error) {
 	// TODO: Validate the params before sending
@@ -97,7 +101,7 @@ func (a *Client) SchemaDump(params *SchemaDumpParams, authInfo runtime.ClientAut
 }
 
 /*
-SchemaObjectsCreate creates a new object class in the schema
+  SchemaObjectsCreate creates a new object class in the schema
 */
 func (a *Client) SchemaObjectsCreate(params *SchemaObjectsCreateParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsCreateOK, error) {
 	// TODO: Validate the params before sending
@@ -132,7 +136,7 @@ func (a *Client) SchemaObjectsCreate(params *SchemaObjectsCreateParams, authInfo
 }
 
 /*
-SchemaObjectsDelete removes an object class and all data in the instances from the schema
+  SchemaObjectsDelete removes an object class and all data in the instances from the schema
 */
 func (a *Client) SchemaObjectsDelete(params *SchemaObjectsDeleteParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsDeleteOK, error) {
 	// TODO: Validate the params before sending
@@ -167,7 +171,7 @@ func (a *Client) SchemaObjectsDelete(params *SchemaObjectsDeleteParams, authInfo
 }
 
 /*
-SchemaObjectsGet gets a single class from the schema
+  SchemaObjectsGet gets a single class from the schema
 */
 func (a *Client) SchemaObjectsGet(params *SchemaObjectsGetParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsGetOK, error) {
 	// TODO: Validate the params before sending
@@ -202,7 +206,7 @@ func (a *Client) SchemaObjectsGet(params *SchemaObjectsGetParams, authInfo runti
 }
 
 /*
-SchemaObjectsPropertiesAdd adds a property to an object class
+  SchemaObjectsPropertiesAdd adds a property to an object class
 */
 func (a *Client) SchemaObjectsPropertiesAdd(params *SchemaObjectsPropertiesAddParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsPropertiesAddOK, error) {
 	// TODO: Validate the params before sending
@@ -237,7 +241,7 @@ func (a *Client) SchemaObjectsPropertiesAdd(params *SchemaObjectsPropertiesAddPa
 }
 
 /*
-SchemaObjectsShardsGet gets the shards status of an object class
+  SchemaObjectsShardsGet gets the shards status of an object class
 */
 func (a *Client) SchemaObjectsShardsGet(params *SchemaObjectsShardsGetParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsShardsGetOK, error) {
 	// TODO: Validate the params before sending
@@ -272,7 +276,7 @@ func (a *Client) SchemaObjectsShardsGet(params *SchemaObjectsShardsGetParams, au
 }
 
 /*
-SchemaObjectsShardsUpdate Update shard status of an Object Class
+  SchemaObjectsShardsUpdate Update shard status of an Object Class
 */
 func (a *Client) SchemaObjectsShardsUpdate(params *SchemaObjectsShardsUpdateParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsShardsUpdateOK, error) {
 	// TODO: Validate the params before sending
@@ -307,7 +311,7 @@ func (a *Client) SchemaObjectsShardsUpdate(params *SchemaObjectsShardsUpdatePara
 }
 
 /*
-SchemaObjectsSnapshotsCreate Starts a process to create a snapshot for a class
+  SchemaObjectsSnapshotsCreate Starts a process of creation a snapshot for a class
 */
 func (a *Client) SchemaObjectsSnapshotsCreate(params *SchemaObjectsSnapshotsCreateParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsSnapshotsCreateOK, error) {
 	// TODO: Validate the params before sending
@@ -318,7 +322,7 @@ func (a *Client) SchemaObjectsSnapshotsCreate(params *SchemaObjectsSnapshotsCrea
 	result, err := a.transport.Submit(&runtime.ClientOperation{
 		ID:                 "schema.objects.snapshots.create",
 		Method:             "POST",
-		PathPattern:        "/schema/{className}/snapshots",
+		PathPattern:        "/schema/{className}/snapshots/{storageName}/{id}",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json", "application/yaml"},
 		Schemes:            []string{"https"},
@@ -342,7 +346,42 @@ func (a *Client) SchemaObjectsSnapshotsCreate(params *SchemaObjectsSnapshotsCrea
 }
 
 /*
-SchemaObjectsSnapshotsRestore Starts a process of restoring a snapshot for a class
+  SchemaObjectsSnapshotsCreateStatus Returns status of creation attempt of a snapshot for a class
+*/
+func (a *Client) SchemaObjectsSnapshotsCreateStatus(params *SchemaObjectsSnapshotsCreateStatusParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsSnapshotsCreateStatusOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewSchemaObjectsSnapshotsCreateStatusParams()
+	}
+
+	result, err := a.transport.Submit(&runtime.ClientOperation{
+		ID:                 "schema.objects.snapshots.create.status",
+		Method:             "GET",
+		PathPattern:        "/schema/{className}/snapshots/{storageName}/{id}",
+		ProducesMediaTypes: []string{"application/json"},
+		ConsumesMediaTypes: []string{"application/json", "application/yaml"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &SchemaObjectsSnapshotsCreateStatusReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	})
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*SchemaObjectsSnapshotsCreateStatusOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	// safeguard: normally, absent a default response, unknown success responses return an error above: so this is a codegen issue
+	msg := fmt.Sprintf("unexpected success response for schema.objects.snapshots.create.status: API contract not enforced by server. Client expected to get an error, but got: %T", result)
+	panic(msg)
+}
+
+/*
+  SchemaObjectsSnapshotsRestore Starts a process of restoring a snapshot for a class
 */
 func (a *Client) SchemaObjectsSnapshotsRestore(params *SchemaObjectsSnapshotsRestoreParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsSnapshotsRestoreOK, error) {
 	// TODO: Validate the params before sending
@@ -353,7 +392,7 @@ func (a *Client) SchemaObjectsSnapshotsRestore(params *SchemaObjectsSnapshotsRes
 	result, err := a.transport.Submit(&runtime.ClientOperation{
 		ID:                 "schema.objects.snapshots.restore",
 		Method:             "POST",
-		PathPattern:        "/schema/{className}/snapshots/{id}/restore",
+		PathPattern:        "/schema/{className}/snapshots/{storageName}/{id}/restore",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json", "application/yaml"},
 		Schemes:            []string{"https"},
@@ -377,9 +416,44 @@ func (a *Client) SchemaObjectsSnapshotsRestore(params *SchemaObjectsSnapshotsRes
 }
 
 /*
-SchemaObjectsUpdate updates settings of an existing schema class
+  SchemaObjectsSnapshotsRestoreStatus Returns status of restoration attempt of a snapshot for a class
+*/
+func (a *Client) SchemaObjectsSnapshotsRestoreStatus(params *SchemaObjectsSnapshotsRestoreStatusParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsSnapshotsRestoreStatusOK, error) {
+	// TODO: Validate the params before sending
+	if params == nil {
+		params = NewSchemaObjectsSnapshotsRestoreStatusParams()
+	}
 
-Use this endpoint to alter an existing class in the schema. Note that not all settings are mutable. If an error about immutable fields is returned and you still need to update this particular setting, you will have to delete the class (and the underlying data) and recreate. This endpoint cannot be used to modify properties. Instead use POST /v1/schema/{className}/properties. A typical use case for this endpoint is to update configuration, such as the vectorIndexConfig. Note that even in mutable sections, such as vectorIndexConfig, some fields may be immutable.
+	result, err := a.transport.Submit(&runtime.ClientOperation{
+		ID:                 "schema.objects.snapshots.restore.status",
+		Method:             "GET",
+		PathPattern:        "/schema/{className}/snapshots/{storageName}/{id}/restore",
+		ProducesMediaTypes: []string{"application/json"},
+		ConsumesMediaTypes: []string{"application/json", "application/yaml"},
+		Schemes:            []string{"https"},
+		Params:             params,
+		Reader:             &SchemaObjectsSnapshotsRestoreStatusReader{formats: a.formats},
+		AuthInfo:           authInfo,
+		Context:            params.Context,
+		Client:             params.HTTPClient,
+	})
+	if err != nil {
+		return nil, err
+	}
+	success, ok := result.(*SchemaObjectsSnapshotsRestoreStatusOK)
+	if ok {
+		return success, nil
+	}
+	// unexpected success response
+	// safeguard: normally, absent a default response, unknown success responses return an error above: so this is a codegen issue
+	msg := fmt.Sprintf("unexpected success response for schema.objects.snapshots.restore.status: API contract not enforced by server. Client expected to get an error, but got: %T", result)
+	panic(msg)
+}
+
+/*
+  SchemaObjectsUpdate updates settings of an existing schema class
+
+  Use this endpoint to alter an existing class in the schema. Note that not all settings are mutable. If an error about immutable fields is returned and you still need to update this particular setting, you will have to delete the class (and the underlying data) and recreate. This endpoint cannot be used to modify properties. Instead use POST /v1/schema/{className}/properties. A typical use case for this endpoint is to update configuration, such as the vectorIndexConfig. Note that even in mutable sections, such as vectorIndexConfig, some fields may be immutable.
 */
 func (a *Client) SchemaObjectsUpdate(params *SchemaObjectsUpdateParams, authInfo runtime.ClientAuthInfoWriter) (*SchemaObjectsUpdateOK, error) {
 	// TODO: Validate the params before sending
