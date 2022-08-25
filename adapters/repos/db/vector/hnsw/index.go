@@ -180,6 +180,7 @@ func New(cfg Config, uc UserConfig) (*hnsw, error) {
 
 	vectorCache := newShardedLockCache(cfg.VectorForIDThunk, uc.VectorCacheMaxObjects,
 		cfg.Logger, normalizeOnRead)
+	// vectorCache := newAtomicVectorCache(cfg.VectorForIDThunk, normalizeOnRead)
 
 	resetCtx, resetCtxCancel := context.WithCancel(context.Background())
 	index := &hnsw{

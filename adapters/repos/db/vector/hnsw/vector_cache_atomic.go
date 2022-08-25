@@ -3,16 +3,25 @@ package hnsw
 import (
 	"context"
 	"sync/atomic"
+
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 )
 
 type atomicVectors []atomic.Pointer[[]float32]
 
 type atomicVectorCache struct {
-	store atomic.Pointer[atomicVectors]
+	store           atomic.Pointer[atomicVectors]
+	vectorForID     VectorForID
+	normalizeOnRead bool
 }
 
-func newAtomicVectorCache() *atomicVectorCache {
-	a := &atomicVectorCache{}
+func newAtomicVectorCache(
+	vecForID VectorForID, normalize bool,
+) *atomicVectorCache {
+	a := &atomicVectorCache{
+		vectorForID:     vecForID,
+		normalizeOnRead: normalize,
+	}
 	initialStore := make(atomicVectors, initialSize)
 	a.store.Store(&initialStore)
 	return a
@@ -25,7 +34,48 @@ func (a *atomicVectorCache) preload(id uint64, vec []float32) {
 
 func (a *atomicVectorCache) get(ctx context.Context, id uint64) ([]float32, error) {
 	vecs := a.store.Load()
-	return *(*vecs)[id].Load(), nil
+	vecPtr := (*vecs)[id].Load()
+	if vecPtr == nil {
+		return a.handleCacheMiss(ctx, id)
+	}
+
+	return *vecPtr, nil
+}
+
+func (a *atomicVectorCache) multiGet(ctx context.Context, ids []uint64) ([][]float32, error) {
+	out := make([][]float32, len(ids))
+	vecs := a.store.Load()
+	for i, id := range ids {
+		vecPtr := (*vecs)[id].Load()
+		if vecPtr == nil {
+			vec, err := a.handleCacheMiss(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = vec
+		} else {
+			out[i] = *vecPtr
+		}
+	}
+
+	return out, nil
+}
+
+func (a *atomicVectorCache) handleCacheMiss(ctx context.Context, id uint64) ([]float32, error) {
+	vec, err := a.vectorForID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if a.normalizeOnRead {
+		vec = distancer.Normalize(vec)
+	}
+
+	// atomic.AddInt64(&n.count, 1)
+	vecs := a.store.Load()
+	(*vecs)[id].Store(&vec)
+
+	return vec, nil
 }
 
 func (a *atomicVectorCache) len() int32 {
@@ -65,4 +115,28 @@ func (a *atomicVectorCache) grow(node uint64) {
 	for i := range *existing {
 		(*oldCache)[i].Store(nil)
 	}
+}
+
+func (a *atomicVectorCache) countVectors() int64 {
+	panic("not implemented yet")
+}
+
+func (a *atomicVectorCache) prefetch(id uint64) {
+	// do nothing
+}
+
+func (a *atomicVectorCache) drop() {
+	panic("not implemented yet")
+}
+
+func (a *atomicVectorCache) updateMaxSize(size int64) {
+	panic("not implemented yet")
+}
+
+func (a *atomicVectorCache) copyMaxSize() int64 {
+	return -1
+}
+
+func (a *atomicVectorCache) delete(ctx context.Context, id uint64) {
+	panic("not implemented yet")
 }
