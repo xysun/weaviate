@@ -27,3 +27,42 @@ func (a *atomicVectorCache) get(ctx context.Context, id uint64) ([]float32, erro
 	vecs := a.store.Load()
 	return *(*vecs)[id].Load(), nil
 }
+
+func (a *atomicVectorCache) len() int32 {
+	vecs := a.store.Load()
+	return int32(len(*vecs))
+}
+
+// grow prefers thread-safety over accuracy. Keep in mind that this is a cache
+// and vectors are immutable. Thus, a cache miss is not a big problem; it only
+// comes with a performance penality of having to fetch the entry that we
+// missed during copying.
+//
+// All access is atomic and therefore thread-safe. The reason for "inaccuracy"
+// is because the iteration over the old cache is not an atomic operation (only
+// its individual parts are). As a result, someone could write into element
+// 100, when we have already iterated all the way to element 200. We would then
+// miss this write and not copy it into the new cache. As outlined above, this
+// is fine because it only leads to a cache miss.
+//
+// There is also nothing that makes sure only one grow operation is happening
+// at the same time, i.e. there is no mutual exclusion. Since the pointer swap
+// is atomic parallel growths would not be an issue from a thread-safety
+// perspective. From a logical perspective, they might, but since the caller
+// already holds a lock, we can run under the assumption that this is mitigated.
+func (a *atomicVectorCache) grow(node uint64) {
+	newSize := node + minimumIndexGrowthDelta
+	newCache := make(atomicVectors, newSize)
+
+	existing := a.store.Load()
+	for i := range *existing {
+		newCache[i].Store((*existing)[i].Load())
+	}
+
+	oldCache := a.store.Swap(&newCache)
+
+	// clean up old to prevent memory leaks
+	for i := range *existing {
+		(*oldCache)[i].Store(nil)
+	}
+}
