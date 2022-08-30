@@ -122,26 +122,34 @@ func bruteForce(vectors [][]float32, query []float32, k int, distance DistanceFu
 	return out
 }
 
-func BuildTruths(queries_size int, queries [][]float32, vectors [][]float32, k int, distance DistanceFunction) {
+func BuildTruths(queries_size int, queries [][]float32, vectors [][]float32, k int, distance DistanceFunction) [][]uint64 {
+	fileName := fmt.Sprintf("./sift/sift_truths%d.gob", k)
 	truths := make([][]uint64, queries_size)
+
+	if _, err := os.Stat(fileName); err == nil {
+		return loadTruths(fileName, queries_size, k)
+	}
+
 	for i, query := range queries {
 		truths[i] = bruteForce(vectors, query, k, distance)
 	}
-	fileName := fmt.Sprintf("./sift/sift_truths%d.gob", k)
+
 	f, err := os.Create(fileName)
 	if err != nil {
 		panic(errors.Wrap(err, "Could not open file"))
 	}
+
 	defer f.Close()
 	enc := gob.NewEncoder(f)
 	err = enc.Encode(truths)
 	if err != nil {
 		panic(errors.Wrap(err, "Could not encode truths"))
 	}
+	return truths
 }
 
-func LoadTruths(queries_size int, k int) [][]uint64 {
-	fileName := fmt.Sprintf("./sift/sift_truths%d.gob", k)
+func loadTruths(fileName string, queries_size int, k int) [][]uint64 {
+
 	f, err := os.Open(fileName)
 	if err != nil {
 		panic(errors.Wrap(err, "Could not open truths file"))

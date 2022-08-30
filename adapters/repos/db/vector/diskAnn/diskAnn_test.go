@@ -120,8 +120,7 @@ func TestBigDataVamana(t *testing.T) {
 		L := [10]int{10, 20, 30, 40, 50, 60, 70, 80, 90, 100}
 
 		for _, k := range Ks {
-			//testinghelpers.BuildTruths(queries_size, queries, vectors, k, ssdhelpers.L2)
-			truths := testinghelpers.LoadTruths(queries_size, k)
+			truths := testinghelpers.BuildTruths(queries_size, queries, vectors, k, ssdhelpers.L2)
 			data := make([][]float32, len(L))
 			for i, l := range L {
 				index.config.L = l
