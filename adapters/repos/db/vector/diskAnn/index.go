@@ -116,7 +116,16 @@ func (v *Vamana) BuildIndexSharded() {
 					v.edges[shard[j]] = append(v.edges[shard[j]], outNeighbor)
 				}
 			}
-			//ToDo: meet the R constrain after merging
+			rand.Shuffle(len(v.edges[shard[j]]), func(x int, y int) {
+				temp := v.edges[shard[j]][x]
+				v.edges[shard[j]][x] = v.edges[shard[j]][y]
+				v.edges[shard[j]][y] = temp
+			})
+			if len(v.edges[shard[j]]) > v.config.R {
+				//Meet the R constrain after merging
+				//Take a random subset with the appropriate size. Implementation idea from Microsoft reference code
+				v.edges[shard[j]] = v.edges[shard[j]][:v.config.R]
+			}
 		}
 	}
 }
@@ -129,6 +138,10 @@ func (v *Vamana) BuildIndex() {
 	v.pass() //Not sure yet what did they mean in the paper with two passes... Two passes is exactly the same as only the last pass to the best of my knowledge.
 	v.config.Alpha = alpha
 	v.pass()
+}
+
+func (v *Vamana) SetL(L int) {
+	v.config.L = L
 }
 
 func (v *Vamana) SearchByVector(query []float32, k int) []uint64 {
@@ -309,34 +322,26 @@ func permutation(n int) []int {
 }
 
 func (v *Vamana) greedySearch(x []float32, k int) ([]uint64, []uint64) {
-	currentSet := NewSet2().Add(v.s_index)
+	currentSet := ssdhelpers.NewSet(v.config.L, v.config.VectorForIDThunk, v.config.Distance, x).Add(v.s_index)
 	allVisited := make(map[uint64]struct{}, 0)
-	hop := 0
-	for currentSet.NotVisited() > 0 {
-		hop++
-		p := v.closest(x, currentSet)
-		currentSet.AddRange(notVisitedEver(v.edges[p.index], allVisited))
-		currentSet.Visit(p.index)
-		allVisited[p.index] = struct{}{}
-		if currentSet.Size() > v.config.L {
-			v.kClosest(x, v.config.L, currentSet)
-		}
+	for currentSet.NotVisited() {
+		p := currentSet.Top()
+		currentSet.AddRange(notVisitedEver(v.edges[p], allVisited))
+		allVisited[p] = struct{}{}
+		//fmt.Println(currentSet.Elements())
 	}
-	//fmt.Println(hop)
-	return extractIndices(v.kClosest(x, k, currentSet)), elementsFromMap(allVisited)
+	return currentSet.Elements(), elementsFromMap(allVisited)
 }
 
 func notVisitedEver(newElements []uint64, allVisited map[uint64]struct{}) []uint64 {
-	res := make([]uint64, len(newElements))
-	i := 0
+	res := make([]uint64, 0, len(newElements))
 	for _, x := range newElements {
 		if contains(allVisited, x) {
 			continue
 		}
-		res[i] = x
-		i++
+		res = append(res, x)
 	}
-	return res[:i]
+	return res
 }
 
 func contains(allVisited map[uint64]struct{}, x uint64) bool {
@@ -354,24 +359,14 @@ func elementsFromMap(set map[uint64]struct{}) []uint64 {
 	return res
 }
 
-func extractIndices(data *Set2) []uint64 {
-	res := make([]uint64, data.Size())
-	i := 0
-	for _, x := range data.items {
-		res[i] = x.index
-		i++
-	}
-	return res
-}
-
 func (v *Vamana) robustPrune(p uint64, visited []uint64) {
 	visitedSet := NewSet2()
 	visitedSet.AddRange(visited).AddRange(v.edges[p]).Remove(p)
-	out := NewSet2()
 	qP, err := v.config.VectorForIDThunk(context.Background(), p)
 	if err != nil {
 		panic(err)
 	}
+	out := ssdhelpers.NewSet(v.config.R, v.config.VectorForIDThunk, v.config.Distance, qP)
 	for visitedSet.Size() > 0 {
 		pMin := v.closest(qP, visitedSet)
 		out.Add(pMin.index)
@@ -383,17 +378,17 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) {
 			break
 		}
 
-		for _, x := range visitedSet.Elements() {
+		for _, x := range visitedSet.items {
 			qX, err := v.config.VectorForIDThunk(context.Background(), x.index)
 			if err != nil {
 				panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", x.index)))
 			}
 			if (v.config.Alpha * v.config.Distance(qPMin, qX)) <= x.distance {
-				visitedSet.RemoveFromStruct(x)
+				visitedSet.Remove(x.index)
 			}
 		}
 	}
-	v.edges[p] = extractIndices(out)
+	v.edges[p] = out.Elements()
 }
 
 func (v *Vamana) closest(x []float32, set *Set2) *IndexAndDistance {

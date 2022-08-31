@@ -14,6 +14,7 @@ import (
 	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/go-echarts/go-echarts/v2/types"
 	"github.com/pkg/errors"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 )
 
@@ -307,4 +308,48 @@ func MatchesInLists(control []uint64, results []uint64) uint64 {
 	}
 
 	return matches
+}
+
+func BuildVamana(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string) *diskAnn.Vamana {
+	completePath := fmt.Sprintf("%s/vamana-r%d-l%d-a%.1f", path, R, L, alpha)
+	if _, err := os.Stat(completePath); err == nil {
+		return diskAnn.VamanaFromDisk(completePath, VectorForIDThunk, distance)
+	}
+
+	index, _ := diskAnn.New(diskAnn.Config{
+		R:                  R,
+		L:                  L,
+		Alpha:              alpha,
+		VectorForIDThunk:   VectorForIDThunk,
+		VectorsSize:        vectorsSize,
+		Distance:           distance,
+		ClustersSize:       40,
+		ClusterOverlapping: 2,
+	})
+
+	index.BuildIndex()
+	index.ToDisk(completePath)
+	return index
+}
+
+func BuildVamanaSharded(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string) *diskAnn.Vamana {
+	completePath := fmt.Sprintf("%s/vamana-r%d-l%d-a%.1f", path, R, L, alpha)
+	if _, err := os.Stat(completePath); err == nil {
+		return diskAnn.VamanaFromDisk(completePath, VectorForIDThunk, distance)
+	}
+
+	index, _ := diskAnn.New(diskAnn.Config{
+		R:                  R,
+		L:                  L,
+		Alpha:              alpha,
+		VectorForIDThunk:   VectorForIDThunk,
+		VectorsSize:        vectorsSize,
+		Distance:           distance,
+		ClustersSize:       40,
+		ClusterOverlapping: 2,
+	})
+
+	index.BuildIndexSharded()
+	index.ToDisk(completePath)
+	return index
 }
