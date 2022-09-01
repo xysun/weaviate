@@ -366,15 +366,16 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) {
 	if err != nil {
 		panic(err)
 	}
-	out := ssdhelpers.NewSet(v.config.R, v.config.VectorForIDThunk, v.config.Distance, qP)
+	out := make(map[uint64]struct{}, v.config.R)
+	//out := ssdhelpers.NewSet(v.config.R, v.config.VectorForIDThunk, v.config.Distance, qP)
 	for visitedSet.Size() > 0 {
 		pMin := v.closest(qP, visitedSet)
-		out.Add(pMin.index)
+		out[pMin.index] = struct{}{}
 		qPMin, err := v.config.VectorForIDThunk(context.Background(), pMin.index)
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", pMin.index)))
 		}
-		if out.Size() == v.config.R {
+		if len(out) == v.config.R {
 			break
 		}
 
@@ -388,7 +389,7 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) {
 			}
 		}
 	}
-	v.edges[p] = out.Elements(v.config.R)
+	v.edges[p] = elementsFromMap(out)
 }
 
 func (v *Vamana) closest(x []float32, set *Set2) *IndexAndDistance {
@@ -413,43 +414,4 @@ func (v *Vamana) closest(x []float32, set *Set2) *IndexAndDistance {
 		}
 	}
 	return indice
-}
-
-func (v *Vamana) kClosest(x []float32, k int, set *Set2) *Set2 {
-	mins := make([]float32, k)
-	indices := make([]uint64, k)
-	k64 := uint64(k)
-
-	for i := range mins {
-		mins[i] = math.MaxFloat32
-	}
-	for index, element := range set.items {
-		distance := element.distance
-		if distance == 0 {
-			qi, err := v.config.VectorForIDThunk(context.Background(), element.index)
-			if err != nil {
-				panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", element.index)))
-			}
-			distance = v.config.Distance(qi, x)
-			element.distance = distance
-		}
-		j := 0
-		for (j < k) && mins[j] < distance {
-			j++
-		}
-		if j < k {
-			if index >= k64 {
-				set.Remove(indices[k-1])
-				for l := k - 1; l > j; l-- {
-					mins[l] = mins[l-1]
-					indices[l] = indices[l-1]
-				}
-			}
-			mins[j] = distance
-			indices[j] = element.index
-			continue
-		}
-		set.Remove(element.index)
-	}
-	return set
 }
