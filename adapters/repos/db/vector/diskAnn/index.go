@@ -330,7 +330,7 @@ func (v *Vamana) greedySearch(x []float32, k int) ([]uint64, []uint64) {
 		allVisited[p] = struct{}{}
 		//fmt.Println(currentSet.Elements())
 	}
-	return currentSet.Elements(), elementsFromMap(allVisited)
+	return currentSet.Elements(k), elementsFromMap(allVisited)
 }
 
 func notVisitedEver(newElements []uint64, allVisited map[uint64]struct{}) []uint64 {
@@ -388,7 +388,7 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) {
 			}
 		}
 	}
-	v.edges[p] = out.Elements()
+	v.edges[p] = out.Elements(v.config.R)
 }
 
 func (v *Vamana) closest(x []float32, set *Set2) *IndexAndDistance {

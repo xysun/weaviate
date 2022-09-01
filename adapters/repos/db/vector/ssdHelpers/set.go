@@ -1,6 +1,8 @@
 package ssdhelpers
 
-import "context"
+import (
+	"context"
+)
 
 type Set struct {
 	items       *Node
@@ -157,9 +159,12 @@ func (n *Node) Top() (uint64, bool) {
 	return 0, false
 }
 
-func (s *Set) Elements() []uint64 {
+func (s *Set) Elements(k int) []uint64 {
 	res := make([]uint64, s.size)
 	i := s.items.Elements(res, 0)
+	if k < i {
+		i = k
+	}
 	return res[:i]
 }
 

@@ -96,52 +96,52 @@ func TestBigDataVamana(t *testing.T) {
 
 	paramsRs := []int{32, 70}
 	paramsLs := []int{50, 125}
+	alphas := []float32{1, 1.1, 1.2, 1.3}
 	results := make(map[string][][]float32, 0)
-	for paramIndex := range paramsRs {
-		paramR := paramsRs[paramIndex]
-		paramL := paramsLs[paramIndex]
-		paramAlpha := float32(1.2)
-		before = time.Now()
-		index := testinghelpers.BuildVamana(
-			paramR,
-			paramL,
-			paramAlpha,
-			func(ctx context.Context, id uint64) ([]float32, error) {
-				return vectors[int(id)], nil
-			},
-			uint64(vectors_size),
-			ssdhelpers.L2,
-			"./data",
-		)
-		fmt.Printf("Index built in: %s\n", time.Since(before))
-		//Ks := [3]int{1, 10, 100}
-		Ks := []int{10}
-		L := []int{100, 200, 300, 400, 500, 1000}
-		for _, k := range Ks {
-			fmt.Println("K\tL\trecall\t\tquerying")
-			truths := testinghelpers.BuildTruths(queries_size, queries, vectors, k, ssdhelpers.L2)
-			data := make([][]float32, len(L))
-			for i, l := range L {
-				index.SetL(l)
-				var relevant uint64
-				var retrieved int
+	for _, paramAlpha := range alphas {
+		for paramIndex := range paramsRs {
+			paramR := paramsRs[paramIndex]
+			paramL := paramsLs[paramIndex]
+			before = time.Now()
+			index := testinghelpers.BuildVamana(
+				paramR,
+				paramL,
+				paramAlpha,
+				func(ctx context.Context, id uint64) ([]float32, error) {
+					return vectors[int(id)], nil
+				},
+				uint64(vectors_size),
+				ssdhelpers.L2,
+				"./data",
+			)
+			fmt.Printf("Index built in: %s\n", time.Since(before))
+			Ks := []int{1, 10, 100}
+			L := []int{10, 20, 30, 40, 50, 100, 200, 300, 400, 500, 1000, 2000, 3000}
+			for _, k := range Ks {
+				fmt.Println("K\tL\trecall\t\tquerying")
+				truths := testinghelpers.BuildTruths(queries_size, queries, vectors, k, ssdhelpers.L2)
+				data := make([][]float32, len(L))
+				for i, l := range L {
+					index.SetL(l)
+					var relevant uint64
+					var retrieved int
 
-				var querying time.Duration = 0
-				for i := 0; i < len(queries); i++ {
-					before = time.Now()
-					results := index.SearchByVector(queries[i], k)
-					querying += time.Since(before)
-					retrieved += k
-					relevant += testinghelpers.MatchesInLists(truths[i], results)
+					var querying time.Duration = 0
+					for i := 0; i < len(queries); i++ {
+						before = time.Now()
+						results := index.SearchByVector(queries[i], k)
+						querying += time.Since(before)
+						retrieved += k
+						relevant += testinghelpers.MatchesInLists(truths[i], results)
+					}
+
+					recall := float32(relevant) / float32(retrieved)
+					queryingTime := float32(querying.Microseconds()) / 1000
+					data[i] = []float32{queryingTime, recall}
+					fmt.Printf("{%f,%f},\n", float32(querying.Microseconds())/float32(1000), recall)
 				}
-
-				recall := float32(relevant) / float32(retrieved)
-				queryingTime := float32(querying.Microseconds()) / 1000
-				data[i] = []float32{queryingTime, recall}
-				//fmt.Printf("%d\t%d\t%s\t%f\n", k, l, querying/1000, recall)
-				fmt.Printf("{%f,%f},\n", float32(querying.Microseconds())/float32(1000), recall)
+				results[fmt.Sprintf("Vamana - K: %d (R: %d, L: %d, alpha:%.1f)", k, paramR, paramL, paramAlpha)] = data
 			}
-			results[fmt.Sprintf("Vamana - K: %d (R: %d, L: %d, alpha:%.1f)", k, paramR, paramL, paramAlpha)] = data
 		}
 	}
 	testinghelpers.ChartData("Recall Vs Latency", "", results, "index.html")
@@ -305,20 +305,13 @@ func TestBigDataHNSW(t *testing.T) {
 func TestCharts(t *testing.T) {
 	results := make(map[string][][]float32, 0)
 	results["Vamana-100K (R: 32, L: 50, alpha:1.2)"] = [][]float32{
-		{74.778999, 0.595000},
-		{99.362000, 0.866500},
-		{120.258003, 0.955600},
-		{144.362000, 0.980400},
-		{156.733994, 0.989000},
-		{230.479996, 0.994000},
-	}
-	results["Vamana-100K (R: 70, L: 125, alpha:1.2)"] = [][]float32{
-		{123.399002, 0.505000},
-		{136.130005, 0.732600},
-		{171.880005, 0.862000},
-		{189.201996, 0.930800},
-		{205.563004, 0.966900},
-		{292.096985, 0.997800},
+		{149.740997, 0.944000},
+		{210.382996, 0.968900},
+		{333.121002, 0.984400},
+		{442.516998, 0.991200},
+		{531.349976, 0.993400},
+		{632.338013, 0.995400},
+		{1085.954956, 0.998500},
 	}
 	results["HNSW-100K (efC: 512, ef: 256, maxN: 128)"] = [][]float32{
 		{123.772, 0.960200},
@@ -327,14 +320,6 @@ func TestCharts(t *testing.T) {
 		{345.065, 0.997000},
 		{634.041, 0.999200},
 		{1079.155, 0.999700},
-	}
-	results["HNSW-100K (efC: 128, ef: 64, maxN: 32)"] = [][]float32{
-		{74.86, 0.9500},
-		{114.28, 0.9761},
-		{151.50, 0.9852},
-		{188.41, 0.9900},
-		{223.06, 0.9927},
-		{374.78, 0.9978},
 	}
 	results["Vamana Microsoft (R: 32, L: 50, alpha:1.2)"] = [][]float32{
 		{345.83, 0.9500},
@@ -348,28 +333,10 @@ func TestCharts(t *testing.T) {
 
 	results = make(map[string][][]float32, 0)
 	results["Vamana-100K (R: 32, L: 50, alpha:1.2)"] = [][]float32{
-		{238.320007, 0.304020},
-		{358.404999, 0.497330},
-		{464.095001, 0.658860},
-		{553.460999, 0.792190},
-		{662.239014, 0.885430},
-		{1045.656982, 0.995270},
-	}
-	results["Vamana-100K (R: 70, L: 125, alpha:1.2)"] = [][]float32{
-		{309.812012, 0.203390},
-		{417.647003, 0.318280},
-		{530.294006, 0.412280},
-		{626.781006, 0.494910},
-		{711.590027, 0.571570},
-		{1112.654053, 0.874120},
-	}
-	results["HNSW-100K (efC: 128, ef: 64, maxN: 32)"] = [][]float32{
-		{633.732, 0.983720},
-		{603.067, 0.983720},
-		{556.734, 0.983720},
-		{489.457, 0.983720},
-		{745.091, 0.990590},
-		{1087.982, 0.998640},
+		{595.768982, 0.948810},
+		{1088.942993, 0.982140},
+		{1888.046021, 0.995140},
+		{2740.907959, 0.997870},
 	}
 	results["HNSW-100K (efC: 512, ef: 256, maxN: 128)"] = [][]float32{
 		{755.518, 0.996870},

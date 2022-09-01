@@ -315,6 +315,7 @@ func BuildVamana(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.Vector
 	if _, err := os.Stat(completePath); err == nil {
 		return diskAnn.VamanaFromDisk(completePath, VectorForIDThunk, distance)
 	}
+	os.Mkdir(completePath, os.ModePerm)
 
 	index, _ := diskAnn.New(diskAnn.Config{
 		R:                  R,
