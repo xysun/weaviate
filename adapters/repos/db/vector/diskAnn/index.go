@@ -324,11 +324,13 @@ func permutation(n int) []int {
 func (v *Vamana) greedySearch(x []float32, k int) ([]uint64, []uint64) {
 	currentSet := ssdhelpers.NewSet(v.config.L, v.config.VectorForIDThunk, v.config.Distance, x).Add(v.s_index)
 	allVisited := make(map[uint64]struct{}, 0)
+	allVisited[v.s_index] = struct{}{}
 	for currentSet.NotVisited() {
 		p := currentSet.Top()
 		currentSet.AddRange(notVisitedEver(v.edges[p], allVisited))
-		allVisited[p] = struct{}{}
-		//fmt.Println(currentSet.Elements())
+		for _, edge := range v.edges[p] {
+			allVisited[edge] = struct{}{}
+		}
 	}
 	return currentSet.Elements(k), elementsFromMap(allVisited)
 }

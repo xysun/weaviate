@@ -40,13 +40,14 @@ func (s *Set) Add(x uint64) *Set {
 	vec, _ := s.vectorForID(context.Background(), x)
 	dist := s.distance(vec, s.center)
 
+	var last *Node = nil
+	var parent *Node = nil
 	if s.size == s.capacity {
-		if !s.RemoveLastIfBigger(dist) {
+		last, parent = s.RemoveLastIfBigger(dist)
+		if last == nil {
 			return s
 		}
-		s.size--
 	}
-	s.size++
 
 	data := IndexAndDistance{
 		index:    x,
@@ -55,6 +56,7 @@ func (s *Set) Add(x uint64) *Set {
 	}
 
 	if s.items == nil {
+		s.size++
 		s.items = &Node{
 			left:  nil,
 			right: nil,
@@ -63,13 +65,24 @@ func (s *Set) Add(x uint64) *Set {
 		return s
 	}
 
-	s.items.Add(data)
+	if s.items.Add(data) {
+		if last == nil {
+			s.size++
+			return s
+		}
+		if parent == nil {
+			s.items = s.items.left
+			return s
+		}
+		parent.right = last.left
+		return s
+	}
 	return s
 }
 
-func (n *Node) Add(data IndexAndDistance) {
+func (n *Node) Add(data IndexAndDistance) bool {
 	if n.data.index == data.index {
-		return
+		return false
 	}
 	if n.data.distance > data.distance {
 		if n.left == nil {
@@ -78,10 +91,9 @@ func (n *Node) Add(data IndexAndDistance) {
 				right: nil,
 				data:  data,
 			}
-			return
+			return true
 		}
-		n.left.Add(data)
-		return
+		return n.left.Add(data)
 	}
 
 	if n.right == nil {
@@ -90,22 +102,17 @@ func (n *Node) Add(data IndexAndDistance) {
 			right: nil,
 			data:  data,
 		}
-		return
-	}
-	n.right.Add(data)
-}
-
-func (s *Set) RemoveLastIfBigger(dist float32) bool {
-	last, parent := s.items.Last(nil)
-	if last.data.distance < dist {
-		return false
-	}
-	if parent == nil {
-		s.items = s.items.left
 		return true
 	}
-	parent.right = last.left
-	return true
+	return n.right.Add(data)
+}
+
+func (s *Set) RemoveLastIfBigger(dist float32) (*Node, *Node) {
+	last, parent := s.items.Last(nil)
+	if last.data.distance < dist {
+		return nil, nil
+	}
+	return last, parent
 }
 
 func (n *Node) Last(parent *Node) (*Node, *Node) {
