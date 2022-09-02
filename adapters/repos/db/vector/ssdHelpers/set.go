@@ -20,6 +20,7 @@ type Node struct {
 	left   *Node
 	right  *Node
 	parent *Node
+	height int
 }
 
 type IndexAndDistance struct {
@@ -58,6 +59,7 @@ func (s *Set) Add(x uint64) *Set {
 			right:  nil,
 			parent: nil,
 			data:   data,
+			height: 0,
 		}
 		s.lastNode = s.items
 		s.firstNode = s.items
@@ -86,11 +88,13 @@ func (s *Set) Add(x uint64) *Set {
 					s.items.left.parent = s.items.right
 				}
 				s.items.right.left = s.items.left
+				s.items.right.Balance(s)
 
 				if s.items.right != nil {
 					s.items.right.parent = nil
 				}
 				s.items = s.items.right
+				s.items.Balance(s)
 				return s
 			}
 
@@ -98,7 +102,7 @@ func (s *Set) Add(x uint64) *Set {
 				s.items.left.parent = nil
 			}
 			s.items = s.items.left
-			s.lastNode, _ = s.items.Last(nil)
+			s.lastNode = s.items.Last()
 			return s
 		}
 		//new element was not added to the right of the last
@@ -107,11 +111,12 @@ func (s *Set) Add(x uint64) *Set {
 				last.left.parent = last.parent
 			}
 			last.parent.right = last.left
+			last.parent.Balance(s)
 			if last.parent.right == nil {
 				s.lastNode = last.parent
 				return s
 			}
-			s.lastNode, _ = last.parent.right.Last(nil)
+			s.lastNode = last.parent.right.Last()
 			return s
 		}
 		//new element was added to the right of the last
@@ -119,10 +124,12 @@ func (s *Set) Add(x uint64) *Set {
 			last.right.parent = last.parent
 		}
 		last.parent.right = last.right
+		last.parent.Balance(s)
 		if last.left != nil {
 			last.left.parent = last.right
 		}
 		last.right.left = last.left
+		last.right.Balance(s)
 		s.lastNode = last.parent.right
 		return s
 	}
@@ -140,10 +147,12 @@ func (n *Node) Add(data IndexAndDistance, s *Set) bool {
 				right:  nil,
 				data:   data,
 				parent: n,
+				height: 0,
 			}
 			if s.firstNode.data.distance > data.distance {
 				s.firstNode = n.left
 			}
+			n.Balance(s)
 			return true
 		}
 		return n.left.Add(data, s)
@@ -154,6 +163,7 @@ func (n *Node) Add(data IndexAndDistance, s *Set) bool {
 			right:  nil,
 			data:   data,
 			parent: n,
+			height: 0,
 		}
 		if s.firstNode.data.distance > data.distance {
 			s.firstNode = n.right
@@ -161,16 +171,152 @@ func (n *Node) Add(data IndexAndDistance, s *Set) bool {
 		if s.lastNode == n {
 			s.lastNode = n.right
 		}
+		n.Balance(s)
 		return true
 	}
 	return n.right.Add(data, s)
 }
 
-func (n *Node) Last(parent *Node) (*Node, *Node) {
-	if n.right == nil {
-		return n, parent
+const (
+	NOTBALANCE   int = 0
+	BALANCERIGHT     = 1
+	BALANCELEFT      = 2
+)
+
+func (n *Node) maxHeight() (int, int) {
+	if n.right != nil {
+		if n.left != nil {
+			if n.right.height < n.left.height {
+
+				if n.left.height-n.right.height > 1 {
+					return n.right.height, BALANCERIGHT
+				}
+				return n.right.height, NOTBALANCE
+			}
+			if n.right.height-n.left.height > 1 {
+				return n.left.height, BALANCELEFT
+			}
+			return n.left.height, NOTBALANCE
+
+		}
+		return n.right.height, NOTBALANCE
+
 	}
-	return n.right.Last(n)
+	if n.left != nil {
+		return n.left.height, NOTBALANCE
+	}
+	return 0, NOTBALANCE
+}
+
+func (n *Node) Balance(s *Set) {
+	newHeight, action := n.maxHeight()
+
+	if newHeight == n.height {
+		return
+	}
+
+	if action == BALANCELEFT {
+		n.BalanceLeft(s)
+	} else if action == BALANCERIGHT {
+		n.BalanceRight(s)
+	}
+
+	if n.parent != nil {
+		n.parent.Balance(s)
+	}
+}
+
+func (n *Node) BalanceLeft(s *Set) {
+	if n.parent != nil {
+		parent := n.parent
+		right := n.right
+		if n.parent.right == n {
+			parent.right = right
+			n.right = parent.right.left
+			parent.right.left = n
+		} else {
+			parent.left = right
+			n.right = parent.left.left
+			parent.left.left = n
+		}
+		n.height, _ = n.maxHeight()
+		right.height, _ = right.maxHeight()
+
+		right.parent = parent
+		n.parent = right
+		if n.right != nil {
+			n.right.parent = n
+		}
+		return
+	}
+	right := n.right
+	if n.parent.right == n {
+		s.items.right = right
+		n.right = s.items.right.left
+		s.items.right.left = n
+	} else {
+		s.items.left = right
+		n.right = s.items.left.left
+		s.items.left.left = n
+	}
+	n.height, _ = n.maxHeight()
+	right.height, _ = right.maxHeight()
+
+	right.parent = nil
+	n.parent = right
+	if n.right != nil {
+		n.right.parent = n
+	}
+}
+
+func (n *Node) BalanceRight(s *Set) {
+	if n.parent != nil {
+		parent := n.parent
+		left := n.left
+		if n.parent.right == n {
+			parent.right = left
+			n.left = parent.right.left
+			parent.right.left = n
+		} else {
+			parent.left = left
+			n.left = parent.left.left
+			parent.left.left = n
+		}
+		n.height, _ = n.maxHeight()
+		left.height, _ = left.maxHeight()
+
+		left.parent = parent
+		n.parent = left
+		if n.left != nil {
+			n.left.parent = n
+		}
+		return
+	}
+	left := n.left
+	if n.parent.right == n {
+		s.items.right = left
+		n.left = s.items.right.left
+		s.items.right.left = n
+	} else {
+		s.items.left = left
+		n.left = s.items.left.left
+		s.items.left.left = n
+	}
+	n.height, _ = n.maxHeight()
+	left.height, _ = left.maxHeight()
+
+	left.parent = nil
+	n.parent = left
+	if n.right != nil {
+		n.right.parent = n
+	}
+}
+
+func (n *Node) Last() *Node {
+	if n.right == nil {
+		return n
+	}
+	return n.right.Last()
 }
 
 func (s *Set) NotVisited() bool {
