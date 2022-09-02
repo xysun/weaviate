@@ -369,7 +369,6 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) {
 		panic(err)
 	}
 	out := make(map[uint64]struct{}, v.config.R)
-	//out := ssdhelpers.NewSet(v.config.R, v.config.VectorForIDThunk, v.config.Distance, qP)
 	for visitedSet.Size() > 0 {
 		pMin := v.closest(qP, visitedSet)
 		out[pMin.index] = struct{}{}
