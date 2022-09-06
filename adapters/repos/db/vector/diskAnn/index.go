@@ -13,11 +13,14 @@ package diskAnn
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/gob"
 	"fmt"
 	"math"
 	"math/rand"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -183,6 +186,36 @@ func (v *Vamana) ToDisk(path string) {
 	if err != nil {
 		panic(errors.Wrap(err, "Could not encode graph"))
 	}
+}
+
+func (v *Vamana) GraphFromDumpFile(filePath string) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to read input file "+filePath))
+	}
+	defer f.Close()
+	csvReader := csv.NewReader(f)
+	csvReader.FieldsPerRecord = -1
+	records, err := csvReader.ReadAll()
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to parse file as CSV for "+filePath))
+	}
+	v.edges = make([][]uint64, v.config.VectorsSize)
+	for r, row := range records {
+		v.edges[r] = make([]uint64, len(row)-1)
+		for j, element := range row {
+			if j == len(row)-1 {
+				break
+			}
+			v.edges[r][j] = str2uint64(element)
+		}
+	}
+}
+
+func str2uint64(str string) uint64 {
+	str = strings.Trim(str, " ")
+	i, _ := strconv.ParseInt(str, 10, 64)
+	return uint64(i)
 }
 
 func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distance ssdhelpers.DistanceFunction) *Vamana {
