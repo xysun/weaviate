@@ -68,7 +68,7 @@ func (n *Node) CheckBalance() bool {
 	return true
 }
 
-func (s *Set) Add(x uint64) *Set {
+func (s *Set) Add(x uint64) bool {
 	vec, _ := s.vectorForID(context.Background(), x)
 	dist := s.distance(vec, s.center)
 	data := IndexAndDistance{
@@ -89,14 +89,14 @@ func (s *Set) Add(x uint64) *Set {
 		}
 		s.lastNode = s.items
 		s.firstNode = s.items
-		return s
+		return true
 	}
 
 	var last *Node = nil
 	if s.size == s.capacity {
 		//element to add too big so it will not get in
 		if s.lastNode.data.distance <= dist {
-			return s
+			return false
 		}
 		last = s.lastNode
 	}
@@ -105,7 +105,7 @@ func (s *Set) Add(x uint64) *Set {
 		//already there, no need to add anything
 		if last == nil {
 			s.size++
-			return s
+			return true
 		}
 		//element added so the last needs out
 		if last.parent == nil {
@@ -121,7 +121,7 @@ func (s *Set) Add(x uint64) *Set {
 				s.items = s.items.right
 				s.items.right.Balance(s)
 				//s.items.Balance(s)
-				return s
+				return true
 			}
 
 			if s.items.left != nil {
@@ -129,7 +129,7 @@ func (s *Set) Add(x uint64) *Set {
 			}
 			s.items = s.items.left
 			s.lastNode = s.items.Last()
-			return s
+			return true
 		}
 		//new element was not added to the right of the last
 		if last.right == nil {
@@ -140,11 +140,11 @@ func (s *Set) Add(x uint64) *Set {
 			if last.parent.right == nil {
 				s.lastNode = last.parent
 				last.parent.Balance(s)
-				return s
+				return true
 			}
 			s.lastNode = last.parent.right.Last()
 			last.parent.Balance(s)
-			return s
+			return true
 		}
 		//new element was added to the right of the last
 		if last.right != nil {
@@ -158,9 +158,9 @@ func (s *Set) Add(x uint64) *Set {
 		s.lastNode = last.parent.right
 		last.parent.Balance(s)
 		//last.right.Balance(s)
-		return s
+		return true
 	}
-	return s
+	return false
 }
 
 func (n *Node) Add(data IndexAndDistance, s *Set) bool {
@@ -202,6 +202,23 @@ func (n *Node) Add(data IndexAndDistance, s *Set) bool {
 		return true
 	}
 	return n.right.Add(data, s)
+}
+
+func contains(allVisited map[uint64]struct{}, x uint64) bool {
+	_, found := allVisited[x]
+	return found
+}
+
+func (s *Set) AddNotVisitedEver(indices []uint64, visited map[uint64]struct{}) *Set {
+	for _, item := range indices {
+		if contains(visited, item) {
+			continue
+		}
+		if !s.Add(item) {
+			visited[item] = struct{}{}
+		}
+	}
+	return s
 }
 
 const (
@@ -435,16 +452,6 @@ func (s *Set) NotVisited() bool {
 
 func (n *Node) NotVisited() bool {
 	return !n.data.visited || (n.left != nil && n.left.NotVisited()) || (n.right != nil && n.right.NotVisited())
-}
-
-func (s *Set) AddRange(indices []uint64) *Set {
-	for _, item := range indices {
-		s.Add(item)
-		/*if !s.items.CheckBalance() {
-			panic("")
-		}*/
-	}
-	return s
 }
 
 func (s *Set) Size() int {

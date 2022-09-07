@@ -355,33 +355,18 @@ func permutation(n int) []int {
 }
 
 func (v *Vamana) greedySearch(x []float32, k int) ([]uint64, []uint64) {
-	currentSet := ssdhelpers.NewSet(v.config.L, v.config.VectorForIDThunk, v.config.Distance, x).Add(v.s_index)
+	currentSet := ssdhelpers.NewSet(v.config.L, v.config.VectorForIDThunk, v.config.Distance, x)
+	currentSet.Add(v.s_index)
 	allVisited := make(map[uint64]struct{}, 0)
 	allVisited[v.s_index] = struct{}{}
 	for currentSet.NotVisited() {
 		p := currentSet.Top()
-		currentSet.AddRange(notVisitedEver(v.edges[p], allVisited))
+		currentSet.AddNotVisitedEver(v.edges[p], allVisited)
 		for _, edge := range v.edges[p] {
 			allVisited[edge] = struct{}{}
 		}
 	}
 	return currentSet.Elements(k), elementsFromMap(allVisited)
-}
-
-func notVisitedEver(newElements []uint64, allVisited map[uint64]struct{}) []uint64 {
-	res := make([]uint64, 0, len(newElements))
-	for _, x := range newElements {
-		if contains(allVisited, x) {
-			continue
-		}
-		res = append(res, x)
-	}
-	return res
-}
-
-func contains(allVisited map[uint64]struct{}, x uint64) bool {
-	_, found := allVisited[x]
-	return found
 }
 
 func elementsFromMap(set map[uint64]struct{}) []uint64 {
