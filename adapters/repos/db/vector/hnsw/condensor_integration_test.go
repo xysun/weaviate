@@ -47,7 +47,7 @@ func TestCondensor(t *testing.T) {
 		// below are some pointless connection replacements, we expect that most of
 		// these will be gone after condensing, this gives us a good way of testing
 		// whether they're really gone
-		for level := 0; level <= 3; level++ {
+		for level := int8(0); level <= 3; level++ {
 			uncondensed.ReplaceLinksAtLevel(0, level, []uint64{1, 2, 3})
 			uncondensed.ReplaceLinksAtLevel(0, level, []uint64{1, 2})
 			uncondensed.ReplaceLinksAtLevel(0, level, []uint64{1})
@@ -92,7 +92,7 @@ func TestCondensor(t *testing.T) {
 		// below are some pointless connection replacements, we expect that most of
 		// these will be gone after condensing, this gives us a good way of testing
 		// whether they're really gone
-		for level := 0; level <= 3; level++ {
+		for level := int8(0); level <= 3; level++ {
 			perfect.ReplaceLinksAtLevel(0, level, []uint64{1, 2, 3})
 			perfect.ReplaceLinksAtLevel(1, level, []uint64{0, 2, 3})
 			perfect.ReplaceLinksAtLevel(2, level, []uint64{0, 1, 3})
@@ -467,7 +467,7 @@ func dumpIndexFromCommitLog(t *testing.T, fileName string) {
 
 	index := &hnsw{
 		nodes:               res.Nodes,
-		currentMaximumLayer: int(res.Level),
+		currentMaximumLayer: int8(res.Level),
 		entryPointID:        res.Entrypoint,
 		tombstones:          res.Tombstones,
 	}
@@ -499,7 +499,7 @@ func readFromCommitLogs(t *testing.T, fileNames ...string) *hnsw {
 
 	return &hnsw{
 		nodes:               removeTrailingNilNodes(res.Nodes),
-		currentMaximumLayer: int(res.Level),
+		currentMaximumLayer: int8(res.Level),
 		entryPointID:        res.Entrypoint,
 		tombstones:          res.Tombstones,
 	}
