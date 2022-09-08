@@ -154,7 +154,7 @@ func (h *hnsw) SearchByVectorDistance(vector []float32, targetDistance float32, 
 }
 
 func (h *hnsw) searchLayerByVector(queryVector []float32,
-	entrypoints *priorityqueue.Queue, ef int, level int,
+	entrypoints *priorityqueue.Queue, ef int, level int8,
 	allowList helpers.AllowList) (*priorityqueue.Queue, error,
 ) {
 	h.pools.visitedListsLock.Lock()
@@ -287,7 +287,7 @@ func (h *hnsw) searchLayerByVector(queryVector []float32,
 }
 
 func (h *hnsw) insertViableEntrypointsAsCandidatesAndResults(
-	entrypoints, candidates, results *priorityqueue.Queue, level int,
+	entrypoints, candidates, results *priorityqueue.Queue, level int8,
 	visitedList visited.ListSet, allowList helpers.AllowList,
 ) {
 	for entrypoints.Len() > 0 {

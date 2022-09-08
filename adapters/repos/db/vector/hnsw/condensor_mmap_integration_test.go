@@ -45,7 +45,7 @@ func TestMmapCondensor(t *testing.T) {
 		// below are some pointless connection replacements, we expect that most of
 		// these will be gone after condensing, this gives us a good way of testing
 		// whether they're really gone
-		for level := 0; level <= 3; level++ {
+		for level := int8(0); level <= 3; level++ {
 			uncondensed.ReplaceLinksAtLevel(0, level, []uint64{1, 2, 3})
 			uncondensed.ReplaceLinksAtLevel(0, level, []uint64{1, 2})
 			uncondensed.ReplaceLinksAtLevel(0, level, []uint64{1})
@@ -90,7 +90,7 @@ func TestMmapCondensor(t *testing.T) {
 		// below are some pointless connection replacements, we expect that most of
 		// these will be gone after condensing, this gives us a good way of testing
 		// whether they're really gone
-		for level := 0; level <= 3; level++ {
+		for level := int8(0); level <= 3; level++ {
 			perfect.ReplaceLinksAtLevel(0, level, []uint64{1, 2, 3})
 			perfect.ReplaceLinksAtLevel(1, level, []uint64{0, 2, 3})
 			perfect.ReplaceLinksAtLevel(2, level, []uint64{0, 1, 3})

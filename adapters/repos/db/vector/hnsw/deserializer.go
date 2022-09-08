@@ -153,10 +153,10 @@ func (c *Deserializer) ReadNode(r io.Reader, res *DeserializationResult) error {
 	}
 
 	if res.Nodes[id] == nil {
-		res.Nodes[id] = &vertex{level: int(level), id: id, connections: make([][]uint64, level+1)}
+		res.Nodes[id] = &vertex{level: int8(level), id: id, connections: make([][]uint64, level+1)}
 	} else {
 		maybeGrowConnectionsForLevel(&res.Nodes[id].connections, level)
-		res.Nodes[id].level = int(level)
+		res.Nodes[id].level = int8(level)
 	}
 	return nil
 }
@@ -206,7 +206,7 @@ func (c *Deserializer) ReadLink(r io.Reader, res *DeserializationResult) error {
 
 	maybeGrowConnectionsForLevel(&res.Nodes[int(source)].connections, level)
 
-	res.Nodes[int(source)].connections[int(level)] = append(res.Nodes[int(source)].connections[int(level)], target)
+	res.Nodes[int(source)].connections[int8(level)] = append(res.Nodes[int(source)].connections[int8(level)], target)
 	return nil
 }
 
@@ -247,7 +247,7 @@ func (c *Deserializer) ReadLinks(r io.Reader, res *DeserializationResult,
 	}
 
 	maybeGrowConnectionsForLevel(&res.Nodes[int(source)].connections, level)
-	res.Nodes[int(source)].connections[int(level)] = targets
+	res.Nodes[int(source)].connections[int8(level)] = targets
 
 	if keepReplaceInfo {
 		// mark the replace flag for this node and level, so that new commit logs
@@ -301,8 +301,8 @@ func (c *Deserializer) ReadAddLinks(r io.Reader,
 
 	maybeGrowConnectionsForLevel(&res.Nodes[int(source)].connections, level)
 
-	res.Nodes[int(source)].connections[int(level)] = append(
-		res.Nodes[int(source)].connections[int(level)], targets...)
+	res.Nodes[int(source)].connections[int8(level)] = append(
+		res.Nodes[int(source)].connections[int8(level)], targets...)
 
 	return 12 + int(length)*8, nil
 }
@@ -400,7 +400,7 @@ func (c *Deserializer) ReadClearLinksAtLevel(r io.Reader, res *DeserializationRe
 		res.Nodes[id].connections = make([][]uint64, level+1)
 	} else {
 		maybeGrowConnectionsForLevel(&res.Nodes[id].connections, level)
-		res.Nodes[id].connections[int(level)] = []uint64{}
+		res.Nodes[id].connections[int8(level)] = []uint64{}
 	}
 
 	if keepReplaceInfo {

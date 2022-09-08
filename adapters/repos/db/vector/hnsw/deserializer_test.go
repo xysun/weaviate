@@ -212,7 +212,7 @@ func TestDeserializerReadNode(t *testing.T) {
 		err := d.ReadNode(reader, res)
 		require.Nil(t, err)
 		require.NotNil(t, res.Nodes[id])
-		assert.Equal(t, int(level), res.Nodes[id].level)
+		assert.Equal(t, int8(level), res.Nodes[id].level)
 	}
 }
 

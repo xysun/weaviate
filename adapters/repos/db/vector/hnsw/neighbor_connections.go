@@ -20,7 +20,7 @@ import (
 )
 
 func (h *hnsw) findAndConnectNeighbors(node *vertex,
-	entryPointID uint64, nodeVec []float32, targetLevel, currentMaxLevel int,
+	entryPointID uint64, nodeVec []float32, targetLevel, currentMaxLevel int8,
 	denyList helpers.AllowList,
 ) error {
 	nfc := newNeighborFinderConnector(h, node, entryPointID, nodeVec, targetLevel,
@@ -35,14 +35,14 @@ type neighborFinderConnector struct {
 	entryPointID    uint64
 	entryPointDist  float32
 	nodeVec         []float32
-	targetLevel     int
-	currentMaxLevel int
+	targetLevel     int8
+	currentMaxLevel int8
 	denyList        helpers.AllowList
 	// bufLinksLog     BufferedLinksLogger
 }
 
 func newNeighborFinderConnector(graph *hnsw, node *vertex, entryPointID uint64,
-	nodeVec []float32, targetLevel, currentMaxLevel int,
+	nodeVec []float32, targetLevel, currentMaxLevel int8,
 	denyList helpers.AllowList,
 ) *neighborFinderConnector {
 	return &neighborFinderConnector{
@@ -78,7 +78,7 @@ func (n *neighborFinderConnector) Do() error {
 	return nil
 }
 
-func (n *neighborFinderConnector) doAtLevel(level int) error {
+func (n *neighborFinderConnector) doAtLevel(level int8) error {
 	before := time.Now()
 	if err := n.replaceEntrypointsIfUnderMaintenance(); err != nil {
 		return err
@@ -179,7 +179,7 @@ func (n *neighborFinderConnector) replaceEntrypointsIfUnderMaintenance() error {
 }
 
 func (n *neighborFinderConnector) connectNeighborAtLevel(neighborID uint64,
-	level int,
+	level int8,
 ) error {
 	neighbor := n.graph.nodeByID(neighborID)
 	if skip := n.skipNeighbor(neighbor); skip {
@@ -269,7 +269,7 @@ func (n *neighborFinderConnector) skipNeighbor(neighbor *vertex) bool {
 	return false
 }
 
-func (n *neighborFinderConnector) maximumConnections(level int) int {
+func (n *neighborFinderConnector) maximumConnections(level int8) int {
 	if level == 0 {
 		return n.graph.maximumConnectionsLayerZero
 	}

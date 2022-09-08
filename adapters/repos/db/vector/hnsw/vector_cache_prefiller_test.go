@@ -135,7 +135,7 @@ func generateDummyVertices(amount int) []*vertex {
 	for i := range out {
 		out[i] = &vertex{
 			id:    uint64(i),
-			level: levelForDummyVertex(i),
+			level: levelForDummyVertex(int8(i)),
 		}
 	}
 
@@ -147,7 +147,7 @@ func generateDummyVertices(amount int) []*vertex {
 // if id % 5 == 0 -> layer 2
 // if id % 3 == 0 -> layer 1
 // remainder -> layer 0
-func levelForDummyVertex(id int) int {
+func levelForDummyVertex(id int8) int8 {
 	if id%15 == 0 {
 		return 3
 	}

@@ -18,8 +18,8 @@ import (
 type vertex struct {
 	id uint64
 	sync.Mutex
-	level       int
 	connections [][]uint64
+	level       int8
 	maintenance bool
 }
 
@@ -42,11 +42,11 @@ func (v *vertex) isUnderMaintenance() bool {
 	return m
 }
 
-func (v *vertex) connectionsAtLevelNoLock(level int) []uint64 {
+func (v *vertex) connectionsAtLevelNoLock(level int8) []uint64 {
 	return v.connections[level]
 }
 
-func (v *vertex) setConnectionsAtLevel(level int, connections []uint64) {
+func (v *vertex) setConnectionsAtLevel(level int8, connections []uint64) {
 	v.Lock()
 	defer v.Unlock()
 
@@ -70,7 +70,7 @@ func (v *vertex) setConnectionsAtLevel(level int, connections []uint64) {
 	copy(v.connections[level], connections)
 }
 
-func (v *vertex) appendConnectionAtLevelNoLock(level int, connection uint64, maxConns int) {
+func (v *vertex) appendConnectionAtLevelNoLock(level int8, connection uint64, maxConns int) {
 	if len(v.connections[level]) == cap(v.connections[level]) {
 		// if the len is the capacity, this  means a new array needs to be
 		// allocated to back this slice. The go runtime would do this
@@ -108,6 +108,6 @@ func (v *vertex) appendConnectionAtLevelNoLock(level int, connection uint64, max
 	v.connections[level] = append(v.connections[level], connection)
 }
 
-func (v *vertex) resetConnectionsAtLevelNoLock(level int) {
+func (v *vertex) resetConnectionsAtLevelNoLock(level int8) {
 	v.connections[level] = v.connections[level][:0]
 }

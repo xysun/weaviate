@@ -97,7 +97,7 @@ func (h *hnsw) insert(node *vertex, nodeVec []float32) error {
 	currentMaximumLayer := h.currentMaximumLayer
 	h.RUnlock()
 
-	targetLevel := int(math.Floor(-math.Log(h.randFunc()) * h.levelNormalizer))
+	targetLevel := int8(math.Min(math.MaxInt8, math.Floor(-math.Log(h.randFunc())*h.levelNormalizer)))
 
 	// before = time.Now()
 	// m.addBuildingItemLocking(before)
@@ -139,7 +139,6 @@ func (h *hnsw) insert(node *vertex, nodeVec []float32) error {
 
 	h.insertMetrics.prepareAndInsertNode(before)
 	before = time.Now()
-
 	entryPointID, err = h.findBestEntrypointForNode(currentMaximumLayer, targetLevel,
 		entryPointID, nodeVec)
 	if err != nil {
@@ -160,7 +159,6 @@ func (h *hnsw) insert(node *vertex, nodeVec []float32) error {
 
 	// go h.insertHook(nodeId, targetLevel, neighborsAtLevel)
 	node.unmarkAsMaintenance()
-
 	h.Lock()
 	if targetLevel > h.currentMaximumLayer {
 		// before = time.Now()

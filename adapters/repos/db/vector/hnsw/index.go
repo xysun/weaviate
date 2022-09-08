@@ -61,7 +61,7 @@ type hnsw struct {
 	// the current maximum can be smaller than the configured maximum because of
 	// the exponentially decaying layer function. The initial entry is started at
 	// layer 0, but this has the chance to grow with every subsequent entry
-	currentMaximumLayer int
+	currentMaximumLayer int8
 
 	// this is a point on the highest level, if we insert a new point with a
 	// higher level it will become the new entry point. Note tat the level of
@@ -126,9 +126,9 @@ type CommitLogger interface {
 	ID() string
 	Start()
 	AddNode(node *vertex) error
-	SetEntryPointWithMaxLayer(id uint64, level int) error
-	AddLinkAtLevel(nodeid uint64, level int, target uint64) error
-	ReplaceLinksAtLevel(nodeid uint64, level int, targets []uint64) error
+	SetEntryPointWithMaxLayer(id uint64, level int8) error
+	AddLinkAtLevel(nodeid uint64, level int8, int8 uint64) error
+	ReplaceLinksAtLevel(nodeid uint64, level int8, targets []uint64) error
 	AddTombstone(nodeid uint64) error
 	RemoveTombstone(nodeid uint64) error
 	DeleteNode(nodeid uint64) error
@@ -144,8 +144,8 @@ type CommitLogger interface {
 }
 
 type BufferedLinksLogger interface {
-	AddLinkAtLevel(nodeid uint64, level int, target uint64) error
-	ReplaceLinksAtLevel(nodeid uint64, level int, targets []uint64) error
+	AddLinkAtLevel(nodeid uint64, level int8, target uint64) error
+	ReplaceLinksAtLevel(nodeid uint64, level int8, targets []uint64) error
 	Close() error // Close should Flush and Close
 }
 
@@ -328,7 +328,7 @@ func New(cfg Config, uc UserConfig) (*hnsw, error) {
 
 // }
 
-func (h *hnsw) findBestEntrypointForNode(currentMaxLevel, targetLevel int,
+func (h *hnsw) findBestEntrypointForNode(currentMaxLevel, targetLevel int8,
 	entryPointID uint64, nodeVec []float32,
 ) (uint64, error) {
 	// in case the new target is lower than the current max, we need to search
@@ -367,7 +367,7 @@ func (h *hnsw) findBestEntrypointForNode(currentMaxLevel, targetLevel int,
 	return entryPointID, nil
 }
 
-func min(a, b int) int {
+func min(a, b int8) int8 {
 	if a < b {
 		return a
 	}
@@ -446,7 +446,7 @@ func (h *hnsw) distBetweenNodeAndVec(node uint64, vecB []float32) (float32, bool
 func (h *hnsw) Stats() {
 	fmt.Printf("levels: %d\n", h.currentMaximumLayer)
 
-	perLevelCount := map[int]uint{}
+	perLevelCount := map[int8]uint{}
 
 	for _, node := range h.nodes {
 		if node == nil {

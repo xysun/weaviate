@@ -67,7 +67,7 @@ func (pf *vectorCachePrefiller) Prefill(ctx context.Context, limit int) error {
 
 // returns false if the max has been reached, true otherwise
 func (pf *vectorCachePrefiller) prefillLevel(ctx context.Context,
-	level, limit int,
+	level int8, limit int,
 ) (bool, error) {
 	// TODO: this makes zero sense, just copy the lists, don't actually block
 	//  !!!!
@@ -112,7 +112,7 @@ func (pf *vectorCachePrefiller) prefillLevel(ctx context.Context,
 	return true, nil
 }
 
-func (pf *vectorCachePrefiller) logLevel(level, count int, before time.Time) {
+func (pf *vectorCachePrefiller) logLevel(level int8, count int, before time.Time) {
 	pf.logger.WithFields(logrus.Fields{
 		"action":     "hnsw_vector_cache_prefill_level",
 		"hnsw_level": level,
@@ -132,14 +132,14 @@ func (pf *vectorCachePrefiller) logTotal(count, limit int, before time.Time) {
 	}).Info("prefilled vector cache")
 }
 
-func levelOfNode(node *vertex) int {
+func levelOfNode(node *vertex) int8 {
 	node.Lock()
 	defer node.Unlock()
 
 	return node.level
 }
 
-func (pf *vectorCachePrefiller) maxLevel() int {
+func (pf *vectorCachePrefiller) maxLevel() int8 {
 	pf.index.Lock()
 	defer pf.index.Unlock()
 

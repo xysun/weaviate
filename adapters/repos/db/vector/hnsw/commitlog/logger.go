@@ -54,7 +54,7 @@ func NewLoggerWithFile(file *os.File) *Logger {
 	return &Logger{file: file, bufw: NewWriterSize(file, 1024*1024)}
 }
 
-func (l *Logger) SetEntryPointWithMaxLayer(id uint64, level int) error {
+func (l *Logger) SetEntryPointWithMaxLayer(id uint64, level int8) error {
 	toWrite := make([]byte, 11)
 	toWrite[0] = byte(SetEntryPointMaxLevel)
 	binary.LittleEndian.PutUint64(toWrite[1:9], id)
@@ -63,7 +63,7 @@ func (l *Logger) SetEntryPointWithMaxLayer(id uint64, level int) error {
 	return err
 }
 
-func (l *Logger) AddNode(id uint64, level int) error {
+func (l *Logger) AddNode(id uint64, level int8) error {
 	toWrite := make([]byte, 11)
 	toWrite[0] = byte(AddNode)
 	binary.LittleEndian.PutUint64(toWrite[1:9], id)
@@ -72,7 +72,7 @@ func (l *Logger) AddNode(id uint64, level int) error {
 	return err
 }
 
-func (l *Logger) AddLinkAtLevel(id uint64, level int, target uint64) error {
+func (l *Logger) AddLinkAtLevel(id uint64, level int8, target uint64) error {
 	toWrite := make([]byte, 19)
 	toWrite[0] = byte(AddLinkAtLevel)
 	binary.LittleEndian.PutUint64(toWrite[1:9], id)
@@ -82,7 +82,7 @@ func (l *Logger) AddLinkAtLevel(id uint64, level int, target uint64) error {
 	return err
 }
 
-func (l *Logger) AddLinksAtLevel(id uint64, level int, targets []uint64) error {
+func (l *Logger) AddLinksAtLevel(id uint64, level int8, targets []uint64) error {
 	toWrite := make([]byte, 13+len(targets)*8)
 	toWrite[0] = byte(AddLinksAtLevel)
 	binary.LittleEndian.PutUint64(toWrite[1:9], id)
@@ -99,7 +99,7 @@ func (l *Logger) AddLinksAtLevel(id uint64, level int, targets []uint64) error {
 
 // chunks links in increments of 8, so that we never have to allocate a dynamic
 // []byte size which would be guaranteed to escape to the heap
-func (l *Logger) ReplaceLinksAtLevel(id uint64, level int, targets []uint64) error {
+func (l *Logger) ReplaceLinksAtLevel(id uint64, level int8, targets []uint64) error {
 	headers := make([]byte, 13)
 	headers[0] = byte(ReplaceLinksAtLevel)
 	binary.LittleEndian.PutUint64(headers[1:9], id)

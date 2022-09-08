@@ -19,7 +19,7 @@ import (
 func BenchmarkSetEntryPoint(b *testing.B) {
 	defer os.Remove("./testfile")
 	ids := make([]uint64, 100)
-	levels := make([]int, 100)
+	levels := make([]int8, 100)
 
 	l := NewLogger("./testfile")
 
@@ -35,7 +35,7 @@ func BenchmarkSetEntryPoint(b *testing.B) {
 func BenchmarkAddNode(b *testing.B) {
 	defer os.Remove("./testfile")
 	ids := make([]uint64, 100)
-	levels := make([]int, 100)
+	levels := make([]int8, 100)
 
 	l := NewLogger("./testfile")
 
@@ -51,7 +51,7 @@ func BenchmarkAddNode(b *testing.B) {
 func BenchmarkAddLinkAtLevel(b *testing.B) {
 	defer os.Remove("./testfile")
 	ids := make([]uint64, 100)
-	levels := make([]int, 100)
+	levels := make([]int8, 100)
 	links := make([]uint64, 100)
 
 	l := NewLogger("./testfile")
@@ -68,7 +68,7 @@ func BenchmarkAddLinkAtLevel(b *testing.B) {
 func BenchmarkReplaceLinksAtLevel32(b *testing.B) {
 	defer os.Remove("./testfile")
 	ids := make([]uint64, 100)
-	levels := make([]int, 100)
+	levels := make([]int8, 100)
 	links := make([][]uint64, 100)
 	for i := range links {
 		links[i] = make([]uint64, 32)
@@ -88,7 +88,7 @@ func BenchmarkReplaceLinksAtLevel32(b *testing.B) {
 func BenchmarkReplaceLinksAtLevel33(b *testing.B) {
 	defer os.Remove("./testfile")
 	ids := make([]uint64, 100)
-	levels := make([]int, 100)
+	levels := make([]int8, 100)
 	links := make([][]uint64, 100)
 	for i := range links {
 		links[i] = make([]uint64, 33)

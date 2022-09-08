@@ -309,21 +309,21 @@ func (l *hnswCommitLogger) AddNode(node *vertex) error {
 	return l.commitLogger.AddNode(node.id, node.level)
 }
 
-func (l *hnswCommitLogger) SetEntryPointWithMaxLayer(id uint64, level int) error {
+func (l *hnswCommitLogger) SetEntryPointWithMaxLayer(id uint64, level int8) error {
 	l.Lock()
 	defer l.Unlock()
 
 	return l.commitLogger.SetEntryPointWithMaxLayer(id, level)
 }
 
-func (l *hnswCommitLogger) ReplaceLinksAtLevel(nodeid uint64, level int, targets []uint64) error {
+func (l *hnswCommitLogger) ReplaceLinksAtLevel(nodeid uint64, level int8, targets []uint64) error {
 	l.Lock()
 	defer l.Unlock()
 
 	return l.commitLogger.ReplaceLinksAtLevel(nodeid, level, targets)
 }
 
-func (l *hnswCommitLogger) AddLinkAtLevel(nodeid uint64, level int,
+func (l *hnswCommitLogger) AddLinkAtLevel(nodeid uint64, level int8,
 	target uint64,
 ) error {
 	l.Lock()

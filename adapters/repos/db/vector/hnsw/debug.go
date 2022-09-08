@@ -78,14 +78,14 @@ type JSONDump struct {
 	Labels              []string            `json:"labels"`
 	ID                  string              `json:"id"`
 	Entrypoint          uint64              `json:"entrypoint"`
-	CurrentMaximumLayer int                 `json:"currentMaximumLayer"`
+	CurrentMaximumLayer int8                `json:"currentMaximumLayer"`
 	Tombstones          map[uint64]struct{} `json:"tombstones"`
 	Nodes               []JSONDumpNode      `json:"nodes"`
 }
 
 type JSONDumpNode struct {
 	ID          uint64     `json:"id"`
-	Level       int        `json:"level"`
+	Level       int8       `json:"level"`
 	Connections [][]uint64 `json:"connections"`
 }
 
@@ -93,14 +93,14 @@ type JSONDumpMap struct {
 	Labels              []string            `json:"labels"`
 	ID                  string              `json:"id"`
 	Entrypoint          uint64              `json:"entrypoint"`
-	CurrentMaximumLayer int                 `json:"currentMaximumLayer"`
+	CurrentMaximumLayer int8                `json:"currentMaximumLayer"`
 	Tombstones          map[uint64]struct{} `json:"tombstones"`
 	Nodes               []JSONDumpNodeMap   `json:"nodes"`
 }
 
 type JSONDumpNodeMap struct {
 	ID          uint64           `json:"id"`
-	Level       int              `json:"level"`
+	Level       int8             `json:"level"`
 	Connections map[int][]uint64 `json:"connections"`
 }
 

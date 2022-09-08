@@ -108,7 +108,7 @@ func (h *hnsw) restoreFromDisk() error {
 	}
 
 	h.nodes = state.Nodes
-	h.currentMaximumLayer = int(state.Level)
+	h.currentMaximumLayer = int8(state.Level)
 	h.entryPointID = state.Entrypoint
 	h.tombstones = state.Tombstones
 
