@@ -32,6 +32,7 @@ type Vamana struct {
 
 	s_index uint64     // entry point
 	edges   [][]uint64 // edges on the graph
+	set     ssdhelpers.Set
 }
 
 const ConfigFileName = "cfg.gob"
@@ -42,6 +43,7 @@ func New(config Config) (*Vamana, error) {
 	index := &Vamana{
 		config: config,
 	}
+	index.set = *ssdhelpers.NewSet(config.L, config.VectorForIDThunk, config.Distance, nil)
 	return index, nil
 }
 
@@ -145,6 +147,7 @@ func (v *Vamana) BuildIndex() {
 
 func (v *Vamana) SetL(L int) {
 	v.config.L = L
+	v.set = *ssdhelpers.NewSet(L, v.config.VectorForIDThunk, v.config.Distance, nil)
 }
 
 func (v *Vamana) SearchByVector(query []float32, k int) []uint64 {
@@ -269,8 +272,8 @@ func (v *Vamana) pass() {
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", x64)))
 		}
-		_, visited := v.greedySearch(q, 1)
-		v.robustPrune(x64, visited)
+		/*_, visited := */ v.greedySearch(q, 1)
+		v.robustPrune(x64, nil /*visited*/)
 		n_out_i := v.edges[x]
 		for j := range n_out_i {
 			n_out_j := append(v.edges[n_out_i[j]], x64)
@@ -355,18 +358,12 @@ func permutation(n int) []int {
 }
 
 func (v *Vamana) greedySearch(x []float32, k int) ([]uint64, []uint64) {
-	currentSet := ssdhelpers.NewSet(v.config.L, v.config.VectorForIDThunk, v.config.Distance, x)
-	currentSet.Add(v.s_index)
-	allVisited := make(map[uint64]struct{}, 0)
-	allVisited[v.s_index] = struct{}{}
-	for currentSet.NotVisited() {
-		p := currentSet.Top()
-		currentSet.AddNotVisitedEver(v.edges[p], allVisited)
-		for _, edge := range v.edges[p] {
-			allVisited[edge] = struct{}{}
-		}
+	v.set.ReCenter(x, k)
+	v.set.Add(v.s_index)
+	for v.set.NotVisited() {
+		v.set.AddRange(v.edges[v.set.Top()])
 	}
-	return currentSet.Elements(k), elementsFromMap(allVisited)
+	return v.set.Elements(k), nil /* elementsFromMap(allVisited)*/
 }
 
 func elementsFromMap(set map[uint64]struct{}) []uint64 {
