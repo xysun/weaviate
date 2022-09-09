@@ -151,8 +151,7 @@ func (v *Vamana) SetL(L int) {
 }
 
 func (v *Vamana) SearchByVector(query []float32, k int) []uint64 {
-	results, _ := v.greedySearch(query, k)
-	return results
+	return v.greedySearchQuery(query, k)
 }
 
 func (v *Vamana) ToDisk(path string) {
@@ -272,8 +271,8 @@ func (v *Vamana) pass() {
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", x64)))
 		}
-		/*_, visited := */ v.greedySearch(q, 1)
-		v.robustPrune(x64, nil /*visited*/)
+		_, visited := v.greedySearch(q, 1)
+		v.robustPrune(x64, visited)
 		n_out_i := v.edges[x]
 		for j := range n_out_i {
 			n_out_j := append(v.edges[n_out_i[j]], x64)
@@ -360,10 +359,22 @@ func permutation(n int) []int {
 func (v *Vamana) greedySearch(x []float32, k int) ([]uint64, []uint64) {
 	v.set.ReCenter(x, k)
 	v.set.Add(v.s_index)
+	allVisited := []uint64{v.s_index}
+	for v.set.NotVisited() {
+		nn := v.set.Top()
+		v.set.AddRange(v.edges[nn])
+		allVisited = append(allVisited, nn)
+	}
+	return v.set.Elements(k), allVisited
+}
+
+func (v *Vamana) greedySearchQuery(x []float32, k int) []uint64 {
+	v.set.ReCenter(x, k)
+	v.set.Add(v.s_index)
 	for v.set.NotVisited() {
 		v.set.AddRange(v.edges[v.set.Top()])
 	}
-	return v.set.Elements(k), nil /* elementsFromMap(allVisited)*/
+	return v.set.Elements(k)
 }
 
 func elementsFromMap(set map[uint64]struct{}) []uint64 {

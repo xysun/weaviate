@@ -98,7 +98,7 @@ func TestBigDataVamana(t *testing.T) {
 
 	paramsRs := []int{32, 70}
 	paramsLs := []int{50, 125}
-	alphas := []float32{1.2}
+	alphas := []float32{1.2, 2.0}
 	results := make(map[string][][]float32, 0)
 	for _, paramAlpha := range alphas {
 		for paramIndex := range paramsRs {
