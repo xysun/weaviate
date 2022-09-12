@@ -61,10 +61,11 @@ var (
 	metrics   *PrometheusMetrics
 )
 
+func init() {
+	NewPrometheusMetrics()
+}
+
 func GetMetrics() *PrometheusMetrics {
-	if metrics == nil {
-		NewPrometheusMetrics()
-	}
 	return metrics
 }
 

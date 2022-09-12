@@ -250,8 +250,9 @@ func TestManagerCreateBackup(t *testing.T) {
 			Classes: req1.Include,
 			ID:      backupID,
 			Status:  &status1,
+			Path:    path,
 		}
-		assert.NotNil(t, resp1, want1)
+		assert.Equal(t, resp1, want1)
 		resp2, err := m.Backup(ctx, nil, &req1)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "already in progress")

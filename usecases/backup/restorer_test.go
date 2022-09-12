@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/semi-technologies/weaviate/entities/backup"
+	"github.com/semi-technologies/weaviate/entities/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -213,6 +214,88 @@ func TestRestoreRequestValidation(t *testing.T) {
 			t.Errorf("error want=%v got=%v", uerr, err)
 		}
 	})
+}
+
+func TestManagerRestoreBackup(t *testing.T) {
+	var (
+		cls         = "DemoClass"
+		backendName = "gcs"
+		backupID    = "1"
+		rawbytes    = []byte("hello")
+		timept      = time.Now().UTC()
+		ctx         = context.Background()
+		path        = "dst/path"
+	)
+	meta := backup.BackupDescriptor{
+		ID:            backupID,
+		StartedAt:     timept,
+		Version:       "1",
+		ServerVersion: "1",
+		Status:        string(backup.Success),
+		Classes: []backup.ClassDescriptor{{
+			Name: cls, Schema: rawbytes, ShardingState: rawbytes,
+		}},
+	}
+
+	t.Run("AnotherBackupIsInProgress", func(t *testing.T) {
+		req1 := BackupRequest{
+			ID:      backupID,
+			Include: []string{cls},
+			Backend: backendName,
+		}
+		backend := &fakeBackend{}
+		sourcer := &fakeSourcer{}
+		sourcer.On("ClassExists", cls).Return(false)
+		bytes := marshalMeta(meta)
+		backend.On("GetObject", ctx, backupID, MetaDataFilename).Return(bytes, nil)
+		backend.On("HomeDir", mock.Anything).Return(path)
+		// simulate work by delaying return of SourceDataPath()
+		backend.On("SourceDataPath").Return(t.TempDir()).Run(func(args mock.Arguments) { time.Sleep(time.Hour) })
+		m2 := createManager(sourcer, backend, nil)
+		_, err := m2.Restore(ctx, nil, &BackupRequest{ID: backupID})
+		assert.Nil(t, err)
+		m := createManager(sourcer, backend, nil)
+		resp1, err := m.Restore(ctx, nil, &req1)
+		assert.Nil(t, err)
+		status1 := string(backup.Started)
+		want1 := &models.BackupRestoreResponse{
+			Backend: backendName,
+			Classes: req1.Include,
+			ID:      backupID,
+			Status:  &status1,
+			Path:    path,
+		}
+		assert.Equal(t, resp1, want1)
+
+		resp2, err := m.Restore(ctx, nil, &req1)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "already in progress")
+		assert.IsType(t, backup.ErrUnprocessable{}, err)
+		assert.Nil(t, resp2)
+	})
+
+	// t.Run("fails when init meta fails", func(t *testing.T) {
+	// 	classes := []string{cls}
+
+	// 	sourcer := &fakeSourcer{}
+	// 	sourcer.On("Backupable", ctx, classes).Return(nil)
+	// 	backend := &fakeBackend{}
+	// 	backend.On("HomeDir", mock.Anything).Return(path)
+	// 	backend.On("GetObject", ctx, backupID, MetaDataFilename).Return(nil, backup.NewErrNotFound(errors.New("not found")))
+	// 	backend.On("Initialize", ctx, backupID).Return(errors.New("init meta failed"))
+	// 	bm := createManager(sourcer, backend, nil)
+
+	// 	meta, err := bm.Backup(ctx, nil, &BackupRequest{
+	// 		Backend: backendName,
+	// 		ID:      backupID,
+	// 		Include: classes,
+	// 	})
+
+	// 	assert.Nil(t, meta)
+	// 	assert.NotNil(t, err)
+	// 	assert.Contains(t, err.Error(), "init")
+	// 	assert.IsType(t, backup.ErrUnprocessable{}, err)
+	// })
 }
 
 func marshalMeta(m backup.BackupDescriptor) []byte {
