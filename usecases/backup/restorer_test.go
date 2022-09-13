@@ -245,7 +245,8 @@ func TestManagerRestoreBackup(t *testing.T) {
 		Classes: []backup.ClassDescriptor{{
 			Name: cls, Schema: rawbytes, ShardingState: rawbytes,
 			Shards: []backup.ShardDescriptor{
-				{Name: "Shard1", Node: "Node-1",
+				{
+					Name: "Shard1", Node: "Node-1",
 					Files:                 []string{"dir1/file1", "dir2/file2"},
 					DocIDCounterPath:      "dir1/counter.txt",
 					ShardVersionPath:      "dir1/version.txt",
@@ -271,7 +272,7 @@ func TestManagerRestoreBackup(t *testing.T) {
 		backend.On("GetObject", ctx, backupID, MetaDataFilename).Return(bytes, nil)
 		backend.On("HomeDir", mock.Anything).Return(path)
 		// simulate work by delaying return of SourceDataPath()
-		backend.On("SourceDataPath").Return(t.TempDir()).Run(func(args mock.Arguments) { time.Sleep(time.Hour) })
+		backend.On("SourceDataPath").Return(t.TempDir()).After(time.Hour)
 		m2 := createManager(sourcer, nil, backend, nil)
 		_, err := m2.Restore(ctx, nil, &BackupRequest{ID: backupID})
 		assert.Nil(t, err)
@@ -418,7 +419,6 @@ func TestManagerRestoreBackup(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, lastStatus.Status, backup.Failed)
 	})
-
 }
 
 func marshalMeta(m backup.BackupDescriptor) []byte {
