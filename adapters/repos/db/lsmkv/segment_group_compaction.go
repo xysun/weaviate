@@ -16,6 +16,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -182,7 +183,7 @@ func (sg *SegmentGroup) compactOnce() error {
 		return errors.Wrap(err, "close compacted segment file")
 	}
 
-	if err := sg.replaceCompactedSegments(pair[0], pair[1], path); err != nil {
+	if err := sg.replaceCompactedSegmentsWithMinimalLocking(pair[0], pair[1], path); err != nil {
 		return errors.Wrap(err, "replace compacted segments")
 	}
 
@@ -222,16 +223,76 @@ func (sg *SegmentGroup) replaceCompactedSegments(old1, old2 int,
 		return errors.Wrap(err, "strip .tmp extension of new segment")
 	}
 
+	before := time.Now()
 	exists := sg.makeExistsOnLower(old1)
 	seg, err := newSegment(newPath, sg.logger, sg.metrics, exists)
 	if err != nil {
 		return errors.Wrap(err, "create new segment")
 	}
+	fmt.Printf("init segment after compaction took %s\n\n\n\n", time.Since(before))
 
 	sg.segments[old2] = seg
 
 	sg.segments = append(sg.segments[:old1], sg.segments[old1+1:]...)
 
+	return nil
+}
+
+func (sg *SegmentGroup) replaceCompactedSegmentsWithMinimalLocking(old1, old2 int,
+	newPathTmp string,
+) error {
+	before := time.Now()
+	staticSegments := NewSGStaticSnapshotFromSG(sg)
+	exists := staticSegments.makeExistsOnLower(old1)
+	newSeg, err := newSegment(newPathTmp, sg.logger, sg.metrics, exists)
+	if err != nil {
+		return errors.Wrap(err, "create new segment")
+	}
+	fmt.Printf("-- lockfree part took %s\n", time.Since(before))
+
+	before = time.Now()
+	// do "breaking" work that requires full lock
+	sg.maintenanceLock.Lock()
+	defer sg.maintenanceLock.Unlock()
+
+	beforeCloseNDrop := time.Now()
+	if err := sg.segments[old1].close(); err != nil {
+		return errors.Wrap(err, "close disk segment")
+	}
+
+	if err := sg.segments[old2].close(); err != nil {
+		return errors.Wrap(err, "close disk segment")
+	}
+
+	if err := sg.segments[old1].drop(); err != nil {
+		return errors.Wrap(err, "drop disk segment")
+	}
+
+	if err := sg.segments[old2].drop(); err != nil {
+		return errors.Wrap(err, "drop disk segment")
+	}
+	fmt.Printf("ZZZZZZZZZZZZZZZZ - close and drop took %s\n", time.Since(beforeCloseNDrop))
+
+	sg.segments[old1] = nil
+	sg.segments[old2] = nil
+
+	newSeg.close()
+
+	// the old segments have been deleted, we can now safely remove the .tmp
+	// extension from the new segment which carried the name of the second old
+	// segment
+	newPath, err := sg.stripTmpExtension(newPathTmp)
+	if err != nil {
+		return errors.Wrap(err, "strip .tmp extension of new segment")
+	}
+
+	newSeg.reopenWithUpdatedPath(newPath)
+
+	sg.segments[old2] = newSeg
+
+	sg.segments = append(sg.segments[:old1], sg.segments[old1+1:]...)
+
+	fmt.Printf("-- Lock part took %s\n", time.Since(before))
 	return nil
 }
 

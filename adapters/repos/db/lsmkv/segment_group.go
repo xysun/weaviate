@@ -156,16 +156,18 @@ func (sg *SegmentGroup) makeExistsOnLower(nextSegmentIndex int) existsOnLowerSeg
 }
 
 func (sg *SegmentGroup) add(path string) error {
-	sg.maintenanceLock.Lock()
-	defer sg.maintenanceLock.Unlock()
-
+	sg.maintenanceLock.RLock()
 	newSegmentIndex := len(sg.segments)
 	segment, err := newSegment(path, sg.logger, sg.metrics,
 		sg.makeExistsOnLower(newSegmentIndex))
 	if err != nil {
+		sg.maintenanceLock.RUnlock()
 		return errors.Wrapf(err, "init segment %s", path)
 	}
+	sg.maintenanceLock.RUnlock()
 
+	sg.maintenanceLock.Lock()
+	defer sg.maintenanceLock.Unlock()
 	sg.segments = append(sg.segments, segment)
 	return nil
 }

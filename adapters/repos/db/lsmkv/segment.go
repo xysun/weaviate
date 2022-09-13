@@ -13,6 +13,7 @@ package lsmkv
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"syscall"
 	"time"
@@ -137,13 +138,17 @@ func newSegment(path string, logger logrus.FieldLogger, metrics *Metrics,
 		}
 	}
 
+	beforeBloom := time.Now()
 	if err := ind.initBloomFilter(); err != nil {
 		return nil, err
 	}
+	fmt.Printf("init bloom took %s\n", time.Since(beforeBloom))
 
+	beforeNetCount := time.Now()
 	if err := ind.initCountNetAdditions(existsLower); err != nil {
 		return nil, err
 	}
+	fmt.Printf("init net count took %s\n", time.Since(beforeNetCount))
 
 	return ind, nil
 }
@@ -250,4 +255,62 @@ func (ind *segment) Size() int {
 // Payload Size is only the payload of the index, excluding the index
 func (ind *segment) PayloadSize() int {
 	return int(ind.dataEndPos)
+}
+
+// WARNING: TODO
+func (ind *segment) reopenWithUpdatedPath(path string) error {
+	ind.path = path
+
+	file, err := os.Open(path)
+	if err != nil {
+		return errors.Wrap(err, "open file")
+	}
+
+	file_info, err := file.Stat()
+	if err != nil {
+		return errors.Wrap(err, "stat file")
+	}
+
+	content, err := syscall.Mmap(int(file.Fd()), 0, int(file_info.Size()), syscall.PROT_READ, syscall.MAP_SHARED)
+	if err != nil {
+		return errors.Wrap(err, "mmap file")
+	}
+
+	header, err := parseSegmentHeader(bytes.NewReader(content[:SegmentHeaderSize]))
+	if err != nil {
+		return errors.Wrap(err, "parse header")
+	}
+
+	switch header.strategy {
+	case SegmentStrategyReplace, SegmentStrategySetCollection,
+		SegmentStrategyMapCollection:
+	default:
+		return errors.Errorf("unsupported strategy in segment")
+	}
+
+	primaryIndex, err := header.PrimaryIndex(content)
+	if err != nil {
+		return errors.Wrap(err, "extract primary index position")
+	}
+
+	primaryDiskIndex := segmentindex.NewDiskTree(primaryIndex)
+
+	ind.path = path
+	ind.contents = content
+	ind.segmentEndPos = uint64(len(content))
+	ind.index = primaryDiskIndex
+
+	if ind.secondaryIndexCount > 0 {
+		ind.secondaryIndices = make([]diskIndex, ind.secondaryIndexCount)
+		for i := range ind.secondaryIndices {
+			secondary, err := header.SecondaryIndex(content, uint16(i))
+			if err != nil {
+				return errors.Wrapf(err, "get position for secondary index at %d", i)
+			}
+
+			ind.secondaryIndices[i] = segmentindex.NewDiskTree(secondary)
+		}
+	}
+
+	return nil
 }
