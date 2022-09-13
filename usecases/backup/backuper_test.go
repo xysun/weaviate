@@ -45,7 +45,7 @@ func TestBackStatus(t *testing.T) {
 	)
 
 	t.Run("get active state", func(t *testing.T) {
-		m := createManager(nil, nil, nil)
+		m := createManager(nil, nil, nil, nil)
 		m.backupper.lastBackup.reqStat = reqStat{
 			Starttime: starTime,
 			ID:        id,
@@ -58,7 +58,7 @@ func TestBackStatus(t *testing.T) {
 	})
 
 	t.Run("get backup provider", func(t *testing.T) {
-		m := createManager(nil, nil, ErrAny)
+		m := createManager(nil, nil, nil, ErrAny)
 		_, err := m.BackupStatus(ctx, nil, backendName, id)
 		assert.NotNil(t, err)
 	})
@@ -66,7 +66,7 @@ func TestBackStatus(t *testing.T) {
 	t.Run("metdata not found", func(t *testing.T) {
 		backend := &fakeBackend{}
 		backend.On("GetObject", ctx, id, MetaDataFilename).Return(nil, ErrAny)
-		m := createManager(nil, backend, nil)
+		m := createManager(nil, nil, backend, nil)
 		_, err := m.BackupStatus(ctx, nil, backendName, id)
 		assert.NotNil(t, err)
 		nerr := backup.ErrNotFound{}
@@ -80,7 +80,7 @@ func TestBackStatus(t *testing.T) {
 		bytes := marshalMeta(backup.BackupDescriptor{Status: string(backup.Transferring)})
 		backend.On("GetObject", ctx, id, MetaDataFilename).Return(bytes, nil)
 		backend.On("HomeDir", mock.Anything).Return(path)
-		m := createManager(nil, backend, nil)
+		m := createManager(nil, nil, backend, nil)
 		got, err := m.BackupStatus(ctx, nil, backendName, id)
 		assert.Nil(t, err)
 		assert.Equal(t, want, got)
@@ -92,7 +92,7 @@ func TestBackupRequestValidation(t *testing.T) {
 	var (
 		cls         = "MyClass"
 		backendName = "s3"
-		m           = createManager(nil, nil, nil)
+		m           = createManager(nil, nil, nil, nil)
 		ctx         = context.Background()
 		id          = "123"
 		path        = "root/123"
@@ -126,7 +126,7 @@ func TestBackupRequestValidation(t *testing.T) {
 		// return one class and exclude it in the request
 		sourcer := &fakeSourcer{}
 		sourcer.On("ListBackupable").Return([]string{cls})
-		m = createManager(sourcer, nil, nil)
+		m = createManager(sourcer, nil, nil, nil)
 		_, err := m.Backup(ctx, nil, &BackupRequest{
 			Backend: backendName,
 			ID:      "1234",
@@ -140,7 +140,7 @@ func TestBackupRequestValidation(t *testing.T) {
 		sourcer := &fakeSourcer{}
 		sourcer.On("ListBackupable").Return([]string{cls})
 		sourcer.On("Backupable", ctx, []string{cls}).Return(ErrAny)
-		m = createManager(sourcer, nil, nil)
+		m = createManager(sourcer, nil, nil, nil)
 		_, err := m.Backup(ctx, nil, &BackupRequest{
 			Backend: backendName,
 			ID:      "1234",
@@ -154,7 +154,7 @@ func TestBackupRequestValidation(t *testing.T) {
 		backend := &fakeBackend{}
 		backend.On("HomeDir", mock.Anything).Return(path)
 		backend.On("GetObject", ctx, id, MetaDataFilename).Return(nil, errors.New("can not be read"))
-		bm := createManager(sourcer, backend, nil)
+		bm := createManager(sourcer, nil, backend, nil)
 
 		meta, err := bm.Backup(ctx, nil, &BackupRequest{
 			Backend: backendName,
@@ -174,7 +174,7 @@ func TestBackupRequestValidation(t *testing.T) {
 		backend.On("HomeDir", mock.Anything).Return(path)
 		bytes := marshalMeta(backup.BackupDescriptor{ID: id})
 		backend.On("GetObject", ctx, id, MetaDataFilename).Return(bytes, nil)
-		bm := createManager(sourcer, backend, nil)
+		bm := createManager(sourcer, nil, backend, nil)
 
 		meta, err := bm.Backup(ctx, nil, &BackupRequest{
 			Backend: backendName,
@@ -207,7 +207,7 @@ func TestManagerCreateBackup(t *testing.T) {
 		sourcer.On("Backupable", ctx, classes).Return(nil)
 
 		backendError := errors.New("I do not exist")
-		bm := createManager(sourcer, nil, backendError)
+		bm := createManager(sourcer, nil, nil, backendError)
 
 		meta, err := bm.Backup(ctx, nil, &BackupRequest{
 			Backend: backendName,
@@ -241,7 +241,7 @@ func TestManagerCreateBackup(t *testing.T) {
 		backend.On("Initialize", ctx, mock.Anything).Return(nil)
 		sourcer.On("CreateBackup", mock.Anything, mock.Anything).Return(nil, ErrAny)
 		sourcer.On("ReleaseBackup", mock.Anything, mock.Anything).Return(nil)
-		m := createManager(sourcer, backend, nil)
+		m := createManager(sourcer, nil, backend, nil)
 		resp1, err := m.Backup(ctx, nil, &req1)
 		assert.Nil(t, err)
 		status1 := string(backup.Started)
@@ -269,7 +269,7 @@ func TestManagerCreateBackup(t *testing.T) {
 		backend.On("HomeDir", mock.Anything).Return(path)
 		backend.On("GetObject", ctx, backupID, MetaDataFilename).Return(nil, backup.NewErrNotFound(errors.New("not found")))
 		backend.On("Initialize", ctx, backupID).Return(errors.New("init meta failed"))
-		bm := createManager(sourcer, backend, nil)
+		bm := createManager(sourcer, nil, backend, nil)
 
 		meta, err := bm.Backup(ctx, nil, &BackupRequest{
 			Backend: backendName,
@@ -296,7 +296,7 @@ func TestManagerCreateBackup(t *testing.T) {
 		backend.On("Initialize", ctx, backupID).Return(nil)
 		backend.On("HomeDir", backupID).Return(path)
 		backend.On("SetMetaStatus", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-		bm := createManager(sourcer, backend, nil)
+		bm := createManager(sourcer, nil, backend, nil)
 
 		meta, err := bm.Backup(ctx, nil, &BackupRequest{
 			Backend: backendName,
@@ -325,7 +325,7 @@ func TestManagerCreateBackup(t *testing.T) {
 		backend.On("Initialize", ctx, backupID).Return(nil)
 		backend.On("HomeDir", backupID).Return(path)
 		backend.On("SetMetaStatus", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-		bm := createManager(sourcer, backend, nil)
+		bm := createManager(sourcer, nil, backend, nil)
 
 		wg := sync.WaitGroup{}
 		wg.Add(2)
@@ -607,11 +607,15 @@ func TestManagerCreateBackup(t *testing.T) {
 //	assert.Equal(t, path, path2)
 //}
 
-func createManager(sourcer Sourcer, backend modulecapabilities.BackupBackend, backendErr error) *Manager {
+func createManager(sourcer Sourcer, schema schemaManger, backend modulecapabilities.BackupBackend, backendErr error) *Manager {
 	backends := &fakeBackupBackendProvider{backend, backendErr}
 	if sourcer == nil {
 		sourcer = &fakeSourcer{}
 	}
+	if schema == nil {
+		schema = &fakeSchemaManger{}
+	}
+
 	logger, _ := test.NewNullLogger()
-	return NewManager(logger, &fakeAuthorizer{}, &fakeSchemaManger{}, sourcer, backends)
+	return NewManager(logger, &fakeAuthorizer{}, schema, sourcer, backends)
 }
