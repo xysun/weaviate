@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
+	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestKMeans(t *testing.T) {
@@ -75,4 +77,26 @@ func TestKMeansNNearest(t *testing.T) {
 	fmt.Println(centers[3])
 	fmt.Println(centers[4])
 	fmt.Println(centers[5])
+}
+
+func TestWithSift1M(t *testing.T) {
+	vectors_size := 100000
+	k := 40
+	vectors := testinghelpers.ReadSiftVecsFrom("../diskANN/sift/sift_learn.fvecs", vectors_size)
+	kmeans := ssdhelpers.New(
+		k,
+		ssdhelpers.L2,
+		func(ctx context.Context, id uint64) ([]float32, error) {
+			return vectors[int(id)], nil
+		},
+		vectors_size,
+	)
+	kmeans.Partition()
+	centersHits := make([]int, kmeans.K)
+	for _, v := range vectors {
+		centersHits[kmeans.Nearest(v)]++
+	}
+	for _, c := range centersHits {
+		require.True(t, c > 0)
+	}
 }

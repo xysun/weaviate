@@ -32,7 +32,7 @@ func float32FromBytes(bytes []byte) float32 {
 
 func readSiftFloat(file string, maxObjects int) [][]float32 {
 
-	f, err := os.Open("sift/" + file)
+	f, err := os.Open(file)
 	if err != nil {
 		panic(errors.Wrap(err, "Could not open SIFT file"))
 	}
@@ -83,10 +83,17 @@ func readSiftFloat(file string, maxObjects int) [][]float32 {
 	return objects
 }
 
+func ReadSiftVecsFrom(path string, size int) [][]float32 {
+	fmt.Printf("generating %d vectors...", size)
+	vectors := readSiftFloat(path, size)
+	fmt.Printf(" done\n")
+	return vectors
+}
+
 func ReadVecs(size int, dimensions int, queriesSize int) ([][]float32, [][]float32) {
 	fmt.Printf("generating %d vectors...", size+queriesSize)
-	vectors := readSiftFloat("sift_learn.fvecs", size)
-	queries := readSiftFloat("sift_query.fvecs", queriesSize)
+	vectors := readSiftFloat("sift/sift_learn.fvecs", size)
+	queries := readSiftFloat("sift/sift_query.fvecs", queriesSize)
 	fmt.Printf(" done\n")
 	return vectors, queries
 }
@@ -203,6 +210,8 @@ func PlotGraphHighLighted(name string, edges [][]uint64, vectors [][]float32, w 
 		{0, 0, 1, 1},
 		{1, 0, 1, 1},
 		{0, 1, 1, 1},
+		{1, 1, 0, 1},
+		{0, 0, 0, 1},
 	}
 	for i := range edges {
 		x := vectors[i]
@@ -218,6 +227,45 @@ func PlotGraphHighLighted(name string, edges [][]uint64, vectors [][]float32, w 
 			}
 			if !found {
 				dc.SetRGBA(0.5, 0.5, 0.5, 1)
+				dc.SetLineWidth(0.1)
+			}
+			dc.DrawLine(float64(x[0]), float64(x[1]), float64(vectors[edges[i][j]][0]), float64(vectors[edges[i][j]][1]))
+			dc.Stroke()
+		}
+	}
+	dc.SavePNG(name)
+}
+
+func PlotGraphHighLightedBold(name string, edges [][]uint64, vectors [][]float32, w int, h int, entry uint64, levels int) {
+	dc := gg.NewContext(w, h)
+	dc.SetRGB(1, 1, 1)
+	dc.Clear()
+	dc.SetRGBA(0.3, 0.3, 0.3, 1)
+	dc.SetLineWidth(1)
+	l := make([][]uint64, levels)
+	l[0] = []uint64{entry}
+	for i := 1; i < levels; i++ {
+		for _, x := range l[i-1] {
+			for _, outNeighbor := range edges[x] {
+				l[i] = append(l[i], outNeighbor)
+			}
+		}
+	}
+	bold := []float64{0, 0, 0, 1}
+	for i := range edges {
+		x := vectors[i]
+		for j := range edges[i] {
+			found := false
+			for k := range l {
+				if ssdhelpers.Contains(l[k], uint64(i)) {
+					dc.SetRGBA(bold[0], bold[1], bold[2], bold[3])
+					dc.SetLineWidth(float64(2))
+					found = true
+					break
+				}
+			}
+			if !found {
+				dc.SetRGBA(0.2, 0.2, 0.2, 1)
 				dc.SetLineWidth(0.1)
 			}
 			dc.DrawLine(float64(x[0]), float64(x[1]), float64(vectors[edges[i][j]][0]), float64(vectors[edges[i][j]][1]))

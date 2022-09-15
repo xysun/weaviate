@@ -22,7 +22,7 @@ type IndexAndDistance struct {
 	visited  bool
 }
 
-func NewSet(capacity int, vectorForID VectorForID, distance DistanceFunction, center []float32) *Set {
+func NewSet(capacity int, vectorForID VectorForID, distance DistanceFunction, center []float32, vectorSize int) *Set {
 	s := Set{
 		items:       make([]IndexAndDistance, capacity),
 		vectorForID: vectorForID,
@@ -31,7 +31,7 @@ func NewSet(capacity int, vectorForID VectorForID, distance DistanceFunction, ce
 		capacity:    capacity,
 		firstIndex:  0,
 		last:        capacity - 1,
-		bitSet:      NewBitSet(100000),
+		bitSet:      NewBitSet(vectorSize),
 	}
 	for i := range s.items {
 		s.items[i].distance = math.MaxFloat32

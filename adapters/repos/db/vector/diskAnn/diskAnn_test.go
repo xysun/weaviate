@@ -15,7 +15,6 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
-	"math"
 	"math/rand"
 	"os"
 	"time"
@@ -25,49 +24,47 @@ import (
 	"github.com/pkg/errors"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
-	"github.com/stretchr/testify/require"
 )
 
-/*func TestClusteredVamana(t *testing.T) {
+func generate_vecs(size int, dimensions int) [][]float32 {
+	vectors := make([][]float32, 0, size)
+	for i := 0; i < size; i++ {
+		v := make([]float32, 0, dimensions)
+		for j := 0; j < dimensions; j++ {
+			v = append(v, rand.Float32())
+		}
+		vectors = append(vectors, v)
+	}
+	return vectors
+}
+
+/*
+func TestClusteredVamana(t *testing.T) {
 	R := 4
 	L := 10
 	dimensions := 2
 	vectors_size := 1000
 	vectors := generate_vecs(vectors_size, dimensions)
 	w := 1024
-	index, _ := New(Config{
-		R:     R,
-		L:     L,
-		Alpha: float32(1.1),
-		VectorForIDThunk: func(ctx context.Context, id uint64) ([]float32, error) {
+	index := testinghelpers.BuildVamana(
+		R,
+		L,
+		1.2,
+		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[int(id)], nil
 		},
-		VectorsSize:        uint64(vectors_size),
-		Distance:           ssdhelpers.L2,
-		ClustersSize:       40,
-		ClusterOverlapping: 2,
-	})
-	index.BuildIndex()
-
-	index2, _ := New(Config{
-		R:     R,
-		L:     L,
-		Alpha: float32(1.2),
-		VectorForIDThunk: func(ctx context.Context, id uint64) ([]float32, error) {
-			return vectors[int(id)], nil
-		},
-		VectorsSize:        uint64(vectors_size),
-		Distance:           ssdhelpers.L2,
-		ClustersSize:       40,
-		ClusterOverlapping: 2,
-	})
-	index2.BuildIndexSharded()
+		uint64(vectors_size),
+		ssdhelpers.L2,
+		"./data",
+	)
 
 	testinghelpers.Normalize(vectors, w)
-	testinghelpers.PlotGraphHighLighted("vamana_test.png", index.edges, vectors, w, w, index.s_index, 5)
-	testinghelpers.PlotGraphHighLighted("vamana_test_sharded.png", index2.edges, vectors, w, w, index2.s_index, 5)
-}*/
-
+	testinghelpers.PlotGraph("vamana_flat_test.png", index.GetGraph(), vectors, w, w)
+	testinghelpers.PlotGraphHighLightedBold("vamana_3_test.png", index.GetGraph(), vectors, w, w, index.GetEntry(), 3)
+	testinghelpers.PlotGraphHighLightedBold("vamana_6_test.png", index.GetGraph(), vectors, w, w, index.GetEntry(), 6)
+	testinghelpers.PlotGraphHighLightedBold("vamana_9_test.png", index.GetGraph(), vectors, w, w, index.GetEntry(), 9)
+}
+*/
 func loadQueries(queries_size int) [][]float32 {
 	f, err := os.Open("./sift/sift_queries.gob")
 	if err != nil {
@@ -96,9 +93,9 @@ func TestBigDataVamana(t *testing.T) {
 	}
 	fmt.Printf("generating data took %s\n", time.Since(before))
 
-	paramsRs := []int{32, 70}
-	paramsLs := []int{50, 125}
-	alphas := []float32{1.2, 2.0}
+	paramsRs := []int{35}
+	paramsLs := []int{60}
+	alphas := []float32{1.2}
 	results := make(map[string][][]float32, 0)
 	for _, paramAlpha := range alphas {
 		for paramIndex := range paramsRs {
@@ -148,10 +145,6 @@ func TestBigDataVamana(t *testing.T) {
 		}
 	}
 	testinghelpers.ChartData("Recall Vs Latency", "", results, "index.html")
-}
-
-func TestBits(t *testing.T) {
-	require.Equal(t, int(math.Pow(2, 5)), 1<<5)
 }
 
 /*func TestBits(t *testing.T) {
@@ -242,7 +235,6 @@ func TestBigDataMicrosoftVamana(t *testing.T) {
 	}
 	testinghelpers.ChartData("Recall Vs Latency", "", results, "index.html")
 }*/
-
 /*
 func TestBigDataVamanaSharded(t *testing.T) {
 	rand.Seed(0)
@@ -264,22 +256,24 @@ func TestBigDataVamanaSharded(t *testing.T) {
 		paramL := paramsLs[paramIndex]
 		paramAlpha := float32(1.2)
 		before = time.Now()
-		index := testinghelpers.BuildVamanaSharded(
-			paramR,
-			paramL,
-			paramAlpha,
-			func(ctx context.Context, id uint64) ([]float32, error) {
+		index, _ := diskAnn.New(diskAnn.Config{
+			R:     paramR,
+			L:     paramL,
+			Alpha: paramAlpha,
+			VectorForIDThunk: func(ctx context.Context, id uint64) ([]float32, error) {
 				return vectors[int(id)], nil
 			},
-			uint64(vectors_size),
-			ssdhelpers.L2,
-			"./data",
-		)
+			VectorsSize:        uint64(vectors_size),
+			Distance:           ssdhelpers.L2,
+			ClustersSize:       40,
+			ClusterOverlapping: 2,
+		})
+		index.BuildIndexSharded()
 		fmt.Printf("Index built in: %s\n", time.Since(before))
 		//Ks := [3]int{1, 10, 100}
 		Ks := []int{10}
 		fmt.Println("K\tL\trecall\t\tquerying")
-		L := [10]int{10, 20, 30, 40, 50, 100}
+		L := []int{10, 20, 30, 40, 50, 100}
 
 		for _, k := range Ks {
 			truths := testinghelpers.BuildTruths(queries_size, queries, vectors, k, ssdhelpers.L2)
@@ -307,7 +301,8 @@ func TestBigDataVamanaSharded(t *testing.T) {
 		}
 	}
 	testinghelpers.ChartData("Recall Vs Latency", "", results, "index.html")
-}*/
+}
+*/
 /*
 func TestBigDataHNSW(t *testing.T) {
 	rand.Seed(0)
@@ -482,27 +477,6 @@ func TestCharts(t *testing.T) {
 		{1875.45, 0.9999},
 		{2178.63, 0.9999},
 		{3550.24, 1.0000},
-	}
-	testinghelpers.ChartData("Recall vs Latency", "", results, "line-10-100.html")
-}
-
-func TestMonitorRate(t *testing.T) {
-	results := make(map[string][][]float32, 0)
-	results["1,small"] = [][]float32{
-		{82.011002, 0.976800},
-		{107.918999, 0.986300},
-		{138.063004, 0.990600},
-		{216.813004, 0.992600},
-		{204.468002, 0.993700},
-		{368.535004, 0.998200},
-	}
-	results["0.5,small"] = [][]float32{
-		{87.602997, 0.976800},
-		{103.707001, 0.986300},
-		{114.107002, 0.986400},
-		{122.724998, 0.989000},
-		{148.906998, 0.990600},
-		{242.186005, 0.994100},
 	}
 	testinghelpers.ChartData("Recall vs Latency", "", results, "line-10-100.html")
 }

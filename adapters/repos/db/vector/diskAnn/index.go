@@ -30,9 +30,10 @@ import (
 type Vamana struct {
 	config Config // configuration
 
-	s_index uint64     // entry point
-	edges   [][]uint64 // edges on the graph
-	set     ssdhelpers.Set
+	s_index      uint64     // entry point
+	edges        [][]uint64 // edges on the graph
+	set          ssdhelpers.Set
+	outNeighbors func(uint64) []uint64
 }
 
 const ConfigFileName = "cfg.gob"
@@ -43,7 +44,8 @@ func New(config Config) (*Vamana, error) {
 	index := &Vamana{
 		config: config,
 	}
-	index.set = *ssdhelpers.NewSet(config.L, config.VectorForIDThunk, config.Distance, nil)
+	index.set = *ssdhelpers.NewSet(config.L, config.VectorForIDThunk, config.Distance, nil, int(config.VectorsSize))
+	index.outNeighbors = index.outNeighborsFromMemory
 	return index, nil
 }
 
@@ -114,22 +116,27 @@ func (v *Vamana) BuildIndexSharded() {
 	v.config.VectorsSize = vectorsSize
 	v.s_index = v.medoid()
 	v.edges = make([][]uint64, v.config.VectorsSize)
-	for i, shard := range shards {
-		for j, connection := range shardedGraphs[i] {
+	for shardIndex, shard := range shards {
+		for connectionIndex, connection := range shardedGraphs[shardIndex] {
 			for _, outNeighbor := range connection {
-				if !ssdhelpers.Contains(v.edges[shard[j]], outNeighbor) {
-					v.edges[shard[j]] = append(v.edges[shard[j]], outNeighbor)
+				mappedOutNeighbor := shard[outNeighbor]
+				if !ssdhelpers.Contains(v.edges[shard[connectionIndex]], mappedOutNeighbor) {
+					v.edges[shard[connectionIndex]] = append(v.edges[shard[connectionIndex]], mappedOutNeighbor)
 				}
 			}
-			rand.Shuffle(len(v.edges[shard[j]]), func(x int, y int) {
-				temp := v.edges[shard[j]][x]
-				v.edges[shard[j]][x] = v.edges[shard[j]][y]
-				v.edges[shard[j]][y] = temp
-			})
-			if len(v.edges[shard[j]]) > v.config.R {
+		}
+	}
+	for edgeIndex := range v.edges {
+		if len(v.edges[edgeIndex]) > v.config.R {
+			if len(v.edges[edgeIndex]) > v.config.R {
+				rand.Shuffle(len(v.edges[edgeIndex]), func(x int, y int) {
+					temp := v.edges[edgeIndex][x]
+					v.edges[edgeIndex][x] = v.edges[edgeIndex][y]
+					v.edges[edgeIndex][y] = temp
+				})
 				//Meet the R constrain after merging
 				//Take a random subset with the appropriate size. Implementation idea from Microsoft reference code
-				v.edges[shard[j]] = v.edges[shard[j]][:v.config.R]
+				v.edges[edgeIndex] = v.edges[edgeIndex][:v.config.R]
 			}
 		}
 	}
@@ -145,9 +152,17 @@ func (v *Vamana) BuildIndex() {
 	v.pass()
 }
 
+func (v *Vamana) GetGraph() [][]uint64 {
+	return v.edges
+}
+
+func (v *Vamana) GetEntry() uint64 {
+	return v.s_index
+}
+
 func (v *Vamana) SetL(L int) {
 	v.config.L = L
-	v.set = *ssdhelpers.NewSet(L, v.config.VectorForIDThunk, v.config.Distance, nil)
+	v.set = *ssdhelpers.NewSet(L, v.config.VectorForIDThunk, v.config.Distance, nil, int(v.config.VectorsSize))
 }
 
 func (v *Vamana) SearchByVector(query []float32, k int) []uint64 {
@@ -372,9 +387,13 @@ func (v *Vamana) greedySearchQuery(x []float32, k int) []uint64 {
 	v.set.ReCenter(x, k)
 	v.set.Add(v.s_index)
 	for v.set.NotVisited() {
-		v.set.AddRange(v.edges[v.set.Top()])
+		v.set.AddRange(v.outNeighbors(v.set.Top()))
 	}
 	return v.set.Elements(k)
+}
+
+func (v *Vamana) outNeighborsFromMemory(x uint64) []uint64 {
+	return v.edges[x]
 }
 
 func elementsFromMap(set map[uint64]struct{}) []uint64 {
@@ -394,15 +413,15 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) {
 	if err != nil {
 		panic(err)
 	}
-	out := make(map[uint64]struct{}, v.config.R)
+	out := ssdhelpers.NewFullBitSet(int(v.config.VectorsSize))
 	for visitedSet.Size() > 0 {
 		pMin := v.closest(qP, visitedSet)
-		out[pMin.index] = struct{}{}
+		out.Add(pMin.index)
 		qPMin, err := v.config.VectorForIDThunk(context.Background(), pMin.index)
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", pMin.index)))
 		}
-		if len(out) == v.config.R {
+		if out.Size() == v.config.R {
 			break
 		}
 
@@ -416,16 +435,13 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) {
 			}
 		}
 	}
-	v.edges[p] = elementsFromMap(out)
+	v.edges[p] = out.Elements()
 }
 
 func (v *Vamana) closest(x []float32, set *Set2) *IndexAndDistance {
 	var min float32 = math.MaxFloat32
 	var indice *IndexAndDistance = nil
 	for _, element := range set.items {
-		if element.visited {
-			continue
-		}
 		distance := element.distance
 		if distance == 0 {
 			qi, err := v.config.VectorForIDThunk(context.Background(), element.index)

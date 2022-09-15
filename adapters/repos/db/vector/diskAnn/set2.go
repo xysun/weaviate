@@ -7,7 +7,6 @@ type Set2 struct {
 type IndexAndDistance struct {
 	index    uint64
 	distance float32
-	visited  bool
 }
 
 func NewSet2() *Set2 {
@@ -20,19 +19,9 @@ func NewSet2() *Set2 {
 func (s *Set2) Add(x uint64) *Set2 {
 	s.items[x] = &IndexAndDistance{
 		index:    x,
-		visited:  false,
 		distance: 0,
 	}
 	return s
-}
-
-func (s *Set2) NotVisited() bool {
-	for _, element := range s.items {
-		if !element.visited {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *Set2) AddRange(others []uint64) *Set2 {
