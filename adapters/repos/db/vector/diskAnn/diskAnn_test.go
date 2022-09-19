@@ -17,18 +17,13 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"runtime"
-	"sync"
 	"time"
 
 	"testing"
 
 	"github.com/pkg/errors"
-	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw"
-	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
-	"github.com/stretchr/testify/require"
 )
 
 func generate_vecs(size int, dimensions int) [][]float32 {
@@ -59,7 +54,6 @@ func loadQueries(queries_size int) [][]float32 {
 	return queries
 }
 
-/*
 func TestBigDataVamana(t *testing.T) {
 	rand.Seed(0)
 	dimensions := 128
@@ -91,8 +85,9 @@ func TestBigDataVamana(t *testing.T) {
 				uint64(vectors_size),
 				ssdhelpers.L2,
 				"./data",
+				dimensions,
 			)
-			//index.SwitchGraphToDiskWithBinary("data/graphs/")
+			index.SwitchGraphToDiskWithBinary("data/graphs/")
 			fmt.Printf("Index built in: %s\n", time.Since(before))
 			Ks := []int{10, 100}
 			L := []int{1, 2, 3, 4, 5, 10}
@@ -107,14 +102,9 @@ func TestBigDataVamana(t *testing.T) {
 					var retrieved int
 
 					var querying time.Duration = 0
-					adds, hits, truncs := 0, 0, 0
 					for i := 0; i < len(queries); i++ {
 						before = time.Now()
 						results := index.SearchByVector(queries[i], k)
-						a, h, t := index.Stats()
-						adds += a
-						hits += h
-						truncs += t
 						querying += time.Since(before)
 						retrieved += k
 						relevant += testinghelpers.MatchesInLists(truths[i], results)
@@ -124,15 +114,15 @@ func TestBigDataVamana(t *testing.T) {
 					queryingTime := float32(querying.Microseconds()) / 1000
 					data[i] = []float32{queryingTime, recall}
 					fmt.Printf("{%f,%f},\n", float32(querying.Microseconds())/float32(1000), recall)
-					fmt.Printf("%d nodes visited. %f rate of hits. %f rate of truncs\n", adds, float32(hits)/float32(adds), float32(truncs)/float32(adds))
 				}
 				results[fmt.Sprintf("Vamana - K: %d (R: %d, L: %d, alpha:%.1f)", k, paramR, paramL, paramAlpha)] = data
 			}
 		}
 	}
 	testinghelpers.ChartData("Recall Vs Latency", "", results, "index.html")
-}*/
+}
 
+/*
 func TestBigDataHNSW(t *testing.T) {
 	rand.Seed(0)
 	dimensions := 128
@@ -221,7 +211,7 @@ func TestBigDataHNSW(t *testing.T) {
 			fmt.Printf("{%f,%f},\n", float32(querying.Microseconds())/float32(1000), recall)
 		}
 	}
-}
+}*/
 
 func TestChartsLocally(t *testing.T) {
 	results := make(map[string][][]float32, 0)

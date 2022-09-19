@@ -24,4 +24,5 @@ type Config struct {
 	Distance           ssdhelpers.DistanceFunction
 	ClustersSize       int
 	ClusterOverlapping int
+	Dimensions         int
 }

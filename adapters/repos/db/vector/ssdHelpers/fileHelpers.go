@@ -1,27 +1,32 @@
 package ssdhelpers
 
 import (
+	"context"
 	"encoding/binary"
+	"math"
 	"os"
 	"reflect"
 	"unsafe"
 )
 
-func DumpGraphToDiskWithBinary(path string, edges [][]uint64, r int) {
+func DumpGraphToDiskWithBinary(path string, edges [][]uint64, r int, vectorForIDThunk VectorForID, dimensions int) {
 	f, err := os.Create(path)
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
 
-	for _, edge := range edges {
-		data := make([]byte, r*8)
-		bytesFromUint64s(edge, data)
+	vectorSize := dimensions * 4
+	for i, edge := range edges {
+		v, _ := vectorForIDThunk(context.Background(), uint64(i))
+		data := make([]byte, r*8+vectorSize)
+		bytesFromFloat32s(v, data)
+		bytesFromUint64s(edge, data[vectorSize:])
 		f.Write(data)
 	}
 }
 
-func DumpGraphToDisk(path string, edges [][]uint64, r int) {
+func DumpGraphToDisk(path string, edges [][]uint64, r int, vectorForIDThunk VectorForID) {
 	f, err := os.Create(path)
 	if err != nil {
 		panic(err)
@@ -46,13 +51,16 @@ func DumpGraphToDisk(path string, edges [][]uint64, r int) {
 	}
 }
 
-func ReadGraphRowWithBinary(f *os.File, x uint64, r int) []uint64 {
+func ReadGraphRowWithBinary(f *os.File, x uint64, r int, dimensions int) ([]uint64, []float32) {
 	buf := make([]uint64, r)
-	data := make([]byte, r*8)
-	f.Seek(int64(r)*int64(8)*int64(x), 0)
+	vector := make([]float32, dimensions)
+	vectorSize := dimensions * 4
+	data := make([]byte, r*8+vectorSize)
+	f.Seek((int64(r*8+vectorSize))*int64(x), 0)
 	f.Read(data)
-	uint64sFromBytes(data, buf)
-	return buf
+	float32sFromBytes(data, vector)
+	uint64sFromBytes(data[vectorSize:], buf)
+	return buf, vector
 }
 
 func uint64FromBytes(bytes []byte) uint64 {
@@ -69,9 +77,32 @@ func bytesFromUint64(source uint64, bytes []byte) {
 	binary.LittleEndian.PutUint64(bytes, source)
 }
 
+func bytesFromFloat32(source float32, bytes []byte) {
+	bits := math.Float32bits(source)
+	binary.LittleEndian.PutUint32(bytes, bits)
+}
+
+func float32FromBytes(bytes []byte) float32 {
+	bits := binary.LittleEndian.Uint32(bytes)
+	float := math.Float32frombits(bits)
+	return float
+}
+
 func bytesFromUint64s(results []uint64, data []byte) {
 	for i := range results {
 		bytesFromUint64(results[i], data[i*8:i*8+8])
+	}
+}
+
+func float32sFromBytes(data []byte, results []float32) {
+	for i := range results {
+		results[i] = float32FromBytes(data[i*4 : i*4+4])
+	}
+}
+
+func bytesFromFloat32s(source []float32, data []byte) {
+	for i := range source {
+		bytesFromFloat32(source[i], data[i*4:i*4+4])
 	}
 }
 

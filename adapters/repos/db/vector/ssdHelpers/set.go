@@ -14,9 +14,6 @@ type Set struct {
 	capacity    int
 	firstIndex  int
 	last        int
-	NodeAdds    int
-	NodeTruncs  int
-	NodeHits    int
 }
 
 type IndexAndDistance struct {
@@ -35,9 +32,6 @@ func NewSet(capacity int, vectorForID VectorForID, distance DistanceFunction, ce
 		firstIndex:  0,
 		last:        capacity - 1,
 		bitSet:      NewBitSet(vectorSize),
-		NodeAdds:    0,
-		NodeTruncs:  0,
-		NodeHits:    0,
 	}
 	for i := range s.items {
 		s.items[i].distance = math.MaxFloat32
@@ -58,21 +52,15 @@ func (s *Set) ReCenter(center []float32, k int) {
 	for i := range s.items {
 		s.items[i].distance = math.MaxFloat32
 	}
-	s.NodeAdds = 0
-	s.NodeTruncs = 0
-	s.NodeHits = 0
 }
 
 func (s *Set) Add(x uint64) bool {
-	s.NodeAdds++
 	if s.bitSet.ContainsAndAdd(x) {
-		s.NodeHits++
 		return false
 	}
 	vec, _ := s.vectorForID(context.Background(), x)
 	dist := s.distance(vec, s.center)
 	if s.items[s.last].distance <= dist {
-		s.NodeTruncs++
 		return false
 	}
 	data := IndexAndDistance{

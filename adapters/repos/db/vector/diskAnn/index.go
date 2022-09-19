@@ -34,7 +34,7 @@ type Vamana struct {
 	s_index      uint64     // entry point
 	edges        [][]uint64 // edges on the graph
 	set          ssdhelpers.Set
-	outNeighbors func(uint64) []uint64
+	outNeighbors func(uint64) ([]uint64, []float32)
 	graphID      string
 	graphFile    *os.File
 }
@@ -258,6 +258,7 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 	var config Config
 	cDec := gob.NewDecoder(fConfig)
 	err = cDec.Decode(&config)
+	config.Dimensions = 128
 	if err != nil {
 		panic(errors.Wrap(err, "Could not decode config"))
 	}
@@ -390,30 +391,28 @@ func (v *Vamana) greedySearchQuery(x []float32, k int) []uint64 {
 	v.set.ReCenter(x, k)
 	v.set.Add(v.s_index)
 	for v.set.NotVisited() {
-		v.set.AddRange(v.outNeighbors(v.set.Top()))
+		neighbours, _ := v.outNeighbors(v.set.Top())
+		v.set.AddRange(neighbours)
 	}
 	return v.set.Elements(k)
 }
 
-func (v *Vamana) Stats() (int, int, int) {
-	return v.set.NodeAdds, v.set.NodeHits, v.set.NodeTruncs
+func (v *Vamana) outNeighborsFromMemory(x uint64) ([]uint64, []float32) {
+	vector, _ := v.config.VectorForIDThunk(context.Background(), x)
+	return v.edges[x], vector
 }
 
-func (v *Vamana) outNeighborsFromMemory(x uint64) []uint64 {
-	return v.edges[x]
+func (v *Vamana) OutNeighborsFromDiskWithBinary(x uint64) ([]uint64, []float32) {
+	return ssdhelpers.ReadGraphRowWithBinary(v.graphFile, x, v.config.R, v.config.Dimensions)
 }
 
-func (v *Vamana) OutNeighborsFromDiskWithBinary(x uint64) []uint64 {
-	return ssdhelpers.ReadGraphRowWithBinary(v.graphFile, x, v.config.R)
-}
-
-func (v *Vamana) OutNeighborsFromDisk(x uint64) []uint64 {
-	return ssdhelpers.ReadGraphRow(v.graphFile, x, v.config.R)
+func (v *Vamana) OutNeighborsFromDisk(x uint64) ([]uint64, []float32) {
+	panic("Not implemented yet...")
 }
 
 func (v *Vamana) SwitchGraphToDisk(path string) {
 	v.graphID = path + uuid.New().String() + ".graph"
-	ssdhelpers.DumpGraphToDisk(v.graphID, v.edges, v.config.R)
+	ssdhelpers.DumpGraphToDisk(v.graphID, v.edges, v.config.R, v.config.VectorForIDThunk)
 	v.outNeighbors = v.OutNeighborsFromDisk
 	v.edges = nil
 	v.graphFile, _ = os.Open(v.graphID)
@@ -421,7 +420,7 @@ func (v *Vamana) SwitchGraphToDisk(path string) {
 
 func (v *Vamana) SwitchGraphToDiskWithBinary(path string) {
 	v.graphID = path + uuid.New().String() + ".graph"
-	ssdhelpers.DumpGraphToDiskWithBinary(v.graphID, v.edges, v.config.R)
+	ssdhelpers.DumpGraphToDiskWithBinary(v.graphID, v.edges, v.config.R, v.config.VectorForIDThunk, v.config.Dimensions)
 	v.outNeighbors = v.OutNeighborsFromDiskWithBinary
 	v.edges = nil
 	v.graphFile, _ = os.Open(v.graphID)
