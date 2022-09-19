@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 )
@@ -34,6 +35,8 @@ type Vamana struct {
 	edges        [][]uint64 // edges on the graph
 	set          ssdhelpers.Set
 	outNeighbors func(uint64) []uint64
+	graphID      string
+	graphFile    *os.File
 }
 
 const ConfigFileName = "cfg.gob"
@@ -50,7 +53,7 @@ func New(config Config) (*Vamana, error) {
 }
 
 func BuildVamana(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string) *Vamana {
-	completePath := fmt.Sprintf("%s/vamana-r%d-l%d-a%.1f", path, R, L, alpha)
+	completePath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	if _, err := os.Stat(completePath); err == nil {
 		return VamanaFromDisk(completePath, VectorForIDThunk, distance)
 	}
@@ -392,8 +395,36 @@ func (v *Vamana) greedySearchQuery(x []float32, k int) []uint64 {
 	return v.set.Elements(k)
 }
 
+func (v *Vamana) Stats() (int, int, int) {
+	return v.set.NodeAdds, v.set.NodeHits, v.set.NodeTruncs
+}
+
 func (v *Vamana) outNeighborsFromMemory(x uint64) []uint64 {
 	return v.edges[x]
+}
+
+func (v *Vamana) OutNeighborsFromDiskWithBinary(x uint64) []uint64 {
+	return ssdhelpers.ReadGraphRowWithBinary(v.graphFile, x, v.config.R)
+}
+
+func (v *Vamana) OutNeighborsFromDisk(x uint64) []uint64 {
+	return ssdhelpers.ReadGraphRow(v.graphFile, x, v.config.R)
+}
+
+func (v *Vamana) SwitchGraphToDisk(path string) {
+	v.graphID = path + uuid.New().String() + ".graph"
+	ssdhelpers.DumpGraphToDisk(v.graphID, v.edges, v.config.R)
+	v.outNeighbors = v.OutNeighborsFromDisk
+	v.edges = nil
+	v.graphFile, _ = os.Open(v.graphID)
+}
+
+func (v *Vamana) SwitchGraphToDiskWithBinary(path string) {
+	v.graphID = path + uuid.New().String() + ".graph"
+	ssdhelpers.DumpGraphToDiskWithBinary(v.graphID, v.edges, v.config.R)
+	v.outNeighbors = v.OutNeighborsFromDiskWithBinary
+	v.edges = nil
+	v.graphFile, _ = os.Open(v.graphID)
 }
 
 func elementsFromMap(set map[uint64]struct{}) []uint64 {

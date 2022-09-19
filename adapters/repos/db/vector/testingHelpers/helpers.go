@@ -92,7 +92,7 @@ func ReadSiftVecsFrom(path string, size int) [][]float32 {
 
 func ReadVecs(size int, dimensions int, queriesSize int) ([][]float32, [][]float32) {
 	fmt.Printf("generating %d vectors...", size+queriesSize)
-	vectors := readSiftFloat("sift/sift_learn.fvecs", size)
+	vectors := readSiftFloat("sift/sift_base.fvecs", size)
 	queries := readSiftFloat("sift/sift_query.fvecs", queriesSize)
 	fmt.Printf(" done\n")
 	return vectors, queries
@@ -359,7 +359,7 @@ func MatchesInLists(control []uint64, results []uint64) uint64 {
 }
 
 func BuildVamana(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string) *diskAnn.Vamana {
-	completePath := fmt.Sprintf("%s/vamana-r%d-l%d-a%.1f", path, R, L, alpha)
+	completePath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	if _, err := os.Stat(completePath); err == nil {
 		return diskAnn.VamanaFromDisk(completePath, VectorForIDThunk, distance)
 	}
