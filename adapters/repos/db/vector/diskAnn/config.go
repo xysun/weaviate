@@ -25,4 +25,5 @@ type Config struct {
 	ClustersSize       int
 	ClusterOverlapping int
 	Dimensions         int
+	C                  int
 }

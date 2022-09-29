@@ -23,20 +23,28 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 )
 
+type Stats struct {
+	Hops int
+}
+
 type Vamana struct {
 	config Config // configuration
 
-	s_index      uint64     // entry point
-	edges        [][]uint64 // edges on the graph
-	set          ssdhelpers.Set
-	outNeighbors func(uint64) ([]uint64, []float32)
-	graphID      string
-	graphFile    *os.File
+	s_index         uint64     // entry point
+	edges           [][]uint64 // edges on the graph
+	set             ssdhelpers.Set
+	outNeighbors    func(uint64) ([]uint64, []float32)
+	graphID         string
+	graphFile       *os.File
+	cachedEdges     map[uint64]*ssdhelpers.VectorWithNeighbors
+	cachedBitMap    *ssdhelpers.BitSet
+	encondedVectors [][]byte
+	pq              *ssdhelpers.ProductQuantizer
+	addRange        func([]uint64)
 }
 
 const ConfigFileName = "cfg.gob"
@@ -49,6 +57,7 @@ func New(config Config) (*Vamana, error) {
 	}
 	index.set = *ssdhelpers.NewSet(config.L, config.VectorForIDThunk, config.Distance, nil, int(config.VectorsSize))
 	index.outNeighbors = index.outNeighborsFromMemory
+	index.addRange = index.addRangeVectors
 	return index, nil
 }
 
@@ -72,6 +81,10 @@ func BuildVamana(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.Vector
 	index.BuildIndex()
 	index.ToDisk(completePath)
 	return index
+}
+
+func (v *Vamana) SetCacheSize(size int) {
+	v.config.C = size
 }
 
 func (v *Vamana) BuildIndexSharded() {
@@ -166,6 +179,7 @@ func (v *Vamana) GetEntry() uint64 {
 func (v *Vamana) SetL(L int) {
 	v.config.L = L
 	v.set = *ssdhelpers.NewSet(L, v.config.VectorForIDThunk, v.config.Distance, nil, int(v.config.VectorsSize))
+	v.set.SetPQ(v.encondedVectors, v.pq)
 }
 
 func (v *Vamana) SearchByVector(query []float32, k int) []uint64 {
@@ -376,23 +390,34 @@ func permutation(n int) []int {
 }
 
 func (v *Vamana) greedySearch(x []float32, k int) ([]uint64, []uint64) {
-	v.set.ReCenter(x, k)
+	v.set.ReCenter(x)
 	v.set.Add(v.s_index)
 	allVisited := []uint64{v.s_index}
 	for v.set.NotVisited() {
-		nn := v.set.Top()
+		nn, _ := v.set.Top()
 		v.set.AddRange(v.edges[nn])
 		allVisited = append(allVisited, nn)
 	}
 	return v.set.Elements(k), allVisited
 }
 
+func (v *Vamana) addRangeVectors(elements []uint64) {
+	v.set.AddRange(elements)
+}
+
+func (v *Vamana) addRangePQ(elements []uint64) {
+	v.set.AddRangePQ(elements, v.cachedEdges, v.cachedBitMap)
+}
+
 func (v *Vamana) greedySearchQuery(x []float32, k int) []uint64 {
-	v.set.ReCenter(x, k)
+	v.set.ReCenter(x)
 	v.set.Add(v.s_index)
+
 	for v.set.NotVisited() {
-		neighbours, _ := v.outNeighbors(v.set.Top())
-		v.set.AddRange(neighbours)
+		top, index := v.set.Top()
+		neighbours, vector := v.outNeighbors(top)
+		v.set.ReSort(index, vector)
+		v.addRange(neighbours)
 	}
 	return v.set.Elements(k)
 }
@@ -402,28 +427,70 @@ func (v *Vamana) outNeighborsFromMemory(x uint64) ([]uint64, []float32) {
 	return v.edges[x], vector
 }
 
-func (v *Vamana) OutNeighborsFromDiskWithBinary(x uint64) ([]uint64, []float32) {
+func (v *Vamana) OutNeighborsFromDisk(x uint64) ([]uint64, []float32) {
+	cached, found := v.cachedEdges[x]
+	if found {
+		return cached.OutNeighbors, cached.Vector
+	}
 	return ssdhelpers.ReadGraphRowWithBinary(v.graphFile, x, v.config.R, v.config.Dimensions)
 }
 
-func (v *Vamana) OutNeighborsFromDisk(x uint64) ([]uint64, []float32) {
-	panic("Not implemented yet...")
+func (v *Vamana) addToCacheRecursively(hops int, elements []uint64) {
+	if hops <= 0 {
+		return
+	}
+
+	newElements := make([]uint64, 0)
+	for _, x := range elements {
+		if hops <= 0 {
+			return
+		}
+		found := v.cachedBitMap.ContainsAndAdd(x)
+		if found {
+			continue
+		}
+		hops--
+
+		vec, _ := v.config.VectorForIDThunk(context.Background(), uint64(x))
+		v.cachedEdges[x] = &ssdhelpers.VectorWithNeighbors{
+			Vector:       vec,
+			OutNeighbors: v.edges[x],
+		}
+		for _, n := range v.edges[x] {
+			newElements = append(newElements, n)
+		}
+	}
+	v.addToCacheRecursively(hops, newElements)
 }
 
-func (v *Vamana) SwitchGraphToDisk(path string) {
-	v.graphID = path + uuid.New().String() + ".graph"
-	ssdhelpers.DumpGraphToDisk(v.graphID, v.edges, v.config.R, v.config.VectorForIDThunk)
-	v.outNeighbors = v.OutNeighborsFromDisk
-	v.edges = nil
-	v.graphFile, _ = os.Open(v.graphID)
-}
-
-func (v *Vamana) SwitchGraphToDiskWithBinary(path string) {
-	v.graphID = path + uuid.New().String() + ".graph"
+func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int) {
+	v.graphID = path
 	ssdhelpers.DumpGraphToDiskWithBinary(v.graphID, v.edges, v.config.R, v.config.VectorForIDThunk, v.config.Dimensions)
-	v.outNeighbors = v.OutNeighborsFromDiskWithBinary
+	v.outNeighbors = v.OutNeighborsFromDisk
+	v.cachedEdges = make(map[uint64]*ssdhelpers.VectorWithNeighbors, v.config.C)
+	v.cachedBitMap = ssdhelpers.NewBitSet(int(v.config.VectorsSize))
+	v.addToCacheRecursively(v.config.C, []uint64{v.s_index})
 	v.edges = nil
 	v.graphFile, _ = os.Open(v.graphID)
+	v.encondedVectors = v.encondeVectors(segments, centroids)
+	v.set.SetPQ(v.encondedVectors, v.pq)
+	v.addRange = v.addRangePQ
+}
+
+func (v *Vamana) encondeVectors(segments int, centroids int) [][]byte {
+	v.pq = ssdhelpers.NewProductQunatizer(segments, centroids, v.config.Distance, v.config.VectorForIDThunk, v.config.Dimensions, int(v.config.VectorsSize))
+	v.pq.Fit()
+	enconded := make([][]byte, v.config.VectorsSize)
+	ssdhelpers.Concurrently(v.config.VectorsSize, func(workerID uint64, vIndex uint64, mutex *sync.Mutex) {
+		found := v.cachedBitMap.Contains(vIndex)
+		if found {
+			enconded[vIndex] = nil
+			return
+		}
+		x, _ := v.config.VectorForIDThunk(context.Background(), vIndex)
+		enconded[vIndex] = v.pq.Encode(x)
+	})
+	return enconded
 }
 
 func elementsFromMap(set map[uint64]struct{}) []uint64 {

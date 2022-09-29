@@ -39,7 +39,7 @@ func (s *BitSet) ContainsAndRemove(x uint64) bool {
 func (s *BitSet) Contains(x uint64) bool {
 	b := s.keys[x/8]
 	mask := byte(1 << (8 - (x % 8) - 1))
-	return b&mask == 0
+	return b&mask != 0
 }
 
 func (s *BitSet) Add(x uint64) {

@@ -6,14 +6,21 @@ import (
 )
 
 type Set struct {
-	bitSet      *BitSet
-	items       []IndexAndDistance
-	vectorForID VectorForID
-	distance    DistanceFunction
-	center      []float32
-	capacity    int
-	firstIndex  int
-	last        int
+	bitSet          *BitSet
+	items           []IndexAndDistance
+	vectorForID     VectorForID
+	distance        DistanceFunction
+	center          []float32
+	capacity        int
+	firstIndex      int
+	last            int
+	encondedVectors [][]byte
+	pq              *ProductQuantizer
+}
+
+type VectorWithNeighbors struct {
+	Vector       []float32
+	OutNeighbors []uint64
 }
 
 type IndexAndDistance struct {
@@ -46,20 +53,32 @@ func max(x int, y int) int {
 	return x
 }
 
-func (s *Set) ReCenter(center []float32, k int) {
+func (s *Set) ReCenter(center []float32) {
 	s.center = center
 	s.bitSet.Clean()
 	for i := range s.items {
 		s.items[i].distance = math.MaxFloat32
 	}
+	if s.pq != nil {
+		s.pq.CenterAt(center)
+	}
 }
 
-func (s *Set) Add(x uint64) bool {
+func distanceForVector(s *Set, x uint64) float32 {
+	vec, _ := s.vectorForID(context.Background(), x)
+	return s.distance(vec, s.center)
+}
+
+func distanceForPQVector(s *Set, x uint64) float32 {
+	vec := s.encondedVectors[x]
+	return s.pq.Distance(vec)
+}
+
+func (s *Set) add(x uint64, distancer func(s *Set, x uint64) float32) bool {
 	if s.bitSet.ContainsAndAdd(x) {
 		return false
 	}
-	vec, _ := s.vectorForID(context.Background(), x)
-	dist := s.distance(vec, s.center)
+	dist := distancer(s, x)
 	if s.items[s.last].distance <= dist {
 		return false
 	}
@@ -74,6 +93,14 @@ func (s *Set) Add(x uint64) bool {
 		s.firstIndex = index
 	}
 	return true
+}
+
+func (s *Set) AddPQVector(x uint64) bool {
+	return s.add(x, distanceForPQVector)
+}
+
+func (s *Set) Add(x uint64) bool {
+	return s.add(x, distanceForVector)
 }
 
 func (s *Set) insert(data IndexAndDistance) int {
@@ -114,17 +141,68 @@ func (s *Set) AddRange(indices []uint64) {
 	}
 }
 
+func (s *Set) AddRangePQ(indices []uint64, cache map[uint64]*VectorWithNeighbors, bitSet *BitSet) {
+	for _, item := range indices {
+		found := bitSet.Contains(item)
+		if found {
+			vector, _ := cache[item]
+			s.add(item, func(s *Set, x uint64) float32 {
+				return s.distance(vector.Vector, s.center)
+			})
+		}
+		s.AddPQVector(item)
+	}
+}
+
+func (s *Set) SetPQ(encondedVectors [][]byte, pq *ProductQuantizer) {
+	s.encondedVectors = encondedVectors
+	s.pq = pq
+}
+
 func (s *Set) NotVisited() bool {
 	return s.firstIndex < s.capacity-1
 }
 
-func (s *Set) Top() uint64 {
+func (s *Set) Top() (uint64, int) {
 	s.items[s.firstIndex].visited = true
+	lastFirst := s.firstIndex
 	x := s.items[s.firstIndex].index
 	for s.firstIndex < s.capacity && s.items[s.firstIndex].visited {
 		s.firstIndex++
 	}
-	return x
+	return x, lastFirst
+}
+
+func (s *Set) ReSort(i int, vector []float32) {
+	s.items[i].distance = s.distance(vector, s.center)
+	if i > 0 && s.items[i].distance < s.items[i-1].distance {
+		j := i - 1
+		for j >= 0 && s.items[i].distance < s.items[j].distance {
+			j--
+		}
+		if i-j == 1 {
+			s.items[i], s.items[j] = s.items[j], s.items[i]
+			return
+		}
+		data := s.items[i]
+		copy(s.items[j+2:i+1], s.items[j+1:i])
+		s.items[j+1] = data
+	} else if i < len(s.items)-1 && s.items[i].distance > s.items[i+1].distance {
+		j := i + 1
+		for j >= 0 && s.items[i].distance < s.items[j].distance {
+			j++
+		}
+		if j >= s.firstIndex {
+			s.firstIndex--
+		}
+		if j-i == 1 {
+			s.items[i], s.items[j] = s.items[j], s.items[i]
+			return
+		}
+		data := s.items[i]
+		copy(s.items[i:j-1], s.items[i+1:j])
+		s.items[j-1] = data
+	}
 }
 
 func min(x int, y int) int {

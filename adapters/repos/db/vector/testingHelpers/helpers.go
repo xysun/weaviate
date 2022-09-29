@@ -98,7 +98,7 @@ func ReadVecs(size int, dimensions int, queriesSize int) ([][]float32, [][]float
 	return vectors, queries
 }
 
-func bruteForce(vectors [][]float32, query []float32, k int, distance DistanceFunction) []uint64 {
+func BruteForce(vectors [][]float32, query []float32, k int, distance DistanceFunction) []uint64 {
 	type distanceAndIndex struct {
 		distance float32
 		index    uint64
@@ -139,7 +139,7 @@ func BuildTruths(queries_size int, queries [][]float32, vectors [][]float32, k i
 	}
 
 	for i, query := range queries {
-		truths[i] = bruteForce(vectors, query, k, distance)
+		truths[i] = BruteForce(vectors, query, k, distance)
 	}
 
 	f, err := os.Create(fileName)
@@ -358,10 +358,12 @@ func MatchesInLists(control []uint64, results []uint64) uint64 {
 	return matches
 }
 
-func BuildVamana(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int) *diskAnn.Vamana {
+func BuildVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int) *diskAnn.Vamana {
 	completePath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	if _, err := os.Stat(completePath); err == nil {
-		return diskAnn.VamanaFromDisk(completePath, VectorForIDThunk, distance)
+		index := diskAnn.VamanaFromDisk(completePath, VectorForIDThunk, distance)
+		index.SetCacheSize(C)
+		return index
 	}
 	os.Mkdir(completePath, os.ModePerm)
 
@@ -375,6 +377,7 @@ func BuildVamana(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.Vector
 		ClustersSize:       40,
 		ClusterOverlapping: 2,
 		Dimensions:         dimensions,
+		C:                  C,
 	})
 
 	index.BuildIndex()

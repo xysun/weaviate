@@ -137,6 +137,14 @@ func (m *KMeans) Partition() (*KMeans, error) { //init centers using min/max per
 	return m, nil
 }
 
+func (m *KMeans) Center(point []float32) []float32 {
+	return m.centers[m.Nearest(point)]
+}
+
+func (m *KMeans) Centroid(i uint64) []float32 {
+	return m.centers[i]
+}
+
 func (m *KMeans) getPoint(index uint64) []float32 {
 	v, _ := m.VectorForIDThunk(context.Background(), index)
 	return v
