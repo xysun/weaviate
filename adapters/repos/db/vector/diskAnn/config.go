@@ -26,4 +26,5 @@ type Config struct {
 	ClusterOverlapping int
 	Dimensions         int
 	C                  int
+	BeamSize           int
 }

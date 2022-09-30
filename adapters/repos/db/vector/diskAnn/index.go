@@ -87,6 +87,10 @@ func (v *Vamana) SetCacheSize(size int) {
 	v.config.C = size
 }
 
+func (v *Vamana) SetBeamSize(size int) {
+	v.config.BeamSize = size
+}
+
 func (v *Vamana) BuildIndexSharded() {
 	if v.config.ClustersSize == 1 {
 		v.BuildIndex()
@@ -414,10 +418,18 @@ func (v *Vamana) greedySearchQuery(x []float32, k int) []uint64 {
 	v.set.Add(v.s_index)
 
 	for v.set.NotVisited() {
-		top, index := v.set.Top()
-		neighbours, vector := v.outNeighbors(top)
-		v.set.ReSort(index, vector)
-		v.addRange(neighbours)
+		tops, indexes := v.set.TopN(v.config.BeamSize)
+		neighbours := make([][]uint64, v.config.BeamSize)
+		vectors := make([][]float32, v.config.BeamSize)
+		//Not fully sure this is taking advantage of parallel capabilities of SSD.
+		//TODO: research about it.
+		for i, top := range tops {
+			neighbours[i], vectors[i] = v.outNeighbors(top)
+		}
+		for i := range indexes {
+			v.set.ReSort(indexes[i], vectors[i])
+			v.addRange(neighbours[i])
+		}
 	}
 	return v.set.Elements(k)
 }

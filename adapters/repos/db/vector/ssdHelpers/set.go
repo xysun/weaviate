@@ -173,6 +173,19 @@ func (s *Set) Top() (uint64, int) {
 	return x, lastFirst
 }
 
+func (s *Set) TopN(n int) ([]uint64, []int) {
+	tops, indexes := make([]uint64, 0, n), make([]int, 0, n)
+	for i := 0; i < n; i++ {
+		top, index := s.Top()
+		tops = append(tops, top)
+		indexes = append(indexes, index)
+		if !s.NotVisited() {
+			break
+		}
+	}
+	return tops, indexes
+}
+
 func (s *Set) ReSort(i int, vector []float32) {
 	s.items[i].distance = s.distance(vector, s.center)
 	if i > 0 && s.items[i].distance < s.items[i-1].distance {

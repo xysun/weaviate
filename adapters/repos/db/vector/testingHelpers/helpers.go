@@ -358,11 +358,12 @@ func MatchesInLists(control []uint64, results []uint64) uint64 {
 	return matches
 }
 
-func BuildVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int) *diskAnn.Vamana {
+func BuildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int) *diskAnn.Vamana {
 	completePath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	if _, err := os.Stat(completePath); err == nil {
 		index := diskAnn.VamanaFromDisk(completePath, VectorForIDThunk, distance)
 		index.SetCacheSize(C)
+		index.SetBeamSize(beamSize)
 		return index
 	}
 	os.Mkdir(completePath, os.ModePerm)
@@ -378,6 +379,7 @@ func BuildVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers
 		ClusterOverlapping: 2,
 		Dimensions:         dimensions,
 		C:                  C,
+		BeamSize:           beamSize,
 	})
 
 	index.BuildIndex()

@@ -78,8 +78,9 @@ func TestBigDataVamana(t *testing.T) {
 			index := testinghelpers.BuildVamana(
 				paramR,
 				paramL,
-				10000,
+				100000,
 				paramAlpha,
+				4,
 				func(ctx context.Context, id uint64) ([]float32, error) {
 					return vectors[int(id)], nil
 				},
