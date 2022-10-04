@@ -22,16 +22,17 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
 )
 
-func generate_vecs(size int, dimensions int) [][]float32 {
+func generate_vecs(size int, dimensions int, width int) [][]float32 {
 	vectors := make([][]float32, 0, size)
 	for i := 0; i < size; i++ {
 		v := make([]float32, 0, dimensions)
 		for j := 0; j < dimensions; j++ {
-			v = append(v, rand.Float32())
+			v = append(v, float32(width)*rand.Float32())
 		}
 		vectors = append(vectors, v)
 	}
@@ -433,4 +434,37 @@ func TestCharts(t *testing.T) {
 		{3550.24, 1.0000},
 	}
 	testinghelpers.ChartData("Recall vs Latency", "", results, "line-10-100.html")
+}
+
+func TestChartsHighlighted(t *testing.T) {
+	rand.Seed(0)
+	dimensions := 2
+	vectors_size := 1000
+	width := 1024
+	before := time.Now()
+	vectors := generate_vecs(vectors_size, dimensions, width)
+	if vectors == nil {
+		panic("Error generating vectors")
+	}
+	fmt.Printf("generating data took %s\n", time.Since(before))
+
+	paramR := 4
+	paramL := 8
+	before = time.Now()
+	index := diskAnn.BuildVamana(
+		paramR,
+		paramL,
+		1.2,
+		func(ctx context.Context, id uint64) ([]float32, error) {
+			return vectors[int(id)], nil
+		},
+		uint64(vectors_size),
+		ssdhelpers.L2,
+		"./data",
+	)
+	index.BuildIndex()
+	testinghelpers.PlotGraph("Vamana_0.png", index.GetGraph(), vectors, width, width)
+	testinghelpers.PlotGraphHighLightedBold("Vamana_3.png", index.GetGraph(), vectors, width, width, index.GetEntry(), 3)
+	testinghelpers.PlotGraphHighLightedBold("Vamana_6.png", index.GetGraph(), vectors, width, width, index.GetEntry(), 6)
+	testinghelpers.PlotGraphHighLightedBold("Vamana_9.png", index.GetGraph(), vectors, width, width, index.GetEntry(), 9)
 }

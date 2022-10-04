@@ -166,6 +166,7 @@ func (v *Vamana) BuildIndexSharded() {
 }
 
 func (v *Vamana) BuildIndex() {
+	v.SetL(v.config.L)
 	v.edges = v.makeRandomGraph()
 	v.s_index = v.medoid()
 	alpha := v.config.Alpha
