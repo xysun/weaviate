@@ -205,7 +205,7 @@ func (s *Set) ReSort(i int, vector []float32) {
 		for j >= 0 && s.items[i].distance < s.items[j].distance {
 			j++
 		}
-		if j >= s.firstIndex {
+		if j >= s.firstIndex && i+1 <= s.firstIndex {
 			s.firstIndex--
 		}
 		if j-i == 1 {

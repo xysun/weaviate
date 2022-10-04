@@ -34,17 +34,19 @@ type Stats struct {
 type Vamana struct {
 	config Config // configuration
 
-	s_index         uint64     // entry point
-	edges           [][]uint64 // edges on the graph
-	set             ssdhelpers.Set
-	outNeighbors    func(uint64) ([]uint64, []float32)
-	graphID         string
-	graphFile       *os.File
-	cachedEdges     map[uint64]*ssdhelpers.VectorWithNeighbors
-	cachedBitMap    *ssdhelpers.BitSet
-	encondedVectors [][]byte
-	pq              *ssdhelpers.ProductQuantizer
-	addRange        func([]uint64)
+	s_index          uint64     // entry point
+	edges            [][]uint64 // edges on the graph
+	set              ssdhelpers.Set
+	outNeighbors     func(uint64) ([]uint64, []float32)
+	graphID          string
+	graphFile        *os.File
+	cachedEdges      map[uint64]*ssdhelpers.VectorWithNeighbors
+	cachedBitMap     *ssdhelpers.BitSet
+	encondedVectors  [][]byte
+	pq               *ssdhelpers.ProductQuantizer
+	addRange         func([]uint64)
+	beamSearchHolder func(*Vamana)
+	onDisk           bool
 }
 
 const ConfigFileName = "cfg.gob"
@@ -80,6 +82,7 @@ func BuildVamana(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.Vector
 
 	index.BuildIndex()
 	index.ToDisk(completePath)
+	index.beamSearchHolder = secuentialBeamSearch
 	return index
 }
 
@@ -296,6 +299,7 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 	}
 	index.config.VectorForIDThunk = VectorForIDThunk
 	index.config.Distance = distance
+	index.beamSearchHolder = secuentialBeamSearch
 	return index
 }
 
@@ -413,23 +417,39 @@ func (v *Vamana) addRangePQ(elements []uint64) {
 	v.set.AddRangePQ(elements, v.cachedEdges, v.cachedBitMap)
 }
 
+func initBeamSearch(v *Vamana) {
+	secuentialBeamSearch(v)
+	v.beamSearchHolder = beamSearch
+}
+
+func beamSearch(v *Vamana) {
+	tops, indexes := v.set.TopN(v.config.BeamSize)
+	neighbours := make([][]uint64, v.config.BeamSize)
+	vectors := make([][]float32, v.config.BeamSize)
+	ssdhelpers.Concurrently(uint64(len(tops)), func(workerId, i uint64, mutex *sync.Mutex) {
+		neighbours[i], vectors[i] = v.outNeighbors(tops[i])
+	})
+	for i := range indexes {
+		v.set.ReSort(indexes[i], vectors[i])
+		v.addRange(neighbours[i])
+	}
+}
+
+func secuentialBeamSearch(v *Vamana) {
+	top, _ := v.set.Top()
+	neighbours, _ := v.outNeighbors(top)
+	v.addRange(neighbours)
+}
+
 func (v *Vamana) greedySearchQuery(x []float32, k int) []uint64 {
 	v.set.ReCenter(x)
 	v.set.Add(v.s_index)
 
 	for v.set.NotVisited() {
-		tops, indexes := v.set.TopN(v.config.BeamSize)
-		neighbours := make([][]uint64, v.config.BeamSize)
-		vectors := make([][]float32, v.config.BeamSize)
-		//Not fully sure this is taking advantage of parallel capabilities of SSD.
-		//TODO: research about it.
-		for i, top := range tops {
-			neighbours[i], vectors[i] = v.outNeighbors(top)
-		}
-		for i := range indexes {
-			v.set.ReSort(indexes[i], vectors[i])
-			v.addRange(neighbours[i])
-		}
+		v.beamSearchHolder(v)
+	}
+	if v.onDisk {
+		v.beamSearchHolder = initBeamSearch
 	}
 	return v.set.Elements(k)
 }
@@ -487,6 +507,8 @@ func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int) {
 	v.encondedVectors = v.encondeVectors(segments, centroids)
 	v.set.SetPQ(v.encondedVectors, v.pq)
 	v.addRange = v.addRangePQ
+	v.onDisk = true
+	v.beamSearchHolder = initBeamSearch
 }
 
 func (v *Vamana) encondeVectors(segments int, centroids int) [][]byte {
