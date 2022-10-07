@@ -111,7 +111,7 @@ func (pq *ProductQuantizer) Fit() {
 				return pq.extractSegment(int(i), v), e
 			},
 			pq.dataSize,
-			pq.dimensions)
+			pq.ds)
 		_, err := pq.kms[i].Partition()
 
 		if err != nil {

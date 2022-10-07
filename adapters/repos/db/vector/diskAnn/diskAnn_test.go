@@ -60,11 +60,11 @@ func TestBigDataVamana(t *testing.T) {
 	vectors_size := 1000000
 	queries_size := 1000
 	before := time.Now()
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
-	/*
-		var vectors [][]float32 = nil
-		queries := testinghelpers.ReadQueries(dimensions, queries_size)
-	*/
+	//vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
+
+	var vectors [][]float32 = nil
+	queries := testinghelpers.ReadQueries(dimensions, queries_size)
+
 	fmt.Printf("generating data took %s\n", time.Since(before))
 
 	paramsRs := []int{32, 50}
@@ -76,7 +76,7 @@ func TestBigDataVamana(t *testing.T) {
 			paramR := paramsRs[paramIndex]
 			paramL := paramsLs[paramIndex]
 			before = time.Now()
-			index := testinghelpers.BuildVamana(
+			index := testinghelpers.BuildDiskVamana(
 				paramR,
 				paramL,
 				10000,
@@ -89,6 +89,8 @@ func TestBigDataVamana(t *testing.T) {
 				ssdhelpers.L2,
 				"./data",
 				dimensions,
+				64,
+				256,
 			)
 
 			fmt.Printf("Index built in: %s\n", time.Since(before))
@@ -123,6 +125,124 @@ func TestBigDataVamana(t *testing.T) {
 		}
 	}
 	testinghelpers.ChartData("Recall Vs Latency", "", results, "index.html")
+}
+
+func TestChartsRestrictedMemory(t *testing.T) {
+	results := make(map[string][][]float32, 0)
+	results["Disk.2GB.1M.Vamana-K10(32,50)"] = [][]float32{
+		{958.698975, 0.699500},
+		{890.101990, 0.844000},
+		{945.184998, 0.891800},
+		{1014.202026, 0.916600},
+		{1133.063965, 0.931000},
+		{2724.816895, 0.957900},
+	}
+	results["Disk.2GB.1M.Vamana-K100(32,50)"] = [][]float32{
+		{1150.121948, 0.871120},
+		{3620.985107, 0.968070},
+		{3391.447998, 0.972440},
+		{3595.562988, 0.974460},
+		{4122.500977, 0.974390},
+		{7248.335938, 0.974750},
+	}
+	results["Disk.2GB.1M.Vamana-K10(50,125)"] = [][]float32{
+		{1009.401001, 0.772700},
+		{932.911011, 0.908700},
+		{1053.316040, 0.939700},
+		{1177.852051, 0.952700},
+		{1249.359985, 0.959800},
+		{3003.294922, 0.969100},
+	}
+	results["Disk.2GB.1M.Vamana-K100(50,125)"] = [][]float32{
+		{1420.853027, 0.889250},
+		{4558.092773, 0.980460},
+		{4426.825195, 0.981100},
+		{4676.366211, 0.981700},
+		{5181.709961, 0.981190},
+		{9026.903320, 0.981180},
+	}
+	results["Disk.1GB.1M.Vamana-K10(32,50)"] = [][]float32{
+		{935.927979, 0.699500},
+		{889.596008, 0.844000},
+		{1007.203003, 0.891800},
+		{1104.713989, 0.916600},
+		{1314.854004, 0.931000},
+		{3068.589111, 0.957900},
+	}
+	results["Disk.1GB.1M.Vamana-K100(32,50)"] = [][]float32{
+		{1472.922974, 0.871120},
+		{5393.076172, 0.968070},
+		{7859.795898, 0.972440},
+		{7809.741211, 0.974460},
+		{8225.103516, 0.974390},
+		{17993.191406, 0.974750},
+	}
+	results["Disk.1GB.1M.Vamana-K10(50,125)"] = [][]float32{
+		{1052.354004, 0.772700},
+		{995.994019, 0.908700},
+		{1095.563965, 0.939700},
+		{1184.362061, 0.952700},
+		{1285.172974, 0.959800},
+		{3175.681885, 0.969100},
+	}
+	results["Disk.1GB.1M.Vamana-K100(50,125)"] = [][]float32{
+		{1412.458008, 0.889250},
+		{4831.715820, 0.980460},
+		{8369.609375, 0.981100},
+		{10225.232422, 0.981700},
+		{13136.087891, 0.981190},
+		{25727.447266, 0.981180},
+	}
+
+	results["Memory.2GB.1M.Vamana-K10(32,50)"] = [][]float32{
+		{166.973007, 0.732300},
+		{259.264008, 0.852400},
+		{340.123993, 0.906000},
+		{399.195007, 0.935100},
+		{472.648010, 0.952000},
+		{827.448975, 0.982600},
+	}
+	results["Memory.2GB.1M.Vamana-K100(32,50)"] = [][]float32{
+		{837.482971, 0.938120},
+		{1458.152954, 0.980280},
+		{2023.520020, 0.990530},
+		{2573.649902, 0.994850},
+		{3150.767090, 0.996970},
+		{5741.962891, 0.999270},
+	}
+	results["Memory.2GB.1M.Vamana-K10(50,125)"] = [][]float32{
+		{231.764999, 0.819800},
+		{346.630005, 0.919600},
+		{458.490997, 0.956300},
+		{579.164001, 0.973000},
+		{695.955017, 0.980500},
+		{1182.359009, 0.994500},
+	}
+	results["Memory.2GB.1M.Vamana-K100(50,125)"] = [][]float32{
+		{1146.046997, 0.975550},
+		{1996.694946, 0.994800},
+		{2747.449951, 0.998030},
+		{3474.520020, 0.999060},
+		{4247.509766, 0.999410},
+		{7222.888184, 0.999790},
+	}
+	results["Memory.1GB.1M.Vamana-K10(32,50)"] = [][]float32{
+		{4714.607910, 0.732300},
+		{1050.614014, 0.852400},
+		{875.713013, 0.906000},
+		{774.049988, 0.935100},
+		{857.372986, 0.952000},
+		{1660.234009, 0.982600},
+	}
+	results["Memory.1GB.1M.Vamana-K100(32,50)"] = [][]float32{
+		{837.515015, 0.938120},
+		{1937.188965, 0.980280},
+		{2323.085938, 0.990530},
+		{2755.389893, 0.994850},
+		{3156.101074, 0.996970},
+		{5737.317871, 0.999270},
+	}
+	testinghelpers.ChartData("Recall vs Latency (restricted memory)", "", results, "local-memory.html")
 }
 
 /*
