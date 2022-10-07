@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
 )
@@ -61,13 +60,15 @@ func TestBigDataVamana(t *testing.T) {
 	vectors_size := 1000000
 	queries_size := 1000
 	before := time.Now()
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
-	if vectors == nil {
+	//vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
+	var vectors [][]float32 = nil
+	queries := testinghelpers.ReadQueries(dimensions, queries_size)
+	/*if vectors == nil {
 		panic("Error generating vectors")
-	}
+	}*/
 	fmt.Printf("generating data took %s\n", time.Since(before))
 
-	paramsRs := []int{32, 70}
+	paramsRs := []int{32, 50}
 	paramsLs := []int{50, 125}
 	alphas := []float32{1.2}
 	results := make(map[string][][]float32, 0)
@@ -76,10 +77,10 @@ func TestBigDataVamana(t *testing.T) {
 			paramR := paramsRs[paramIndex]
 			paramL := paramsLs[paramIndex]
 			before = time.Now()
-			index := testinghelpers.BuildVamana(
+			index := testinghelpers.BuildDiskVamana(
 				paramR,
 				paramL,
-				100000,
+				10,
 				paramAlpha,
 				1,
 				func(ctx context.Context, id uint64) ([]float32, error) {
@@ -89,14 +90,16 @@ func TestBigDataVamana(t *testing.T) {
 				ssdhelpers.L2,
 				"./data",
 				dimensions,
+				64,
+				256,
 			)
-			index.SwitchGraphToDisk("data/graphs/temp.graph", 64, 256)
+
 			fmt.Printf("Index built in: %s\n", time.Since(before))
 			Ks := []int{10, 100}
-			L := []int{1, 2, 3, 4, 5, 10, 20, 30, 40, 50}
+			L := []int{1, 2, 3, 4, 5, 10}
 			for _, k := range Ks {
 				fmt.Println("K\tL\trecall\t\tquerying")
-				truths := testinghelpers.BuildTruths(queries_size, queries, vectors, k, ssdhelpers.L2)
+				truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.L2)
 				data := make([][]float32, len(L))
 				for i, l := range L {
 					l = l * k
@@ -214,7 +217,7 @@ func TestBigDataHNSW(t *testing.T) {
 			fmt.Printf("{%f,%f},\n", float32(querying.Microseconds())/float32(1000), recall)
 		}
 	}
-}*/
+}
 
 func TestChartsLocally(t *testing.T) {
 	results := make(map[string][][]float32, 0)
@@ -238,14 +241,6 @@ func TestChartsLocally(t *testing.T) {
 		{3430.990967, 0.997800},
 		{4033.707031, 0.998100},
 	}
-	/*results["1M.Vamana-K10 DISK(m=64) (R: 32, L: 50, alpha:1.2)"] = [][]float32{
-		{276.734985, 0.687900},
-		{400.403015, 0.840100},
-		{444.800995, 0.884200},
-		{513.458984, 0.910800},
-		{586.138000, 0.920600},
-		{930.263000, 0.942000},
-	}*/
 	results["1M.Vamana-K100 (R: 32, L: 50, alpha:1.2)"] = [][]float32{
 		{742.294983, 0.937950},
 		{1284.087036, 0.980260},
@@ -266,14 +261,6 @@ func TestChartsLocally(t *testing.T) {
 		{24828.673828, 0.999880},
 		{31713.359375, 0.999890},
 	}
-	/*results["1M.Vamana-K100 DISK(m=64) (R: 32, L: 50, alpha:1.2)"] = [][]float32{
-		{919.294983, 0.869430},
-		{1532.865967, 0.968760},
-		{2100.458984, 0.972420},
-		{2662.375977, 0.974420},
-		{3332.780029, 0.973760},
-		{5973.254883, 0.973760},
-	}*/
 	results["1M.Vamana-K10 (R: 50, L: 125, alpha:1.2)"] = [][]float32{
 		{228.947006, 0.849900},
 		{352.932007, 0.938100},
@@ -294,14 +281,6 @@ func TestChartsLocally(t *testing.T) {
 		{5871.167969, 0.999400},
 		{6872.892090, 0.999400},
 	}
-	/*results["1M.Vamana-K10 DISK(m=64) (R: 50, L: 125, alpha:1.2)"] = [][]float32{
-		{368.816010, 0.786800},
-		{495.170013, 0.912400},
-		{617.663025, 0.936400},
-		{730.093994, 0.946500},
-		{849.356018, 0.951500},
-		{1332.270020, 0.956000},
-	}*/
 	results["1M.Vamana-K100 (R: 50, L: 125, alpha:1.2)"] = [][]float32{
 		{1236.319946, 0.984760},
 		{2215.521973, 0.997360},
@@ -320,14 +299,6 @@ func TestChartsLocally(t *testing.T) {
 		{21644.734375, 0.999890},
 		{30160.632812, 0.999890},
 	}
-	/*results["1M.Vamana-K100 DISK(m=64) (R: 50, L: 125, alpha:1.2)"] = [][]float32{
-		{1340.715942, 0.891860},
-		{2214.250000, 0.986060},
-		{3006.766113, 0.986370},
-		{3761.090088, 0.986450},
-		{4485.542969, 0.986440},
-		{7855.280762, 0.986450},
-	}*/
 	results["1M.HNSW-K10"] = [][]float32{
 		{286.450989, 0.818700},
 		{367.898010, 0.891400},
@@ -468,3 +439,4 @@ func TestChartsHighlighted(t *testing.T) {
 	testinghelpers.PlotGraphHighLightedBold("Vamana_6.png", index.GetGraph(), vectors, width, width, index.GetEntry(), 6)
 	testinghelpers.PlotGraphHighLightedBold("Vamana_9.png", index.GetGraph(), vectors, width, width, index.GetEntry(), 9)
 }
+*/

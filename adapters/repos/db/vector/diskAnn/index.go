@@ -31,26 +31,30 @@ type Stats struct {
 	Hops int
 }
 
+type VamanaData struct {
+	SIndex          uint64 // entry point
+	GraphID         string
+	CachedEdges     map[uint64]*ssdhelpers.VectorWithNeighbors
+	EncondedVectors [][]byte
+	OnDisk          bool
+}
+
 type Vamana struct {
 	config Config // configuration
+	data   VamanaData
 
-	s_index          uint64     // entry point
+	cachedBitMap     *ssdhelpers.BitSet
 	edges            [][]uint64 // edges on the graph
 	set              ssdhelpers.Set
-	outNeighbors     func(uint64) ([]uint64, []float32)
-	graphID          string
 	graphFile        *os.File
-	cachedEdges      map[uint64]*ssdhelpers.VectorWithNeighbors
-	cachedBitMap     *ssdhelpers.BitSet
-	encondedVectors  [][]byte
 	pq               *ssdhelpers.ProductQuantizer
+	outNeighbors     func(uint64) ([]uint64, []float32)
 	addRange         func([]uint64)
 	beamSearchHolder func(*Vamana)
-	onDisk           bool
 }
 
 const ConfigFileName = "cfg.gob"
-const EntryFileName = "entry.gob"
+const DataFileName = "data.gob"
 const GraphFileName = "graph.gob"
 
 func New(config Config) (*Vamana, error) {
@@ -60,6 +64,7 @@ func New(config Config) (*Vamana, error) {
 	index.set = *ssdhelpers.NewSet(config.L, config.VectorForIDThunk, config.Distance, nil, int(config.VectorsSize))
 	index.outNeighbors = index.outNeighborsFromMemory
 	index.addRange = index.addRangeVectors
+	index.beamSearchHolder = secuentialBeamSearch
 	return index, nil
 }
 
@@ -79,6 +84,8 @@ func BuildVamana(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.Vector
 		ClustersSize:       40,
 		ClusterOverlapping: 2,
 	})
+
+	os.Mkdir(path, os.ModePerm)
 
 	index.BuildIndex()
 	index.ToDisk(completePath)
@@ -100,7 +107,7 @@ func (v *Vamana) BuildIndexSharded() {
 		return
 	}
 
-	cluster := ssdhelpers.New(v.config.ClustersSize, v.config.Distance, v.config.VectorForIDThunk, int(v.config.VectorsSize))
+	cluster := ssdhelpers.New(v.config.ClustersSize, v.config.Distance, v.config.VectorForIDThunk, int(v.config.VectorsSize), v.config.Dimensions)
 	cluster.Partition()
 	shards := make([][]uint64, v.config.ClustersSize)
 	for i := 0; i < int(v.config.VectorsSize); i++ {
@@ -137,7 +144,7 @@ func (v *Vamana) BuildIndexSharded() {
 
 	v.config.VectorForIDThunk = vectorForIDThunk
 	v.config.VectorsSize = vectorsSize
-	v.s_index = v.medoid()
+	v.data.SIndex = v.medoid()
 	v.edges = make([][]uint64, v.config.VectorsSize)
 	for shardIndex, shard := range shards {
 		for connectionIndex, connection := range shardedGraphs[shardIndex] {
@@ -168,7 +175,7 @@ func (v *Vamana) BuildIndexSharded() {
 func (v *Vamana) BuildIndex() {
 	v.SetL(v.config.L)
 	v.edges = v.makeRandomGraph()
-	v.s_index = v.medoid()
+	v.data.SIndex = v.medoid()
 	alpha := v.config.Alpha
 	v.config.Alpha = 1
 	v.pass() //Not sure yet what did they mean in the paper with two passes... Two passes is exactly the same as only the last pass to the best of my knowledge.
@@ -181,13 +188,13 @@ func (v *Vamana) GetGraph() [][]uint64 {
 }
 
 func (v *Vamana) GetEntry() uint64 {
-	return v.s_index
+	return v.data.SIndex
 }
 
 func (v *Vamana) SetL(L int) {
 	v.config.L = L
 	v.set = *ssdhelpers.NewSet(L, v.config.VectorForIDThunk, v.config.Distance, nil, int(v.config.VectorsSize))
-	v.set.SetPQ(v.encondedVectors, v.pq)
+	v.set.SetPQ(v.data.EncondedVectors, v.pq)
 }
 
 func (v *Vamana) SearchByVector(query []float32, k int) []uint64 {
@@ -199,7 +206,7 @@ func (v *Vamana) ToDisk(path string) {
 	if err != nil {
 		panic(errors.Wrap(err, "Could not create config file"))
 	}
-	fEntry, err := os.Create(fmt.Sprintf("%s/%s", path, EntryFileName))
+	fData, err := os.Create(fmt.Sprintf("%s/%s", path, DataFileName))
 	if err != nil {
 		panic(errors.Wrap(err, "Could not create entry point file"))
 	}
@@ -208,7 +215,7 @@ func (v *Vamana) ToDisk(path string) {
 		panic(errors.Wrap(err, "Could not create graph file"))
 	}
 	defer fConfig.Close()
-	defer fEntry.Close()
+	defer fData.Close()
 	defer fGraph.Close()
 
 	cEnc := gob.NewEncoder(fConfig)
@@ -217,10 +224,10 @@ func (v *Vamana) ToDisk(path string) {
 		panic(errors.Wrap(err, "Could not encode config"))
 	}
 
-	eEnc := gob.NewEncoder(fEntry)
-	err = eEnc.Encode(v.s_index)
+	dEnc := gob.NewEncoder(fData)
+	err = dEnc.Encode(v.data)
 	if err != nil {
-		panic(errors.Wrap(err, "Could not encode entry point"))
+		panic(errors.Wrap(err, "Could not encode data"))
 	}
 
 	gEnc := gob.NewEncoder(fGraph)
@@ -228,6 +235,9 @@ func (v *Vamana) ToDisk(path string) {
 	if err != nil {
 		panic(errors.Wrap(err, "Could not encode graph"))
 	}
+
+	v.pq.ToDisk(path)
+	v.cachedBitMap.ToDisk(path)
 }
 
 func (v *Vamana) GraphFromDumpFile(filePath string) {
@@ -265,7 +275,7 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 	if err != nil {
 		panic(errors.Wrap(err, "Could not open config file"))
 	}
-	fEntry, err := os.Open(fmt.Sprintf("%s/%s", path, EntryFileName))
+	fData, err := os.Open(fmt.Sprintf("%s/%s", path, DataFileName))
 	if err != nil {
 		panic(errors.Wrap(err, "Could not open entry point file"))
 	}
@@ -274,7 +284,7 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 		panic(errors.Wrap(err, "Could not open graph file"))
 	}
 	defer fConfig.Close()
-	defer fEntry.Close()
+	defer fData.Close()
 	defer fGraph.Close()
 
 	var config Config
@@ -287,20 +297,34 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 
 	index, err := New(config)
 
-	eDec := gob.NewDecoder(fEntry)
-	err = eDec.Decode(&index.s_index)
+	dDec := gob.NewDecoder(fData)
+	err = dDec.Decode(&index.data)
 	if err != nil {
-		panic(errors.Wrap(err, "Could not decode config"))
+		panic(errors.Wrap(err, "Could not decode data"))
 	}
 
 	gDec := gob.NewDecoder(fGraph)
 	err = gDec.Decode(&index.edges)
 	if err != nil {
-		panic(errors.Wrap(err, "Could not decode config"))
+		panic(errors.Wrap(err, "Could not decode edges"))
 	}
 	index.config.VectorForIDThunk = VectorForIDThunk
 	index.config.Distance = distance
-	index.beamSearchHolder = secuentialBeamSearch
+	if index.data.OnDisk && index.config.BeamSize > 1 {
+		index.beamSearchHolder = initBeamSearch
+	} else {
+		index.beamSearchHolder = secuentialBeamSearch
+	}
+	index.pq = ssdhelpers.PQFromDisk(path, VectorForIDThunk, distance)
+	index.cachedBitMap = ssdhelpers.BitSetFromDisk(path)
+	if index.data.OnDisk {
+		index.outNeighbors = index.OutNeighborsFromDisk
+		index.addRange = index.addRangePQ
+		index.graphFile, _ = os.Open(index.data.GraphID)
+	} else {
+		index.outNeighbors = index.outNeighborsFromMemory
+		index.addRange = index.addRangeVectors
+	}
 	return index
 }
 
@@ -400,8 +424,8 @@ func permutation(n int) []int {
 
 func (v *Vamana) greedySearch(x []float32, k int) ([]uint64, []uint64) {
 	v.set.ReCenter(x)
-	v.set.Add(v.s_index)
-	allVisited := []uint64{v.s_index}
+	v.set.Add(v.data.SIndex)
+	allVisited := []uint64{v.data.SIndex}
 	for v.set.NotVisited() {
 		nn, _ := v.set.Top()
 		v.set.AddRange(v.edges[nn])
@@ -415,7 +439,7 @@ func (v *Vamana) addRangeVectors(elements []uint64) {
 }
 
 func (v *Vamana) addRangePQ(elements []uint64) {
-	v.set.AddRangePQ(elements, v.cachedEdges, v.cachedBitMap)
+	v.set.AddRangePQ(elements, v.data.CachedEdges, v.cachedBitMap)
 }
 
 func initBeamSearch(v *Vamana) {
@@ -431,39 +455,47 @@ func beamSearch(v *Vamana) {
 		neighbours[i], vectors[i] = v.outNeighbors(tops[i])
 	})
 	for i := range indexes {
-		v.set.ReSort(indexes[i], vectors[i])
+		if vectors[i] != nil {
+			v.set.ReSort(indexes[i], vectors[i])
+		}
 		v.addRange(neighbours[i])
 	}
 }
 
 func secuentialBeamSearch(v *Vamana) {
-	top, _ := v.set.Top()
-	neighbours, _ := v.outNeighbors(top)
+	top, index := v.set.Top()
+	neighbours, vector := v.outNeighbors(top)
+	if vector != nil {
+		v.set.ReSort(index, vector)
+	}
 	v.addRange(neighbours)
 }
 
 func (v *Vamana) greedySearchQuery(x []float32, k int) []uint64 {
 	v.set.ReCenter(x)
-	v.set.Add(v.s_index)
+	if v.data.OnDisk {
+		v.set.AddPQVector(v.data.SIndex, v.data.CachedEdges, v.cachedBitMap)
+	} else {
+		v.set.Add(v.data.SIndex)
+	}
 
 	for v.set.NotVisited() {
 		v.beamSearchHolder(v)
 	}
-	if v.onDisk {
+	if v.data.OnDisk && v.config.BeamSize > 1 {
 		v.beamSearchHolder = initBeamSearch
 	}
 	return v.set.Elements(k)
 }
 
 func (v *Vamana) outNeighborsFromMemory(x uint64) ([]uint64, []float32) {
-	vector, _ := v.config.VectorForIDThunk(context.Background(), x)
-	return v.edges[x], vector
+	return v.edges[x], nil
 }
 
 func (v *Vamana) OutNeighborsFromDisk(x uint64) ([]uint64, []float32) {
-	cached, found := v.cachedEdges[x]
+	cached, found := v.data.CachedEdges[x]
 	if found {
-		return cached.OutNeighbors, cached.Vector
+		return cached.OutNeighbors, nil
 	}
 	return ssdhelpers.ReadGraphRowWithBinary(v.graphFile, x, v.config.R, v.config.Dimensions)
 }
@@ -485,7 +517,7 @@ func (v *Vamana) addToCacheRecursively(hops int, elements []uint64) {
 		hops--
 
 		vec, _ := v.config.VectorForIDThunk(context.Background(), uint64(x))
-		v.cachedEdges[x] = &ssdhelpers.VectorWithNeighbors{
+		v.data.CachedEdges[x] = &ssdhelpers.VectorWithNeighbors{
 			Vector:       vec,
 			OutNeighbors: v.edges[x],
 		}
@@ -497,19 +529,21 @@ func (v *Vamana) addToCacheRecursively(hops int, elements []uint64) {
 }
 
 func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int) {
-	v.graphID = path
-	ssdhelpers.DumpGraphToDiskWithBinary(v.graphID, v.edges, v.config.R, v.config.VectorForIDThunk, v.config.Dimensions)
+	v.data.GraphID = path
+	ssdhelpers.DumpGraphToDiskWithBinary(v.data.GraphID, v.edges, v.config.R, v.config.VectorForIDThunk, v.config.Dimensions)
 	v.outNeighbors = v.OutNeighborsFromDisk
-	v.cachedEdges = make(map[uint64]*ssdhelpers.VectorWithNeighbors, v.config.C)
+	v.data.CachedEdges = make(map[uint64]*ssdhelpers.VectorWithNeighbors, v.config.C)
 	v.cachedBitMap = ssdhelpers.NewBitSet(int(v.config.VectorsSize))
-	v.addToCacheRecursively(v.config.C, []uint64{v.s_index})
+	v.addToCacheRecursively(v.config.C, []uint64{v.data.SIndex})
 	v.edges = nil
-	v.graphFile, _ = os.Open(v.graphID)
-	v.encondedVectors = v.encondeVectors(segments, centroids)
-	v.set.SetPQ(v.encondedVectors, v.pq)
+	v.graphFile, _ = os.Open(v.data.GraphID)
+	v.data.EncondedVectors = v.encondeVectors(segments, centroids)
+	v.set.SetPQ(v.data.EncondedVectors, v.pq)
 	v.addRange = v.addRangePQ
-	v.onDisk = true
-	v.beamSearchHolder = initBeamSearch
+	v.data.OnDisk = true
+	if v.config.BeamSize > 1 {
+		v.beamSearchHolder = initBeamSearch
+	}
 }
 
 func (v *Vamana) encondeVectors(segments int, centroids int) [][]byte {

@@ -98,6 +98,13 @@ func ReadVecs(size int, dimensions int, queriesSize int) ([][]float32, [][]float
 	return vectors, queries
 }
 
+func ReadQueries(dimensions int, queriesSize int) [][]float32 {
+	fmt.Printf("generating %d vectors...", queriesSize)
+	queries := readSiftFloat("sift/sift_query.fvecs", queriesSize)
+	fmt.Printf(" done\n")
+	return queries
+}
+
 func BruteForce(vectors [][]float32, query []float32, k int, distance DistanceFunction) []uint64 {
 	type distanceAndIndex struct {
 		distance float32
@@ -130,8 +137,8 @@ func BruteForce(vectors [][]float32, query []float32, k int, distance DistanceFu
 	return out
 }
 
-func BuildTruths(queries_size int, queries [][]float32, vectors [][]float32, k int, distance DistanceFunction) [][]uint64 {
-	fileName := fmt.Sprintf("./sift/sift_truths%d.gob", k)
+func BuildTruths(queries_size int, vectors_size int, queries [][]float32, vectors [][]float32, k int, distance DistanceFunction) [][]uint64 {
+	fileName := fmt.Sprintf("./sift/sift_truths%d.%d.gob", k, vectors_size)
 	truths := make([][]uint64, queries_size)
 
 	if _, err := os.Stat(fileName); err == nil {
@@ -360,9 +367,37 @@ func MatchesInLists(control []uint64, results []uint64) uint64 {
 
 func BuildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int) *diskAnn.Vamana {
 	completePath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
+	return buildVamana(R, L, C, alpha, beamSize, VectorForIDThunk, vectorsSize, distance, completePath, dimensions, false, 0, 0)
+}
+
+func BuildDiskVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int) *diskAnn.Vamana {
+	noDiskPath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
+	completePath := fmt.Sprintf("%s/Disk.%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	if _, err := os.Stat(completePath); err == nil {
 		index := diskAnn.VamanaFromDisk(completePath, VectorForIDThunk, distance)
-		index.SetCacheSize(C)
+		return index
+	}
+	if _, err := os.Stat(noDiskPath); err == nil {
+		index := diskAnn.VamanaFromDisk(noDiskPath, VectorForIDThunk, distance)
+		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), 64, 256)
+		os.Mkdir(completePath, os.ModePerm)
+		index.ToDisk(completePath)
+		return index
+	}
+	return buildVamana(R, L, C, alpha, beamSize, VectorForIDThunk, vectorsSize, distance, completePath, dimensions, true, segments, centroids)
+}
+
+func min(x int, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, completePath string, dimensions int, toDisk bool, segments int, centroids int) *diskAnn.Vamana {
+	if _, err := os.Stat(completePath); err == nil {
+		index := diskAnn.VamanaFromDisk(completePath, VectorForIDThunk, distance)
+		index.SetCacheSize(min(int(vectorsSize), C))
 		index.SetBeamSize(beamSize)
 		return index
 	}
@@ -378,11 +413,14 @@ func BuildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDTh
 		ClustersSize:       40,
 		ClusterOverlapping: 2,
 		Dimensions:         dimensions,
-		C:                  C,
+		C:                  min(int(vectorsSize), C),
 		BeamSize:           beamSize,
 	})
 
 	index.BuildIndex()
+	if toDisk {
+		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), 64, 256)
+	}
 	index.ToDisk(completePath)
 	return index
 }

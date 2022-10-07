@@ -95,8 +95,18 @@ func (s *Set) add(x uint64, distancer func(s *Set, x uint64) float32) bool {
 	return true
 }
 
-func (s *Set) AddPQVector(x uint64) bool {
-	return s.add(x, distanceForPQVector)
+func (s *Set) AddPQVector(item uint64, cache map[uint64]*VectorWithNeighbors, bitSet *BitSet) bool {
+	if bitSet == nil {
+		return s.add(item, distanceForPQVector)
+	}
+	found := bitSet.Contains(item)
+	if found {
+		vector, _ := cache[item]
+		return s.add(item, func(s *Set, x uint64) float32 {
+			return s.distance(vector.Vector, s.center)
+		})
+	}
+	return s.add(item, distanceForPQVector)
 }
 
 func (s *Set) Add(x uint64) bool {
@@ -150,7 +160,7 @@ func (s *Set) AddRangePQ(indices []uint64, cache map[uint64]*VectorWithNeighbors
 				return s.distance(vector.Vector, s.center)
 			})
 		}
-		s.AddPQVector(item)
+		s.AddPQVector(item, cache, bitSet)
 	}
 }
 

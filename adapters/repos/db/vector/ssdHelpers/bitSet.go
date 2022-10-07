@@ -1,15 +1,57 @@
 package ssdhelpers
 
+import (
+	"encoding/gob"
+	"fmt"
+	"os"
+
+	"github.com/pkg/errors"
+)
+
 type BitSet struct {
 	keys []byte
 	nils []byte
 }
+
+const BitSetDataFileName = "bitset.gob"
 
 func NewBitSet(capacity int) *BitSet {
 	return &BitSet{
 		keys: make([]byte, capacity/8+1),
 		nils: make([]byte, capacity/8+1),
 	}
+}
+
+func (s *BitSet) ToDisk(path string) {
+	fData, err := os.Create(fmt.Sprintf("%s/%s", path, BitSetDataFileName))
+	if err != nil {
+		panic(errors.Wrap(err, "Could not create bitset file"))
+	}
+	defer fData.Close()
+
+	dEnc := gob.NewEncoder(fData)
+	err = dEnc.Encode(s.keys)
+	if err != nil {
+		panic(errors.Wrap(err, "Could not encode bitset"))
+	}
+}
+
+func BitSetFromDisk(path string) *BitSet {
+	fData, err := os.Open(fmt.Sprintf("%s/%s", path, BitSetDataFileName))
+	if err != nil {
+		panic(errors.Wrap(err, "Could not open bitset file"))
+	}
+	defer fData.Close()
+
+	var data []byte
+	dDec := gob.NewDecoder(fData)
+	err = dDec.Decode(&data)
+	if err != nil {
+		panic(errors.Wrap(err, "Could not decode data"))
+	}
+	s := NewBitSet((len(data) - 1) * 8)
+	s.keys = data
+	return s
 }
 
 func (s *BitSet) Clean() {

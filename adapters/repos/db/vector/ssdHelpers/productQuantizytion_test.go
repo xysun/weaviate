@@ -72,7 +72,7 @@ func TestPQ(t *testing.T) {
 		truth := testinghelpers.BruteForce(vectors, query, k, ssdhelpers.L2)
 		s.ReCenter(query)
 		for v := range vectors {
-			s.AddPQVector(uint64(v))
+			s.AddPQVector(uint64(v), nil, nil)
 		}
 		results := s.Elements(k)
 		relevant += testinghelpers.MatchesInLists(truth, results)

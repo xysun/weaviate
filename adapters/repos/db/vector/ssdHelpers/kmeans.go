@@ -2,9 +2,14 @@ package ssdhelpers
 
 import (
 	"context"
+	"encoding/gob"
+	"fmt"
 	"math"
 	"math/rand"
+	"os"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 type KMeans struct {
@@ -18,18 +23,60 @@ type KMeans struct {
 	dataSize           int
 }
 
-func New(k int, distance DistanceFunction, vectorForIdThunk VectorForID, dataSize int) *KMeans {
-	d, _ := vectorForIdThunk(context.Background(), 0)
-	dims := len(d)
+type KMeansData struct {
+	K        int
+	Centers  [][]float32
+	DataSize int
+}
+
+const DataFileName = "kmeans.gob"
+
+func New(k int, distance DistanceFunction, vectorForIdThunk VectorForID, dataSize int, dimensions int) *KMeans {
 	return &KMeans{
 		K:                  k,
 		DeltaThreshold:     0.1,
 		IterationThreshold: 1000,
 		Distance:           distance,
 		VectorForIDThunk:   vectorForIdThunk,
-		dimensions:         dims,
+		dimensions:         dimensions,
 		dataSize:           dataSize,
 	}
+}
+
+func (m *KMeans) ToDisk(path string, id int) {
+	fData, err := os.Create(fmt.Sprintf("%s/%d.%s", path, id, DataFileName))
+	if err != nil {
+		panic(errors.Wrap(err, "Could not create kmeans file"))
+	}
+	defer fData.Close()
+
+	dEnc := gob.NewEncoder(fData)
+	err = dEnc.Encode(KMeansData{
+		K:        m.K,
+		Centers:  m.centers,
+		DataSize: m.dataSize,
+	})
+	if err != nil {
+		panic(errors.Wrap(err, "Could not encode kmeans"))
+	}
+}
+
+func KMeansFromDisk(path string, id int, VectorForIDThunk VectorForID, distance DistanceFunction) *KMeans {
+	fData, err := os.Open(fmt.Sprintf("%s/%d.%s", path, id, DataFileName))
+	if err != nil {
+		panic(errors.Wrap(err, "Could not open kmeans file"))
+	}
+	defer fData.Close()
+
+	data := KMeansData{}
+	dDec := gob.NewDecoder(fData)
+	err = dDec.Decode(&data)
+	if err != nil {
+		panic(errors.Wrap(err, "Could not decode data"))
+	}
+	kmeans := New(data.K, distance, VectorForIDThunk, data.DataSize, 0)
+	kmeans.centers = data.Centers
+	return kmeans
 }
 
 func (m *KMeans) Nearest(point []float32) uint64 {

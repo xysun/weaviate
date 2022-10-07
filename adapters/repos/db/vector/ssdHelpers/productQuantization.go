@@ -2,7 +2,12 @@ package ssdhelpers
 
 import (
 	"context"
+	"encoding/gob"
+	"fmt"
+	"os"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 type ProductQuantizer struct {
@@ -17,6 +22,15 @@ type ProductQuantizer struct {
 	center           []float32
 	distances        [][]float32
 }
+
+type PQData struct {
+	Ks         int
+	M          int
+	Dimensions int
+	DataSize   int
+}
+
+const PQDataFileName = "pq.gob"
 
 func NewProductQunatizer(segments int, centroids int, distance DistanceFunction, vectorForIDThunk VectorForID, dimensions int, dataSize int) *ProductQuantizer {
 	if dataSize == 0 {
@@ -36,6 +50,49 @@ func NewProductQunatizer(segments int, centroids int, distance DistanceFunction,
 	}
 }
 
+func (pq *ProductQuantizer) ToDisk(path string) {
+	fData, err := os.Create(fmt.Sprintf("%s/%s", path, PQDataFileName))
+	if err != nil {
+		panic(errors.Wrap(err, "Could not create kmeans file"))
+	}
+	defer fData.Close()
+
+	dEnc := gob.NewEncoder(fData)
+	err = dEnc.Encode(PQData{
+		Ks:         pq.ks,
+		M:          pq.m,
+		Dimensions: pq.dimensions,
+		DataSize:   pq.dataSize,
+	})
+	if err != nil {
+		panic(errors.Wrap(err, "Could not encode pq"))
+	}
+	for id, km := range pq.kms {
+		km.ToDisk(path, id)
+	}
+}
+
+func PQFromDisk(path string, VectorForIDThunk VectorForID, distance DistanceFunction) *ProductQuantizer {
+	fData, err := os.Open(fmt.Sprintf("%s/%s", path, PQDataFileName))
+	if err != nil {
+		panic(errors.Wrap(err, "Could not open pq file"))
+	}
+	defer fData.Close()
+
+	data := PQData{}
+	dDec := gob.NewDecoder(fData)
+	err = dDec.Decode(&data)
+	if err != nil {
+		panic(errors.Wrap(err, "Could not decode data"))
+	}
+	pq := NewProductQunatizer(data.M, data.Ks, distance, VectorForIDThunk, data.Dimensions, data.DataSize)
+	pq.kms = make([]*KMeans, pq.m)
+	for id := range pq.kms {
+		pq.kms[id] = KMeansFromDisk(path, id, VectorForIDThunk, distance)
+	}
+	return pq
+}
+
 func (pq *ProductQuantizer) extractSegment(i int, v []float32) []float32 {
 	return v[i*pq.ds : (i+1)*pq.ds]
 }
@@ -50,7 +107,8 @@ func (pq *ProductQuantizer) Fit() {
 				v, e := pq.vectorForIDThunk(ctx, id)
 				return pq.extractSegment(int(i), v), e
 			},
-			pq.dataSize)
+			pq.dataSize,
+			pq.dimensions)
 		_, err := pq.kms[i].Partition()
 
 		if err != nil {
