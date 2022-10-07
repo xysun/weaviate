@@ -25,6 +25,7 @@ func TestKMeans(t *testing.T) {
 			return vectors[int(id)], nil
 		},
 		4,
+		2,
 	)
 	kmeans.Partition()
 	assert.True(t, kmeans.Nearest(vectors[0]) == kmeans.Nearest(vectors[1]))
@@ -52,6 +53,7 @@ func TestKMeansNNearest(t *testing.T) {
 			return vectors[int(id)], nil
 		},
 		6,
+		2,
 	)
 	kmeans.Partition()
 	centers := make([][]uint64, 6)
@@ -90,6 +92,7 @@ func TestWithSift1M(t *testing.T) {
 			return vectors[int(id)], nil
 		},
 		vectors_size,
+		2,
 	)
 	kmeans.Partition()
 	centersHits := make([]int, kmeans.K)

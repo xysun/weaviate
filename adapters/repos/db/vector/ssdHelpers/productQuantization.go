@@ -51,6 +51,9 @@ func NewProductQunatizer(segments int, centroids int, distance DistanceFunction,
 }
 
 func (pq *ProductQuantizer) ToDisk(path string) {
+	if pq == nil {
+		return
+	}
 	fData, err := os.Create(fmt.Sprintf("%s/%s", path, PQDataFileName))
 	if err != nil {
 		panic(errors.Wrap(err, "Could not create kmeans file"))
@@ -75,7 +78,7 @@ func (pq *ProductQuantizer) ToDisk(path string) {
 func PQFromDisk(path string, VectorForIDThunk VectorForID, distance DistanceFunction) *ProductQuantizer {
 	fData, err := os.Open(fmt.Sprintf("%s/%s", path, PQDataFileName))
 	if err != nil {
-		panic(errors.Wrap(err, "Could not open pq file"))
+		return nil
 	}
 	defer fData.Close()
 

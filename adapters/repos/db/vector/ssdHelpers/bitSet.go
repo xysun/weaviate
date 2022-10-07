@@ -23,6 +23,9 @@ func NewBitSet(capacity int) *BitSet {
 }
 
 func (s *BitSet) ToDisk(path string) {
+	if s == nil {
+		return
+	}
 	fData, err := os.Create(fmt.Sprintf("%s/%s", path, BitSetDataFileName))
 	if err != nil {
 		panic(errors.Wrap(err, "Could not create bitset file"))
@@ -39,7 +42,7 @@ func (s *BitSet) ToDisk(path string) {
 func BitSetFromDisk(path string) *BitSet {
 	fData, err := os.Open(fmt.Sprintf("%s/%s", path, BitSetDataFileName))
 	if err != nil {
-		panic(errors.Wrap(err, "Could not open bitset file"))
+		return nil
 	}
 	defer fData.Close()
 

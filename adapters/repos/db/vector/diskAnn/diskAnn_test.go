@@ -60,12 +60,11 @@ func TestBigDataVamana(t *testing.T) {
 	vectors_size := 1000000
 	queries_size := 1000
 	before := time.Now()
-	//vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
-	var vectors [][]float32 = nil
-	queries := testinghelpers.ReadQueries(dimensions, queries_size)
-	/*if vectors == nil {
-		panic("Error generating vectors")
-	}*/
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
+	/*
+		var vectors [][]float32 = nil
+		queries := testinghelpers.ReadQueries(dimensions, queries_size)
+	*/
 	fmt.Printf("generating data took %s\n", time.Since(before))
 
 	paramsRs := []int{32, 50}
@@ -77,10 +76,10 @@ func TestBigDataVamana(t *testing.T) {
 			paramR := paramsRs[paramIndex]
 			paramL := paramsLs[paramIndex]
 			before = time.Now()
-			index := testinghelpers.BuildDiskVamana(
+			index := testinghelpers.BuildVamana(
 				paramR,
 				paramL,
-				10,
+				10000,
 				paramAlpha,
 				1,
 				func(ctx context.Context, id uint64) ([]float32, error) {
@@ -90,8 +89,6 @@ func TestBigDataVamana(t *testing.T) {
 				ssdhelpers.L2,
 				"./data",
 				dimensions,
-				64,
-				256,
 			)
 
 			fmt.Printf("Index built in: %s\n", time.Since(before))

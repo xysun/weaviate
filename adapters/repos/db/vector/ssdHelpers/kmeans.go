@@ -44,6 +44,9 @@ func New(k int, distance DistanceFunction, vectorForIdThunk VectorForID, dataSiz
 }
 
 func (m *KMeans) ToDisk(path string, id int) {
+	if m == nil {
+		return
+	}
 	fData, err := os.Create(fmt.Sprintf("%s/%d.%s", path, id, DataFileName))
 	if err != nil {
 		panic(errors.Wrap(err, "Could not create kmeans file"))
@@ -64,7 +67,7 @@ func (m *KMeans) ToDisk(path string, id int) {
 func KMeansFromDisk(path string, id int, VectorForIDThunk VectorForID, distance DistanceFunction) *KMeans {
 	fData, err := os.Open(fmt.Sprintf("%s/%d.%s", path, id, DataFileName))
 	if err != nil {
-		panic(errors.Wrap(err, "Could not open kmeans file"))
+		return nil
 	}
 	defer fData.Close()
 
