@@ -53,6 +53,7 @@ import (
 	modspellcheck "github.com/semi-technologies/weaviate/modules/text-spellcheck"
 	modcontextionary "github.com/semi-technologies/weaviate/modules/text2vec-contextionary"
 	modhuggingface "github.com/semi-technologies/weaviate/modules/text2vec-huggingface"
+	modneuralmagic "github.com/semi-technologies/weaviate/modules/text2vec-neuralmagic"
 	modopenai "github.com/semi-technologies/weaviate/modules/text2vec-openai"
 	modtransformers "github.com/semi-technologies/weaviate/modules/text2vec-transformers"
 	"github.com/semi-technologies/weaviate/usecases/backup"
@@ -528,6 +529,14 @@ func registerModules(appState *state.State) error {
 		appState.Logger.
 			WithField("action", "startup").
 			WithField("module", modcentroid.Name).
+			Debug("enabled module")
+	}
+
+	if _, ok := enabledModules[modneuralmagic.Name]; ok {
+		appState.Modules.Register(modneuralmagic.New())
+		appState.Logger.
+			WithField("action", "startup").
+			WithField("module", modneuralmagic.Name).
 			Debug("enabled module")
 	}
 
