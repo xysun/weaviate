@@ -379,7 +379,7 @@ func BuildDiskVamana(R int, L int, C int, alpha float32, beamSize int, VectorFor
 	}
 	if _, err := os.Stat(noDiskPath); err == nil {
 		index := diskAnn.VamanaFromDisk(noDiskPath, VectorForIDThunk, distance)
-		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), 64, 256)
+		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), segments, 256)
 		os.Mkdir(completePath, os.ModePerm)
 		index.ToDisk(completePath)
 		return index
@@ -419,7 +419,7 @@ func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDTh
 
 	index.BuildIndex()
 	if toDisk {
-		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), 64, 256)
+		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), segments, 256)
 	}
 	index.ToDisk(completePath)
 	return index
