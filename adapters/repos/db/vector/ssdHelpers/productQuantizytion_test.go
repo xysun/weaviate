@@ -70,7 +70,7 @@ func TestPQ(t *testing.T) {
 	for _, query := range queries {
 		pq.CenterAt(query)
 		truth := testinghelpers.BruteForce(vectors, query, k, ssdhelpers.L2)
-		s.ReCenter(query)
+		s.ReCenter(query, false)
 		for v := range vectors {
 			s.AddPQVector(uint64(v), nil, nil)
 		}

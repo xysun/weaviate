@@ -16,16 +16,35 @@ import (
 )
 
 type Config struct {
-	R                  int                    // degree bound
-	L                  int                    // search list size
-	Alpha              float32                // to decide on the range of long connections
-	VectorForIDThunk   ssdhelpers.VectorForID // to retrieve vectors
-	VectorsSize        uint64                 // size of the dataset
-	Distance           ssdhelpers.DistanceFunction
+	VectorForIDThunk ssdhelpers.VectorForID // to retrieve vectors
+	Distance         ssdhelpers.DistanceFunction
+}
+
+type UserConfig struct {
+	R                  int     // degree bound
+	L                  int     // search list size
+	Alpha              float32 // to decide on the range of long connections
 	ClustersSize       int
 	ClusterOverlapping int
-	Dimensions         int
 	C                  int
 	OriginalCacheSize  int
 	BeamSize           int
+	Dimensions         int
+	VectorsSize        uint64 // size of the dataset
+}
+
+func (config UserConfig) IndexType() string {
+	return "vamana"
+}
+
+func NewUserConfig() UserConfig {
+	return UserConfig{
+		R:                  32,
+		L:                  125,
+		Alpha:              1.2,
+		ClustersSize:       40,
+		ClusterOverlapping: 2,
+		C:                  10000,
+		BeamSize:           1,
+	}
 }

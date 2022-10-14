@@ -24,7 +24,9 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/helpers"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
+	"github.com/semi-technologies/weaviate/entities/schema"
 )
 
 type Stats struct {
@@ -47,8 +49,9 @@ type VamanaData struct {
 }
 
 type Vamana struct {
-	config Config // configuration
-	data   VamanaData
+	config     Config // configuration
+	userConfig UserConfig
+	data       VamanaData
 
 	cachedBitMap     *ssdhelpers.BitSet
 	edges            [][]uint64 // edges on the graph
@@ -64,11 +67,11 @@ const ConfigFileName = "cfg.gob"
 const DataFileName = "data.gob"
 const GraphFileName = "graph.gob"
 
-func New(config Config) (*Vamana, error) {
+func New(config Config, userConfig UserConfig) (*Vamana, error) {
 	index := &Vamana{
 		config: config,
 	}
-	index.set = *ssdhelpers.NewSet(config.L, config.VectorForIDThunk, config.Distance, nil, int(config.VectorsSize))
+	index.set = *ssdhelpers.NewSet(userConfig.L, config.VectorForIDThunk, config.Distance, nil, int(userConfig.VectorsSize))
 	index.outNeighbors = index.outNeighborsFromMemory
 	index.addRange = index.addRangeVectors
 	index.beamSearchHolder = secuentialBeamSearch
@@ -82,14 +85,15 @@ func BuildVamana(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.Vector
 	}
 
 	index, _ := New(Config{
+		VectorForIDThunk: VectorForIDThunk,
+		Distance:         distance,
+	}, UserConfig{
 		R:                  R,
 		L:                  L,
 		Alpha:              alpha,
-		VectorForIDThunk:   VectorForIDThunk,
-		VectorsSize:        vectorsSize,
-		Distance:           distance,
 		ClustersSize:       40,
 		ClusterOverlapping: 2,
+		VectorsSize:        vectorsSize,
 	})
 
 	os.Mkdir(path, os.ModePerm)
@@ -108,59 +112,61 @@ func minInt(x int, y int) int {
 }
 
 func (v *Vamana) SetCacheSize(size int) {
-	v.config.C = minInt(size, int(v.config.VectorsSize))
-	v.config.OriginalCacheSize = size
+	v.userConfig.C = minInt(size, int(v.userConfig.VectorsSize))
+	v.userConfig.OriginalCacheSize = size
 }
 
 func (v *Vamana) SetBeamSize(size int) {
-	v.config.BeamSize = size
+	v.userConfig.BeamSize = size
 }
 
 func (v *Vamana) BuildIndexSharded() {
-	if v.config.ClustersSize == 1 {
+	if v.userConfig.ClustersSize == 1 {
 		v.BuildIndex()
 		return
 	}
 
-	cluster := ssdhelpers.New(v.config.ClustersSize, v.config.Distance, v.config.VectorForIDThunk, int(v.config.VectorsSize), v.config.Dimensions)
+	cluster := ssdhelpers.New(v.userConfig.ClustersSize, v.config.Distance, v.config.VectorForIDThunk, int(v.userConfig.VectorsSize), v.userConfig.Dimensions)
 	cluster.Partition()
-	shards := make([][]uint64, v.config.ClustersSize)
-	for i := 0; i < int(v.config.VectorsSize); i++ {
+	shards := make([][]uint64, v.userConfig.ClustersSize)
+	for i := 0; i < int(v.userConfig.VectorsSize); i++ {
 		i64 := uint64(i)
 		vec, _ := v.config.VectorForIDThunk(context.Background(), i64)
-		c := cluster.NNearest(vec, v.config.ClusterOverlapping)
-		for j := 0; j < v.config.ClusterOverlapping; j++ {
+		c := cluster.NNearest(vec, v.userConfig.ClusterOverlapping)
+		for j := 0; j < v.userConfig.ClusterOverlapping; j++ {
 			shards[c[j]] = append(shards[c[j]], i64)
 		}
 	}
 
 	vectorForIDThunk := v.config.VectorForIDThunk
-	vectorsSize := v.config.VectorsSize
-	shardedGraphs := make([][][]uint64, v.config.ClustersSize)
+	vectorsSize := v.userConfig.VectorsSize
+	shardedGraphs := make([][][]uint64, v.userConfig.ClustersSize)
 
 	ssdhelpers.Concurrently(uint64(len(shards)), func(_, taskIndex uint64, _ *sync.Mutex) {
 		config := Config{
-			R:     v.config.R,
-			L:     v.config.L,
-			Alpha: v.config.Alpha,
 			VectorForIDThunk: func(ctx context.Context, id uint64) ([]float32, error) {
 				return vectorForIDThunk(ctx, shards[taskIndex][id])
 			},
+			Distance: v.config.Distance,
+		}
+		userConfig := UserConfig{
+			R:                  v.userConfig.R,
+			L:                  v.userConfig.L,
+			Alpha:              v.userConfig.Alpha,
+			ClustersSize:       v.userConfig.ClustersSize,
+			ClusterOverlapping: v.userConfig.ClusterOverlapping,
 			VectorsSize:        uint64(len(shards[taskIndex])),
-			Distance:           v.config.Distance,
-			ClustersSize:       v.config.ClustersSize,
-			ClusterOverlapping: v.config.ClusterOverlapping,
 		}
 
-		index, _ := New(config)
+		index, _ := New(config, userConfig)
 		index.BuildIndex()
 		shardedGraphs[taskIndex] = index.edges
 	})
 
 	v.config.VectorForIDThunk = vectorForIDThunk
-	v.config.VectorsSize = vectorsSize
+	v.userConfig.VectorsSize = vectorsSize
 	v.data.SIndex = v.medoid()
-	v.edges = make([][]uint64, v.config.VectorsSize)
+	v.edges = make([][]uint64, v.userConfig.VectorsSize)
 	for shardIndex, shard := range shards {
 		for connectionIndex, connection := range shardedGraphs[shardIndex] {
 			for _, outNeighbor := range connection {
@@ -172,8 +178,8 @@ func (v *Vamana) BuildIndexSharded() {
 		}
 	}
 	for edgeIndex := range v.edges {
-		if len(v.edges[edgeIndex]) > v.config.R {
-			if len(v.edges[edgeIndex]) > v.config.R {
+		if len(v.edges[edgeIndex]) > v.userConfig.R {
+			if len(v.edges[edgeIndex]) > v.userConfig.R {
 				rand.Shuffle(len(v.edges[edgeIndex]), func(x int, y int) {
 					temp := v.edges[edgeIndex][x]
 					v.edges[edgeIndex][x] = v.edges[edgeIndex][y]
@@ -181,22 +187,18 @@ func (v *Vamana) BuildIndexSharded() {
 				})
 				//Meet the R constrain after merging
 				//Take a random subset with the appropriate size. Implementation idea from Microsoft reference code
-				v.edges[edgeIndex] = v.edges[edgeIndex][:v.config.R]
+				v.edges[edgeIndex] = v.edges[edgeIndex][:v.userConfig.R]
 			}
 		}
 	}
 }
 
 func (v *Vamana) BuildIndex() {
-	v.data.Mean = make([]float32, v.config.Dimensions)
-	v.SetL(v.config.L)
+	v.data.Mean = make([]float32, v.userConfig.Dimensions)
+	v.SetL(v.userConfig.L)
 	v.edges = v.makeRandomGraph()
 	v.data.SIndex = v.medoid()
-	alpha := v.config.Alpha
-	v.config.Alpha = 1
 	v.pass() //Not sure yet what did they mean in the paper with two passes... Two passes is exactly the same as only the last pass to the best of my knowledge.
-	v.config.Alpha = alpha
-	v.pass()
 }
 
 func (v *Vamana) GetGraph() [][]uint64 {
@@ -208,13 +210,13 @@ func (v *Vamana) GetEntry() uint64 {
 }
 
 func (v *Vamana) SetL(L int) {
-	v.config.L = L
-	v.set = *ssdhelpers.NewSet(L, v.config.VectorForIDThunk, v.config.Distance, nil, int(v.config.VectorsSize))
+	v.userConfig.L = L
+	v.set = *ssdhelpers.NewSet(L, v.config.VectorForIDThunk, v.config.Distance, nil, int(v.userConfig.VectorsSize))
 	v.set.SetPQ(v.data.EncondedVectors, v.pq)
 }
 
-func (v *Vamana) SearchByVector(query []float32, k int) []uint64 {
-	return v.greedySearchQuery(query, k)
+func (v *Vamana) SearchByVector(query []float32, k int, allow helpers.AllowList) ([]uint64, []float32, error) {
+	return v.greedySearchQuery(query, k), nil, nil
 }
 
 func (v *Vamana) ToDisk(path string) {
@@ -268,7 +270,7 @@ func (v *Vamana) GraphFromDumpFile(filePath string) {
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to parse file as CSV for "+filePath))
 	}
-	v.edges = make([][]uint64, v.config.VectorsSize)
+	v.edges = make([][]uint64, v.userConfig.VectorsSize)
 	for r, row := range records {
 		v.edges[r] = make([]uint64, len(row)-1)
 		for j, element := range row {
@@ -303,15 +305,15 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 	defer fData.Close()
 	defer fGraph.Close()
 
-	var config Config
+	var userConfig UserConfig
 	cDec := gob.NewDecoder(fConfig)
-	err = cDec.Decode(&config)
-	config.Dimensions = 128
+	err = cDec.Decode(&userConfig)
+	userConfig.Dimensions = 128
 	if err != nil {
 		panic(errors.Wrap(err, "Could not decode config"))
 	}
 
-	index, err := New(config)
+	index, err := New(Config{}, userConfig)
 
 	dDec := gob.NewDecoder(fData)
 	err = dDec.Decode(&index.data)
@@ -326,7 +328,7 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 	}
 	index.config.VectorForIDThunk = VectorForIDThunk
 	index.config.Distance = distance
-	if index.data.OnDisk && index.config.BeamSize > 1 {
+	if index.data.OnDisk && index.userConfig.BeamSize > 1 {
 		index.beamSearchHolder = initBeamSearch
 	} else {
 		index.beamSearchHolder = secuentialBeamSearch
@@ -345,7 +347,7 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 }
 
 func (v *Vamana) pass() {
-	random_order := permutation(int(v.config.VectorsSize))
+	random_order := permutation(int(v.userConfig.VectorsSize))
 	for i := range random_order {
 		x := random_order[i]
 		x64 := uint64(x)
@@ -358,7 +360,7 @@ func (v *Vamana) pass() {
 		n_out_i := v.edges[x]
 		for j := range n_out_i {
 			n_out_j := append(v.edges[n_out_i[j]], x64)
-			if len(n_out_j) > v.config.R {
+			if len(n_out_j) > v.userConfig.R {
 				v.robustPrune(n_out_i[j], n_out_j)
 			} else {
 				v.edges[n_out_i[j]] = n_out_j
@@ -375,11 +377,11 @@ func min(x uint64, y uint64) uint64 {
 }
 
 func (v *Vamana) makeRandomGraph() [][]uint64 {
-	edges := make([][]uint64, v.config.VectorsSize)
-	ssdhelpers.Concurrently(v.config.VectorsSize, func(_ uint64, i uint64, _ *sync.Mutex) {
-		edges[i] = make([]uint64, v.config.R)
-		for j := 0; j < v.config.R; j++ {
-			edges[i][j] = rand.Uint64() % (v.config.VectorsSize - 1)
+	edges := make([][]uint64, v.userConfig.VectorsSize)
+	ssdhelpers.Concurrently(v.userConfig.VectorsSize, func(_ uint64, i uint64, _ *sync.Mutex) {
+		edges[i] = make([]uint64, v.userConfig.R)
+		for j := 0; j < v.userConfig.R; j++ {
+			edges[i][j] = rand.Uint64() % (v.userConfig.VectorsSize - 1)
 			if edges[i][j] >= i { //avoid connecting with itself
 				edges[i][j]++
 			}
@@ -392,8 +394,8 @@ func (v *Vamana) medoid() uint64 {
 	var min_dist float32 = math.MaxFloat32
 	min_index := uint64(0)
 
-	mean := make([]float32, v.config.VectorsSize)
-	for i := uint64(0); i < v.config.VectorsSize; i++ {
+	mean := make([]float32, v.userConfig.VectorsSize)
+	for i := uint64(0); i < v.userConfig.VectorsSize; i++ {
 		x, err := v.config.VectorForIDThunk(context.Background(), i)
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", i)))
@@ -403,11 +405,11 @@ func (v *Vamana) medoid() uint64 {
 		}
 	}
 	for j := 0; j < len(mean); j++ {
-		mean[j] /= float32(v.config.VectorsSize)
+		mean[j] /= float32(v.userConfig.VectorsSize)
 	}
 
 	//ToDo: Not really helping like this
-	ssdhelpers.Concurrently(v.config.VectorsSize, func(_ uint64, i uint64, mutex *sync.Mutex) {
+	ssdhelpers.Concurrently(v.userConfig.VectorsSize, func(_ uint64, i uint64, mutex *sync.Mutex) {
 		x, err := v.config.VectorForIDThunk(context.Background(), i)
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", i)))
@@ -439,7 +441,7 @@ func permutation(n int) []int {
 }
 
 func (v *Vamana) greedySearch(x []float32, k int, allVisited []uint64, updateVisited func([]uint64, ...uint64) []uint64) ([]uint64, []uint64) {
-	v.set.ReCenter(x)
+	v.set.ReCenter(x, v.data.OnDisk)
 	if v.data.OnDisk {
 		v.set.AddPQVector(v.data.SIndex, v.data.CachedEdges, v.cachedBitMap)
 	} else {
@@ -450,7 +452,7 @@ func (v *Vamana) greedySearch(x []float32, k int, allVisited []uint64, updateVis
 	for v.set.NotVisited() {
 		allVisited = v.beamSearchHolder(v, allVisited, updateVisited)
 	}
-	if v.data.OnDisk && v.config.BeamSize > 1 {
+	if v.data.OnDisk && v.userConfig.BeamSize > 1 {
 		v.beamSearchHolder = initBeamSearch
 	}
 	return v.set.Elements(k), allVisited
@@ -484,9 +486,9 @@ func initBeamSearch(v *Vamana, visited []uint64, updateVisited func([]uint64, ..
 }
 
 func beamSearch(v *Vamana, visited []uint64, updateVisited func([]uint64, ...uint64) []uint64) []uint64 {
-	tops, indexes := v.set.TopN(v.config.BeamSize)
-	neighbours := make([][]uint64, v.config.BeamSize)
-	vectors := make([][]float32, v.config.BeamSize)
+	tops, indexes := v.set.TopN(v.userConfig.BeamSize)
+	neighbours := make([][]uint64, v.userConfig.BeamSize)
+	vectors := make([][]float32, v.userConfig.BeamSize)
 	ssdhelpers.Concurrently(uint64(len(tops)), func(_, i uint64, _ *sync.Mutex) {
 		neighbours[i], vectors[i] = v.outNeighbors(tops[i])
 	})
@@ -520,7 +522,7 @@ func (v *Vamana) VectorFromDisk(x uint64) []float32 {
 	if found {
 		return cached.Vector
 	}
-	_, vector := ssdhelpers.ReadGraphRowWithBinary(v.graphFile, x, v.config.R, v.config.Dimensions)
+	_, vector := ssdhelpers.ReadGraphRowWithBinary(v.graphFile, x, v.userConfig.R, v.userConfig.Dimensions)
 	return vector
 }
 
@@ -529,7 +531,7 @@ func (v *Vamana) OutNeighborsFromDisk(x uint64) ([]uint64, []float32) {
 	if found {
 		return cached.OutNeighbors, nil
 	}
-	return ssdhelpers.ReadGraphRowWithBinary(v.graphFile, x, v.config.R, v.config.Dimensions)
+	return ssdhelpers.ReadGraphRowWithBinary(v.graphFile, x, v.userConfig.R, v.userConfig.Dimensions)
 }
 
 func (v *Vamana) addToCacheRecursively(hops int, elements []uint64) {
@@ -562,18 +564,18 @@ func (v *Vamana) addToCacheRecursively(hops int, elements []uint64) {
 
 func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int) {
 	v.data.GraphID = path
-	ssdhelpers.DumpGraphToDiskWithBinary(v.data.GraphID, v.edges, v.config.R, v.config.VectorForIDThunk, v.config.Dimensions)
+	ssdhelpers.DumpGraphToDiskWithBinary(v.data.GraphID, v.edges, v.userConfig.R, v.config.VectorForIDThunk, v.userConfig.Dimensions)
 	v.outNeighbors = v.OutNeighborsFromDisk
-	v.data.CachedEdges = make(map[uint64]*ssdhelpers.VectorWithNeighbors, v.config.C)
-	v.cachedBitMap = ssdhelpers.NewBitSet(int(v.config.VectorsSize))
-	v.addToCacheRecursively(v.config.C, []uint64{v.data.SIndex})
+	v.data.CachedEdges = make(map[uint64]*ssdhelpers.VectorWithNeighbors, v.userConfig.C)
+	v.cachedBitMap = ssdhelpers.NewBitSet(int(v.userConfig.VectorsSize))
+	v.addToCacheRecursively(v.userConfig.C, []uint64{v.data.SIndex})
 	v.edges = nil
 	v.graphFile, _ = os.Open(v.data.GraphID)
 	v.data.EncondedVectors = v.encondeVectors(segments, centroids)
 	v.set.SetPQ(v.data.EncondedVectors, v.pq)
 	v.addRange = v.addRangePQ
 	v.data.OnDisk = true
-	if v.config.BeamSize > 1 {
+	if v.userConfig.BeamSize > 1 {
 		v.beamSearchHolder = initBeamSearch
 	}
 	v.config.VectorForIDThunk = func(_ context.Context, id uint64) ([]float32, error) {
@@ -582,10 +584,10 @@ func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int) {
 }
 
 func (v *Vamana) encondeVectors(segments int, centroids int) [][]byte {
-	v.pq = ssdhelpers.NewProductQunatizer(segments, centroids, v.config.Distance, v.config.VectorForIDThunk, v.config.Dimensions, int(v.config.VectorsSize))
+	v.pq = ssdhelpers.NewProductQunatizer(segments, centroids, v.config.Distance, v.config.VectorForIDThunk, v.userConfig.Dimensions, int(v.userConfig.VectorsSize))
 	v.pq.Fit()
-	enconded := make([][]byte, v.config.VectorsSize)
-	ssdhelpers.Concurrently(v.config.VectorsSize, func(_ uint64, vIndex uint64, _ *sync.Mutex) {
+	enconded := make([][]byte, v.userConfig.VectorsSize)
+	ssdhelpers.Concurrently(v.userConfig.VectorsSize, func(_ uint64, vIndex uint64, _ *sync.Mutex) {
 		found := v.cachedBitMap.Contains(vIndex)
 		if found {
 			enconded[vIndex] = nil
@@ -615,7 +617,7 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
 	if err != nil {
 		panic(err)
 	}
-	out := ssdhelpers.NewFullBitSet(int(v.config.VectorsSize))
+	out := ssdhelpers.NewFullBitSet(int(v.userConfig.VectorsSize))
 	for visitedSet.Size() > 0 {
 		pMin := v.closest(qP, visitedSet)
 		out.Add(pMin.index)
@@ -623,7 +625,7 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", pMin.index)))
 		}
-		if out.Size() == v.config.R {
+		if out.Size() == v.userConfig.R {
 			break
 		}
 
@@ -632,7 +634,7 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
 			if err != nil {
 				panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", x.index)))
 			}
-			if (v.config.Alpha * v.config.Distance(qPMin, qX)) <= x.distance {
+			if (v.userConfig.Alpha * v.config.Distance(qPMin, qX)) <= x.distance {
 				visitedSet.Remove(x.index)
 			}
 		}
@@ -669,36 +671,36 @@ func (v *Vamana) addOutNeighbor(id uint64, neighbor uint64) {
 		cached, found := v.data.CachedEdges[id]
 		if found {
 			cached.OutNeighbors = append(cached.OutNeighbors, neighbor)
-			if len(cached.OutNeighbors) > v.config.R {
+			if len(cached.OutNeighbors) > v.userConfig.R {
 				v.robustPrune(id, cached.OutNeighbors)
 			}
 			return
 		}
-		outneighbors, vector := ssdhelpers.ReadGraphRowWithBinary(v.graphFile, id, v.config.R, v.config.Dimensions)
+		outneighbors, vector := ssdhelpers.ReadGraphRowWithBinary(v.graphFile, id, v.userConfig.R, v.userConfig.Dimensions)
 		outneighbors = append(outneighbors, neighbor)
-		if len(outneighbors) > v.config.R {
+		if len(outneighbors) > v.userConfig.R {
 			v.robustPrune(id, outneighbors)
 			return
 		}
-		ssdhelpers.WriteRowToGraphWithBinary(v.graphFile, v.config.VectorsSize, v.config.R, v.config.Dimensions, vector, outneighbors)
+		ssdhelpers.WriteRowToGraphWithBinary(v.graphFile, v.userConfig.VectorsSize, v.userConfig.R, v.userConfig.Dimensions, vector, outneighbors)
 	}
 
 	v.edges[id] = append(v.edges[id], neighbor)
-	if len(v.edges[id]) > v.config.R {
+	if len(v.edges[id]) > v.userConfig.R {
 		v.robustPrune(id, v.edges[id])
 	}
 }
 
 func (v *Vamana) addVectorAndOutNeighbors(id uint64, vector []float32, outneighbors []uint64) {
-	v.config.VectorsSize++
+	v.userConfig.VectorsSize++
 	if v.data.OnDisk {
-		if v.config.C < v.config.OriginalCacheSize {
-			v.data.CachedEdges[v.config.VectorsSize-1] = &ssdhelpers.VectorWithNeighbors{Vector: vector, OutNeighbors: outneighbors}
-			v.config.C++
+		if v.userConfig.C < v.userConfig.OriginalCacheSize {
+			v.data.CachedEdges[v.userConfig.VectorsSize-1] = &ssdhelpers.VectorWithNeighbors{Vector: vector, OutNeighbors: outneighbors}
+			v.userConfig.C++
 			return
 		}
 
-		ssdhelpers.WriteRowToGraphWithBinary(v.graphFile, v.config.VectorsSize, v.config.R, v.config.Dimensions, vector, outneighbors)
+		ssdhelpers.WriteRowToGraphWithBinary(v.graphFile, v.userConfig.VectorsSize, v.userConfig.R, v.userConfig.Dimensions, vector, outneighbors)
 		return
 	}
 
@@ -714,14 +716,14 @@ func (v *Vamana) updateOutNeighbors(id uint64, outneighbors []uint64) {
 			return
 		}
 
-		ssdhelpers.WriteOutNeighborsToGraphWithBinary(v.graphFile, id, v.config.R, v.config.Dimensions, outneighbors)
+		ssdhelpers.WriteOutNeighborsToGraphWithBinary(v.graphFile, id, v.userConfig.R, v.userConfig.Dimensions, outneighbors)
 		return
 	}
 	v.edges[id] = outneighbors
 }
 
 func (v *Vamana) updateEntryPointAfterAdd(vector []float32) {
-	size := float32(v.config.VectorsSize)
+	size := float32(v.userConfig.VectorsSize)
 	for i := range v.data.Mean {
 		v.data.Mean[i] = (v.data.Mean[i]*(size-1) + vector[i]) / size
 	}
@@ -729,7 +731,7 @@ func (v *Vamana) updateEntryPointAfterAdd(vector []float32) {
 }
 
 func (v *Vamana) Add(id uint64, vector []float32) error {
-	v.SetL(v.config.L)
+	v.SetL(v.userConfig.L)
 	//ToDo: should use position and not id...
 	v.addVectorAndOutNeighbors(id, vector, make([]uint64, 0))
 	_, visited := v.greedySearchWithVisited(vector, 1)
@@ -744,5 +746,42 @@ func (v *Vamana) Add(id uint64, vector []float32) error {
 
 func (i *Vamana) Delete(id uint64) error {
 	// silently ignore
+	return nil
+}
+
+func (i *Vamana) SearchByVectorDistance(vector []float32, dist float32, maxLimit int64, allow helpers.AllowList) ([]uint64, []float32, error) {
+	return nil, nil, errors.Errorf("cannot vector-search on a class not vector-indexed")
+}
+
+func (i *Vamana) UpdateUserConfig(updated schema.VectorIndexConfig) error {
+	return errors.Errorf("cannot update vector index config on a non-indexed class. Delete and re-create without skip property")
+}
+
+func (i *Vamana) Drop(context.Context) error {
+	// silently ignore
+	return nil
+}
+
+func (i *Vamana) Flush() error {
+	return nil
+}
+
+func (i *Vamana) Shutdown(context.Context) error {
+	return nil
+}
+
+func (i *Vamana) PauseMaintenance(context.Context) error {
+	return nil
+}
+
+func (i *Vamana) SwitchCommitLogs(context.Context) error {
+	return nil
+}
+
+func (i *Vamana) ListFiles(context.Context) ([]string, error) {
+	return nil, nil
+}
+
+func (i *Vamana) ResumeMaintenance(context.Context) error {
 	return nil
 }

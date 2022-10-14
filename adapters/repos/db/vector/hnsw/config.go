@@ -275,3 +275,17 @@ func NewDefaultUserConfig() UserConfig {
 	uc.SetDefaults()
 	return uc
 }
+
+type VamanaConfig struct {
+	UserConfig
+}
+
+func (u VamanaConfig) IndexType() string {
+	return "vamana"
+}
+
+func NewVamanaConfig() VamanaConfig {
+	uc := VamanaConfig{}
+	uc.SetDefaults()
+	return uc
+}

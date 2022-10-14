@@ -5,17 +5,86 @@ import (
 	"math"
 )
 
+type remainingIndexAndDistances struct {
+	index    uint64
+	distance float32
+}
+
+type remainingList struct {
+	remanentThreshold float32
+	remanents         []remainingIndexAndDistances
+	current           int
+	memoryThreshold   float32
+}
+
+func (rl *remainingList) Clear() {
+	rl.remanents = make([]remainingIndexAndDistances, 0)
+	rl.current = 0
+	rl.remanentThreshold = math.MaxFloat32
+}
+
+func (rl *remainingList) HasNext() bool {
+	rl.discardOverThreshold()
+	return rl.current < len(rl.remanents)
+}
+
+func (rl *remainingList) Last() uint64 {
+	rl.discardOverThreshold()
+	return rl.remanents[rl.current-1].index
+}
+
+func (rl *remainingList) CurrentThreshold() float32 {
+	return rl.remanentThreshold
+}
+
+func (rl *remainingList) discardOverThreshold() {
+	for rl.current < len(rl.remanents) && rl.remanents[rl.current].distance > rl.remanentThreshold+rl.memoryThreshold {
+		rl.current++
+	}
+}
+
+func (rl *remainingList) Next() uint64 {
+	rl.discardOverThreshold()
+	result := rl.remanents[rl.current].index
+	rl.current++
+	return result
+}
+
+func (rl *remainingList) Add(index uint64, pqDistance float32) {
+	if pqDistance > rl.remanentThreshold+rl.memoryThreshold {
+		return
+	}
+	if pqDistance < rl.remanentThreshold {
+		rl.remanents = make([]remainingIndexAndDistances, 0)
+		rl.remanents = append(rl.remanents, remainingIndexAndDistances{
+			index:    index,
+			distance: pqDistance,
+		})
+		rl.current = 0
+		rl.remanentThreshold = pqDistance
+		return
+	}
+	rl.remanents = append(rl.remanents, remainingIndexAndDistances{
+		index:    index,
+		distance: pqDistance,
+	})
+}
+
 type Set struct {
-	bitSet          *BitSet
-	items           []IndexAndDistance
-	vectorForID     VectorForID
-	distance        DistanceFunction
-	center          []float32
-	capacity        int
-	firstIndex      int
-	last            int
-	encondedVectors [][]byte
-	pq              *ProductQuantizer
+	bitSet                 *BitSet
+	items                  []IndexAndDistance
+	vectorForID            VectorForID
+	distance               DistanceFunction
+	center                 []float32
+	capacity               int
+	firstIndex             int
+	last                   int
+	encondedVectors        [][]byte
+	pq                     *ProductQuantizer
+	remainingList          *remainingList
+	addRemainingHolder     func(*Set, uint64, float32)
+	nextRemainingHolder    func(*Set) uint64
+	hasNextRemainingHolder func(*Set) bool
 }
 
 type VectorWithNeighbors struct {
@@ -24,9 +93,10 @@ type VectorWithNeighbors struct {
 }
 
 type IndexAndDistance struct {
-	index    uint64
-	distance float32
-	visited  bool
+	index      uint64
+	distance   float32
+	pqDistance float32
+	visited    bool
 }
 
 func NewSet(capacity int, vectorForID VectorForID, distance DistanceFunction, center []float32, vectorSize int) *Set {
@@ -39,11 +109,27 @@ func NewSet(capacity int, vectorForID VectorForID, distance DistanceFunction, ce
 		firstIndex:  0,
 		last:        capacity - 1,
 		bitSet:      NewBitSet(vectorSize),
+		remainingList: &remainingList{
+			memoryThreshold: 5000,
+		},
 	}
 	for i := range s.items {
 		s.items[i].distance = math.MaxFloat32
 	}
+	s.addRemainingHolder = dropRemaining
+	s.nextRemainingHolder = noNextRemaining
+	s.hasNextRemainingHolder = noHasNextRemaining
 	return &s
+}
+
+func (s *Set) SwitchToDisk() {
+	if s.remainingList.memoryThreshold < 0 {
+		return
+	}
+	s.addRemainingHolder = storeRemaining
+	s.nextRemainingHolder = nextRemaining
+	s.hasNextRemainingHolder = hasNextRemaining
+
 }
 
 func max(x int, y int) int {
@@ -53,15 +139,20 @@ func max(x int, y int) int {
 	return x
 }
 
-func (s *Set) ReCenter(center []float32) {
+func (s *Set) ReCenter(center []float32, onDisk bool) {
 	s.center = center
 	s.bitSet.Clean()
 	for i := range s.items {
 		s.items[i].distance = math.MaxFloat32
+		s.items[i].pqDistance = math.MaxFloat32
 	}
 	if s.pq != nil {
 		s.pq.CenterAt(center)
 	}
+	if onDisk {
+		s.SwitchToDisk()
+	}
+	s.remainingList.Clear()
 }
 
 func distanceForVector(s *Set, x uint64) float32 {
@@ -74,18 +165,42 @@ func distanceForPQVector(s *Set, x uint64) float32 {
 	return s.pq.Distance(vec)
 }
 
+func storeRemaining(s *Set, x uint64, distance float32) {
+	s.remainingList.Add(x, distance)
+}
+
+func nextRemaining(s *Set) uint64 {
+	return s.remainingList.Next()
+}
+
+func noNextRemaining(s *Set) uint64 {
+	return 0
+}
+
+func hasNextRemaining(s *Set) bool {
+	return s.remainingList.HasNext()
+}
+
+func noHasNextRemaining(s *Set) bool {
+	return false
+}
+
+func dropRemaining(s *Set, x uint64, distance float32) {}
+
 func (s *Set) add(x uint64, distancer func(s *Set, x uint64) float32) bool {
 	if s.bitSet.ContainsAndAdd(x) {
 		return false
 	}
 	dist := distancer(s, x)
 	if s.items[s.last].distance <= dist {
+		s.addRemainingHolder(s, x, dist)
 		return false
 	}
 	data := IndexAndDistance{
-		index:    x,
-		distance: dist,
-		visited:  false,
+		index:      x,
+		distance:   dist,
+		pqDistance: dist,
+		visited:    false,
 	}
 
 	index := s.insert(data)
@@ -118,6 +233,9 @@ func (s *Set) insert(data IndexAndDistance) int {
 	right := s.last
 
 	if s.items[left].distance >= data.distance {
+		if !s.items[s.last].visited {
+			s.addRemainingHolder(s, s.items[s.last].index, s.items[s.last].pqDistance)
+		}
 		copy(s.items[1:], s.items[:s.last-1])
 		s.items[left] = data
 		return left
@@ -139,6 +257,9 @@ func (s *Set) insert(data IndexAndDistance) int {
 			return s.capacity
 		}
 		left--
+	}
+	if !s.items[s.last].visited {
+		s.addRemainingHolder(s, s.items[s.last].index, s.items[s.last].pqDistance)
 	}
 	copy(s.items[right+1:], s.items[right:])
 	s.items[right] = data
@@ -170,17 +291,20 @@ func (s *Set) SetPQ(encondedVectors [][]byte, pq *ProductQuantizer) {
 }
 
 func (s *Set) NotVisited() bool {
-	return s.firstIndex < s.capacity-1
+	return s.firstIndex < s.capacity-1 || s.hasNextRemainingHolder(s)
 }
 
 func (s *Set) Top() (uint64, int) {
-	s.items[s.firstIndex].visited = true
-	lastFirst := s.firstIndex
-	x := s.items[s.firstIndex].index
-	for s.firstIndex < s.capacity && s.items[s.firstIndex].visited {
-		s.firstIndex++
+	if s.firstIndex < s.capacity-1 {
+		s.items[s.firstIndex].visited = true
+		lastFirst := s.firstIndex
+		x := s.items[s.firstIndex].index
+		for s.firstIndex < s.capacity && s.items[s.firstIndex].visited {
+			s.firstIndex++
+		}
+		return x, lastFirst
 	}
-	return x, lastFirst
+	return s.nextRemainingHolder(s), -1
 }
 
 func (s *Set) TopN(n int) ([]uint64, []int) {
@@ -197,6 +321,24 @@ func (s *Set) TopN(n int) ([]uint64, []int) {
 }
 
 func (s *Set) ReSort(i int, vector []float32) {
+	if i == -1 {
+		distance := s.distance(vector, s.center)
+		j := len(s.items) - 1
+		for j >= 0 && distance < s.items[j].distance {
+			j--
+		}
+		if j == len(s.items)-1 {
+			return
+		}
+		copy(s.items[j+2:], s.items[j+1:len(s.items)-1])
+		s.items[j+1] = IndexAndDistance{
+			index:      s.remainingList.Last(),
+			distance:   distance,
+			pqDistance: s.remainingList.CurrentThreshold(),
+			visited:    true,
+		}
+		return
+	}
 	s.items[i].distance = s.distance(vector, s.center)
 	if i > 0 && s.items[i].distance < s.items[i-1].distance {
 		j := i - 1
@@ -223,6 +365,7 @@ func (s *Set) ReSort(i int, vector []float32) {
 			return
 		}
 		data := s.items[i]
+		//TODO: add to remaining
 		copy(s.items[i:j-1], s.items[i+1:j])
 		s.items[j-1] = data
 	}

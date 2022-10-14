@@ -28,6 +28,7 @@ import (
 	"github.com/semi-technologies/weaviate/adapters/repos/db/inverted"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/lsmkv"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/propertyspecific"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/noop"
@@ -113,66 +114,78 @@ func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
 
 	defer s.metrics.ShardStartup(before)
 
-	hnswUserConfig, ok := index.vectorIndexUserConfig.(hnsw.UserConfig)
-	if !ok {
-		return nil, errors.Errorf("hnsw vector index: config is not hnsw.UserConfig: %T",
-			index.vectorIndexUserConfig)
-	}
-
-	if hnswUserConfig.Skip {
-		s.vectorIndex = noop.NewIndex()
-	} else {
-		var distProv distancer.Provider
-
-		switch hnswUserConfig.Distance {
-		case "", hnsw.DistanceCosine:
-			distProv = distancer.NewCosineDistanceProvider()
-		case hnsw.DistanceDot:
-			distProv = distancer.NewDotProductProvider()
-		case hnsw.DistanceL2Squared:
-			distProv = distancer.NewL2SquaredProvider()
-		case hnsw.DistanceManhattan:
-			distProv = distancer.NewManhattanProvider()
-		case hnsw.DistanceHamming:
-			distProv = distancer.NewHammingProvider()
-		default:
-			return nil, errors.Errorf("unrecognized distance metric %q,"+
-				"choose one of [\"cosine\", \"dot\", \"l2-squared\", \"manhattan\",\"hamming\"]", hnswUserConfig.Distance)
-		}
-
-		vi, err := hnsw.New(hnsw.Config{
-			Logger:            index.logger,
-			RootPath:          s.index.Config.RootPath,
-			ID:                s.ID(),
-			ShardName:         s.name,
-			ClassName:         s.index.Config.ClassName.String(),
-			PrometheusMetrics: s.promMetrics,
-			MakeCommitLoggerThunk: func() (hnsw.CommitLogger, error) {
-				// Previously we had an interval of 10s in here, which was changed to
-				// 0.5s as part of gh-1867. There's really no way to wait so long in
-				// between checks: If you are running on a low-powered machine, the
-				// interval will simply find that there is no work and do nothing in
-				// each iteration. However, if you are running on a very powerful
-				// machine within 10s you could have potentially created two units of
-				// work, but we'll only be handling one every 10s. This means
-				// uncombined/uncondensed hnsw commit logs will keep piling up can only
-				// be processes long after the initial insert is complete. This also
-				// means that if there is a crash during importing a lot of work needs
-				// to be done at startup, since the commit logs still contain too many
-				// redundancies. So as of now it seems there are only advantages to
-				// running the cleanup checks and work much more often.
-				return hnsw.NewCommitLogger(s.index.Config.RootPath, s.ID(), 500*time.Millisecond,
-					index.logger)
-			},
-			VectorForIDThunk: s.vectorByIndexID,
-			DistanceProvider: distProv,
-		}, hnswUserConfig)
+	if index.vectorIndexUserConfig.IndexType() == "vamana" {
+		vi, err := diskAnn.New(diskAnn.Config{}, diskAnn.NewUserConfig())
 		if err != nil {
 			return nil, errors.Wrapf(err, "init shard %q: hnsw index", s.ID())
 		}
 		s.vectorIndex = vi
 
-		defer vi.PostStartup()
+		defer vi.BuildIndex()
+	} else {
+
+		hnswUserConfig, ok := index.vectorIndexUserConfig.(hnsw.UserConfig)
+		if !ok {
+			return nil, errors.Errorf("hnsw vector index: config is not hnsw.UserConfig: %T",
+				index.vectorIndexUserConfig)
+		}
+
+		if hnswUserConfig.Skip {
+			s.vectorIndex = noop.NewIndex()
+		} else {
+
+			var distProv distancer.Provider
+
+			switch hnswUserConfig.Distance {
+			case "", hnsw.DistanceCosine:
+				distProv = distancer.NewCosineDistanceProvider()
+			case hnsw.DistanceDot:
+				distProv = distancer.NewDotProductProvider()
+			case hnsw.DistanceL2Squared:
+				distProv = distancer.NewL2SquaredProvider()
+			case hnsw.DistanceManhattan:
+				distProv = distancer.NewManhattanProvider()
+			case hnsw.DistanceHamming:
+				distProv = distancer.NewHammingProvider()
+			default:
+				return nil, errors.Errorf("unrecognized distance metric %q,"+
+					"choose one of [\"cosine\", \"dot\", \"l2-squared\", \"manhattan\",\"hamming\"]", hnswUserConfig.Distance)
+			}
+
+			vi, err := hnsw.New(hnsw.Config{
+				Logger:            index.logger,
+				RootPath:          s.index.Config.RootPath,
+				ID:                s.ID(),
+				ShardName:         s.name,
+				ClassName:         s.index.Config.ClassName.String(),
+				PrometheusMetrics: s.promMetrics,
+				MakeCommitLoggerThunk: func() (hnsw.CommitLogger, error) {
+					// Previously we had an interval of 10s in here, which was changed to
+					// 0.5s as part of gh-1867. There's really no way to wait so long in
+					// between checks: If you are running on a low-powered machine, the
+					// interval will simply find that there is no work and do nothing in
+					// each iteration. However, if you are running on a very powerful
+					// machine within 10s you could have potentially created two units of
+					// work, but we'll only be handling one every 10s. This means
+					// uncombined/uncondensed hnsw commit logs will keep piling up can only
+					// be processes long after the initial insert is complete. This also
+					// means that if there is a crash during importing a lot of work needs
+					// to be done at startup, since the commit logs still contain too many
+					// redundancies. So as of now it seems there are only advantages to
+					// running the cleanup checks and work much more often.
+					return hnsw.NewCommitLogger(s.index.Config.RootPath, s.ID(), 500*time.Millisecond,
+						index.logger)
+				},
+				VectorForIDThunk: s.vectorByIndexID,
+				DistanceProvider: distProv,
+			}, hnswUserConfig)
+			if err != nil {
+				return nil, errors.Wrapf(err, "init shard %q: hnsw index", s.ID())
+			}
+			s.vectorIndex = vi
+
+			defer vi.PostStartup()
+		}
 	}
 
 	err = s.initDBFile(ctx)

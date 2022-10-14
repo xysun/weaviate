@@ -20,6 +20,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/inverted/stopwords"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
 	"github.com/semi-technologies/weaviate/entities/models"
 	"github.com/semi-technologies/weaviate/entities/schema"
 	"github.com/semi-technologies/weaviate/entities/snapshots"
@@ -144,7 +145,6 @@ func (m *Manager) addClass(ctx context.Context, principal *models.Principal,
 	if err := m.cluster.CommitTransaction(ctx, tx); err != nil {
 		return errors.Wrap(err, "commit cluster-wide transaction")
 	}
-
 	return m.addClassApplyChanges(ctx, class, shardState)
 }
 
@@ -285,18 +285,24 @@ func (m *Manager) validateProperty(property *models.Property, class *models.Clas
 func (m *Manager) parseVectorIndexConfig(ctx context.Context,
 	class *models.Class,
 ) error {
-	if class.VectorIndexType != "hnsw" {
+	switch class.VectorIndexType {
+	case "hnsw":
+		parsed, err := m.hnswConfigParser(class.VectorIndexConfig)
+		if err != nil {
+			return errors.Wrap(err, "parse vector index config")
+		}
+
+		class.VectorIndexConfig = parsed
+
+	case "vamana":
+		// Override to use new config
+		class.VectorIndexConfig = diskAnn.NewUserConfig()
+
+	default:
 		return errors.Errorf(
 			"parse vector index config: unsupported vector index type: %q",
 			class.VectorIndexType)
 	}
-
-	parsed, err := m.hnswConfigParser(class.VectorIndexConfig)
-	if err != nil {
-		return errors.Wrap(err, "parse vector index config")
-	}
-
-	class.VectorIndexConfig = parsed
 
 	return nil
 }

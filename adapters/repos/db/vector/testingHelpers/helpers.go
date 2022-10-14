@@ -404,18 +404,20 @@ func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDTh
 	os.Mkdir(completePath, os.ModePerm)
 
 	index, _ := diskAnn.New(diskAnn.Config{
-		R:                  R,
-		L:                  L,
-		Alpha:              alpha,
-		VectorForIDThunk:   VectorForIDThunk,
-		VectorsSize:        vectorsSize,
-		Distance:           distance,
-		ClustersSize:       40,
-		ClusterOverlapping: 2,
-		Dimensions:         dimensions,
-		C:                  min(int(vectorsSize), C),
-		BeamSize:           beamSize,
-	})
+		VectorForIDThunk: VectorForIDThunk,
+		Distance:         distance,
+	},
+		diskAnn.UserConfig{
+			R:                  R,
+			L:                  L,
+			Alpha:              alpha,
+			VectorsSize:        vectorsSize,
+			ClustersSize:       40,
+			ClusterOverlapping: 2,
+			Dimensions:         dimensions,
+			C:                  min(int(vectorsSize), C),
+			BeamSize:           beamSize,
+		})
 
 	index.BuildIndex()
 	if toDisk {
@@ -432,12 +434,13 @@ func BuildVamanaSharded(R int, L int, alpha float32, VectorForIDThunk ssdhelpers
 	}
 
 	index, _ := diskAnn.New(diskAnn.Config{
+		VectorForIDThunk: VectorForIDThunk,
+		Distance:         distance,
+	}, diskAnn.UserConfig{
 		R:                  R,
 		L:                  L,
 		Alpha:              alpha,
-		VectorForIDThunk:   VectorForIDThunk,
 		VectorsSize:        vectorsSize,
-		Distance:           distance,
 		ClustersSize:       40,
 		ClusterOverlapping: 2,
 	})
