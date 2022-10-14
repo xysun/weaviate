@@ -115,7 +115,9 @@ func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
 	defer s.metrics.ShardStartup(before)
 
 	if index.vectorIndexUserConfig.IndexType() == "vamana" {
-		vi, err := diskAnn.New(diskAnn.Config{}, diskAnn.NewUserConfig())
+		vi, err := diskAnn.New(diskAnn.Config{
+			VectorForIDThunk: s.vectorByIndexID,
+		}, diskAnn.NewUserConfig())
 		if err != nil {
 			return nil, errors.Wrapf(err, "init shard %q: hnsw index", s.ID())
 		}
