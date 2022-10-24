@@ -123,7 +123,7 @@ func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
 		}
 		s.vectorIndex = vi
 
-		defer vi.BuildIndex()
+		vi.BuildIndex()
 	} else {
 
 		hnswUserConfig, ok := index.vectorIndexUserConfig.(hnsw.UserConfig)
