@@ -15,6 +15,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"sync/atomic"
 
 	"github.com/pkg/errors"
@@ -92,6 +93,13 @@ func (h *hnsw) SearchByVectorDistance(vector []float32, targetDistance float32, 
 		resultIDs  []uint64
 		resultDist []float32
 	)
+	fmt.Printf("  ==> vector search\n")
+	// fmt.Printf("  ==> vector [%+v]\n", vector)
+	fmt.Printf("  ==> distance [%+v]\n", targetDistance)
+	fmt.Printf("  ==> limit [%+v]\n", maxLimit)
+	fmt.Printf("  ==> allow [%+v]\n", allowList)
+
+	h.dumpIndex()
 
 	recursiveSearch := func() (bool, error) {
 		shouldContinue := false
@@ -100,6 +108,10 @@ func (h *hnsw) SearchByVectorDistance(vector []float32, targetDistance float32, 
 		if err != nil {
 			return false, errors.Wrap(err, "vector search")
 		}
+
+		fmt.Printf("  ==> params [%+v]\n\n", searchParams)
+		fmt.Printf("  ==> len [%+v]\n", len(ids))
+		fmt.Printf("  ==> ids [%+v]\n", ids)
 
 		// ensures the indexers aren't out of range
 		offsetCap := searchParams.offsetCapacity(ids)
@@ -151,6 +163,37 @@ func (h *hnsw) SearchByVectorDistance(vector []float32, targetDistance float32, 
 	}
 
 	return resultIDs, resultDist, nil
+}
+
+func (index *hnsw) dumpIndex(labels ...string) {
+	if len(labels) > 0 {
+		fmt.Printf("--------------------------------------------------\n")
+		fmt.Printf("--  %s\n", strings.Join(labels, ", "))
+	}
+	fmt.Printf("--------------------------------------------------\n")
+	fmt.Printf("ID: %s\n", index.id)
+	fmt.Printf("Entrypoint: %d\n", index.entryPointID)
+	fmt.Printf("Max Level: %d\n", index.currentMaximumLayer)
+	fmt.Printf("Tombstones %v\n", index.tombstones)
+	fmt.Printf("\nNodes and Connections:\n")
+	counters := make(map[int]int)
+	for _, node := range index.nodes {
+		if node == nil {
+			continue
+		}
+
+		fmt.Printf("  Node %d\n", node.id)
+		for level, conns := range node.connections {
+			if _, ok := counters[level]; !ok {
+				counters[level] = 0
+			}
+			counters[level] += len(conns)
+			fmt.Printf("    Level %d: Connections: %v\n", level, conns)
+		}
+	}
+
+	fmt.Printf("\nTotal connections %v\n", counters)
+	fmt.Printf("--------------------------------------------------\n")
 }
 
 func (h *hnsw) searchLayerByVector(queryVector []float32,
@@ -273,6 +316,158 @@ func (h *hnsw) searchLayerByVector(queryVector []float32,
 
 				// +1 because we have added one node size calculating the len
 				if results.Len() > ef {
+					results.Pop()
+				}
+
+				if results.Len() > 0 {
+					worstResultDistance = results.Top().Dist
+				}
+			}
+		}
+	}
+
+	h.pools.pqCandidates.Put(candidates)
+
+	h.pools.visitedListsLock.Lock()
+	h.pools.visitedLists.Return(visited)
+	h.pools.visitedListsLock.Unlock()
+
+	// results are passed on, so it's in the callers responsibility to return the
+	// list to the pool after using it
+	return results, nil
+}
+func (h *hnsw) searchLayerByVector2(nodeid uint64, queryVector []float32,
+	entrypoints *priorityqueue.Queue, ef int, level int,
+	allowList helpers.AllowList) (*priorityqueue.Queue, error,
+) {
+	h.pools.visitedListsLock.Lock()
+	visited := h.pools.visitedLists.Borrow()
+	h.pools.visitedListsLock.Unlock()
+
+	candidates := h.pools.pqCandidates.GetMin(ef)
+	results := h.pools.pqResults.GetMax(ef)
+	distancer := h.distancerProvider.New(queryVector)
+
+	h.insertViableEntrypointsAsCandidatesAndResults(entrypoints, candidates,
+		results, level, visited, allowList)
+
+	worstResultDistance, err := h.currentWorstResultDistance(results, distancer)
+	if err != nil {
+		return nil, errors.Wrapf(err, "calculate distance of current last result")
+	}
+
+	fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidates len [%v]\n", nodeid, level, candidates.Len())
+	for candidates.Len() > 0 {
+		fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidate in loop [%v]\n", nodeid, level, candidates.Top().ID)
+		dist, ok, err := h.distanceToNode(distancer, candidates.Top().ID)
+		if err != nil {
+			return nil, errors.Wrap(err, "calculate distance between candidate and query")
+		}
+
+		if !ok {
+			fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidates pop continue [%v]\n", nodeid, level, candidates.Top().ID)
+			candidates.Pop()
+			continue
+		}
+
+		if dist > worstResultDistance {
+			fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidates break dist> [%v]\n", nodeid, level, candidates.Top().ID)
+			break
+		}
+		candidate := candidates.Pop()
+		h.RLock()
+		candidateNode := h.nodes[candidate.ID]
+		h.RUnlock()
+		if candidateNode == nil {
+			// could have been a node that already had a tombstone attached and was
+			// just cleaned up while we were waiting for a read lock
+			fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidate nil continue [%v]\n", nodeid, level, candidate.ID)
+			continue
+		}
+
+		candidateNode.Lock()
+		if candidateNode.level < level {
+			// a node level could have been downgraded as part of a delete-reassign,
+			// but the connections pointing to it not yet cleaned up. In this case
+			// the node doesn't have any outgoing connections at this level and we
+			// must discard it.
+			candidateNode.Unlock()
+			fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidate <level continue [%v]\n", nodeid, level, candidate.ID)
+			continue
+		}
+
+		var connections *[]uint64
+
+		if len(candidateNode.connections[level]) > h.maximumConnectionsLayerZero {
+			// How is it possible that we could ever have more connections than the
+			// allowed maximum? It is not anymore, but there was a bug that allowed
+			// this to happen in versions prior to v1.12.0:
+			// https://github.com/semi-technologies/weaviate/issues/1868
+			//
+			// As a result the length of this slice is entirely unpredictable and we
+			// can no longer retrieve it from the pool. Instead we need to fallback
+			// to allocating a new slice.
+			//
+			// This was discovered as part of
+			// https://github.com/semi-technologies/weaviate/issues/1897
+			c := make([]uint64, len(candidateNode.connections[level]))
+			connections = &c
+		} else {
+			connections = h.pools.connList.Get(len(candidateNode.connections[level]))
+			defer h.pools.connList.Put(connections)
+		}
+
+		copy(*connections, candidateNode.connections[level])
+		candidateNode.Unlock()
+
+		for _, neighborID := range *connections {
+			fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidate [%v] / neigh [%v] in loop\n", nodeid, level, candidate.ID, neighborID)
+			if ok := visited.Visited(neighborID); ok {
+				// skip if we've already visited this neighbor
+				fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidate [%v] / neigh [%v] visited\n", nodeid, level, candidate.ID, neighborID)
+				continue
+			}
+
+			// make sure we never visit this neighbor again
+			visited.Visit(neighborID)
+
+			distance, ok, err := h.distanceToNode(distancer, neighborID)
+			if err != nil {
+				return nil, errors.Wrap(err, "calculate distance between candidate and query")
+			}
+
+			if !ok {
+				// node was deleted in the underlying object store
+				fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidate [%v] / neigh [%v] continue !ok\n", nodeid, level, candidate.ID, neighborID)
+				continue
+			}
+
+			if distance < worstResultDistance || results.Len() < ef {
+				candidates.Insert(neighborID, distance)
+				fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidate [%v] / neigh [%v] insert\n", nodeid, level, candidate.ID, neighborID)
+				if level == 0 && allowList != nil {
+					// we are on the lowest level containing the actual candidates and we
+					// have an allow list (i.e. the user has probably set some sort of a
+					// filter restricting this search further. As a result we have to
+					// ignore items not on the list
+					if !allowList.Contains(neighborID) {
+						continue
+					}
+				}
+
+				if h.hasTombstone(neighborID) {
+					fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidate [%v] / neigh [%v] continue tombstone\n", nodeid, level, candidate.ID, neighborID)
+					continue
+				}
+
+				fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidate [%v] / neigh [%v] result insert\n", nodeid, level, candidate.ID, neighborID)
+				results.Insert(neighborID, distance)
+
+				h.cache.prefetch(candidates.Top().ID)
+
+				// +1 because we have added one node size calculating the len
+				if results.Len() > ef {
+					fmt.Printf("  ==> [%v] lvl[%v][searchLayerByVector2] candidate [%v] / neigh [%v] result pop\n", nodeid, level, candidate.ID, neighborID)
 					results.Pop()
 				}
 

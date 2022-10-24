@@ -109,3 +109,19 @@ func (l *Queue) Reset() {
 func (l *Queue) ResetCap(capacity int) {
 	l.items = make([]Item, 0, capacity)
 }
+
+func (l *Queue) IDs() []uint64 {
+	ids := make([]uint64, len(l.items))
+	for i := range l.items {
+		ids[i] = l.items[i].ID
+	}
+	return ids
+}
+
+func (l *Queue) Dists() []float32 {
+	ids := make([]float32, len(l.items))
+	for i := range l.items {
+		ids[i] = l.items[i].Dist
+	}
+	return ids
+}

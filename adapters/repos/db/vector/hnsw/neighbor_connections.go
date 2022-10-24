@@ -13,6 +13,7 @@ package hnsw
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -70,6 +71,7 @@ func (n *neighborFinderConnector) Do() error {
 
 func (n *neighborFinderConnector) doAtLevel(level int) error {
 	before := time.Now()
+	fmt.Printf("  ==> [%v] lvl[%v][doAtLevel] starting\n", n.node.id, level)
 	if err := n.pickEntrypoint(); err != nil {
 		return errors.Wrap(err, "pick entrypoint at level beginning")
 	}
@@ -77,20 +79,26 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 	eps := priorityqueue.NewMin(1)
 	eps.Insert(n.entryPointID, n.entryPointDist)
 
+	// results, err := n.graph.searchLayerByVector2(n.node.id, n.nodeVec, eps, n.graph.efConstruction,
+	// 	level, nil)
 	results, err := n.graph.searchLayerByVector(n.nodeVec, eps, n.graph.efConstruction,
 		level, nil)
 	if err != nil {
 		return errors.Wrapf(err, "search layer at level %d", level)
 	}
 
+	fmt.Printf("  ==> [%v] lvl[%v][doAtLevel] search ids [%v]\n", n.node.id, level, results.IDs())
+	fmt.Printf("  ==> [%v] lvl[%v][doAtLevel] search dists [%v]\n", n.node.id, level, results.Dists())
+
 	n.graph.insertMetrics.findAndConnectSearch(before)
 	before = time.Now()
 
 	// max := n.maximumConnections(level)
 	max := n.graph.maximumConnections
-	if err := n.graph.selectNeighborsHeuristic(results, max, n.denyList); err != nil {
+	if err := n.graph.selectNeighborsHeuristic2(n.node.id, results, max, n.denyList); err != nil {
 		return errors.Wrap(err, "heuristic")
 	}
+	fmt.Printf("  ==> [%v] lvl[%v][doAtLevel] selected results [%v]\n", n.node.id, level, results.IDs())
 
 	n.graph.insertMetrics.findAndConnectHeuristic(before)
 	before = time.Now()
@@ -109,6 +117,7 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 	// set all outoing in one go
 	n.node.setConnectionsAtLevel(level, neighbors)
 	n.graph.commitLog.ReplaceLinksAtLevel(n.node.id, level, neighbors)
+	fmt.Printf("  ==> [%v][doAtLevel] setConnectionsAtLevel [%v] neighbors [%v]\n", n.node.id, level, neighbors)
 
 	for _, neighborID := range neighbors {
 		if err := n.connectNeighborAtLevel(neighborID, level); err != nil {
@@ -134,8 +143,10 @@ func (n *neighborFinderConnector) doAtLevel(level int) error {
 func (n *neighborFinderConnector) connectNeighborAtLevel(neighborID uint64,
 	level int,
 ) error {
+	fmt.Printf("  ==> [%v] lvl[%v] neigh[%v] [connectNeighborAtLevel] start\n", n.node.id, level, neighborID)
 	neighbor := n.graph.nodeByID(neighborID)
 	if skip := n.skipNeighbor(neighbor); skip {
+		fmt.Printf("  ==> [%v] lvl[%v] neigh[%v] [connectNeighborAtLevel] skipping\n", n.node.id, level, neighborID)
 		return nil
 	}
 
@@ -143,6 +154,8 @@ func (n *neighborFinderConnector) connectNeighborAtLevel(neighborID uint64,
 	defer neighbor.Unlock()
 	if level > neighbor.level {
 		// upgrade neighbor level if the level is out of sync due to a delete re-assign
+
+		fmt.Printf("  ==> [%v] lvl[%v] neigh[%v] [connectNeighborAtLevel] upgrade\n", n.node.id, level, neighborID)
 		neighbor.upgradeToLevelNoLock(level)
 	}
 	currentConnections := neighbor.connectionsAtLevelNoLock(level)
@@ -151,6 +164,7 @@ func (n *neighborFinderConnector) connectNeighborAtLevel(neighborID uint64,
 	if len(currentConnections) < maximumConnections {
 		// we can simply append
 		// updatedConnections = append(currentConnections, n.node.id)
+		fmt.Printf("  ==> [%v] lvl[%v] neigh[%v] [connectNeighborAtLevel] appendConnectionAtLevelNoLock\n", n.node.id, level, neighborID)
 		neighbor.appendConnectionAtLevelNoLock(level, n.node.id, maximumConnections)
 		if err := n.graph.commitLog.AddLinkAtLevel(neighbor.id, level, n.node.id); err != nil {
 			return err
@@ -166,6 +180,7 @@ func (n *neighborFinderConnector) connectNeighborAtLevel(neighborID uint64,
 		if !ok {
 			// it seems either the node or the neighbor were deleted in the meantime,
 			// there is nothing we can do now
+			fmt.Printf("  ==> [%v] lvl[%v] neigh[%v] [connectNeighborAtLevel] exit1\n", n.node.id, level, neighborID)
 			return nil
 		}
 
@@ -185,12 +200,15 @@ func (n *neighborFinderConnector) connectNeighborAtLevel(neighborID uint64,
 
 			candidates.Insert(existingConnection, dist)
 		}
+		fmt.Printf("  ==> [%v] lvl[%v] neigh[%v] [connectNeighborAtLevel] candidates len before heur [%v]\n", n.node.id, level, neighborID, candidates.Len())
 
 		err = n.graph.selectNeighborsHeuristic(candidates, maximumConnections, n.denyList)
 		if err != nil {
 			return errors.Wrap(err, "connect neighbors")
 		}
+		fmt.Printf("  ==> [%v] lvl[%v] neigh[%v] [connectNeighborAtLevel] candidates len after heur [%v]\n", n.node.id, level, neighborID, candidates.Len())
 
+		fmt.Printf("  ==> [%v] lvl[%v] neigh[%v] [connectNeighborAtLevel] resetConnectionsAtLevelNoLock [%v]\n", n.node.id, level, neighborID, neighbor.connections)
 		neighbor.resetConnectionsAtLevelNoLock(level)
 		if err := n.graph.commitLog.ClearLinksAtLevel(neighbor.id, uint16(level)); err != nil {
 			return err
@@ -198,6 +216,7 @@ func (n *neighborFinderConnector) connectNeighborAtLevel(neighborID uint64,
 
 		for candidates.Len() > 0 {
 			id := candidates.Pop().ID
+			fmt.Printf("  ==> [%v] lvl[%v] neigh[%v] [connectNeighborAtLevel] appendConnectionAtLevelNoLock with id [%v]\n", n.node.id, level, neighborID, id)
 			neighbor.appendConnectionAtLevelNoLock(level, id, maximumConnections)
 			if err := n.graph.commitLog.AddLinkAtLevel(neighbor.id, level, id); err != nil {
 				return err
@@ -205,6 +224,7 @@ func (n *neighborFinderConnector) connectNeighborAtLevel(neighborID uint64,
 		}
 	}
 
+	fmt.Printf("  ==> [%v] lvl[%v] neigh[%v] [connectNeighborAtLevel] finished\n", n.node.id, level, neighborID)
 	return nil
 }
 

@@ -523,6 +523,7 @@ func (h *hnsw) nodeByID(id uint64) *vertex {
 
 func (h *hnsw) Drop(ctx context.Context) error {
 	// cancel tombstone cleanup goroutine
+	fmt.Printf("  ==> DROPPING\n")
 
 	// if the interval is 0 we never started a cleanup cycle, therefore there is
 	// no loop running that could receive our cancel and we would be stuck. Thus,

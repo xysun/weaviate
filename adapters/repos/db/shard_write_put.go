@@ -16,6 +16,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -156,6 +157,7 @@ func (s *Shard) determineInsertStatus(previous []byte,
 
 	if previous == nil {
 		docID, err := s.counter.GetAndInc()
+		fmt.Printf("  ==> docid new [%v] for [%v]\n", docID, next.ID())
 		if err != nil {
 			return out, errors.Wrap(err, "initial doc id: get new doc id from counter")
 		}
@@ -164,6 +166,7 @@ func (s *Shard) determineInsertStatus(previous []byte,
 	}
 
 	docID, err := storobj.DocIDFromBinary(previous)
+	fmt.Printf("  ==> docid old [%v] for [%v]\n", docID, next.ID())
 	if err != nil {
 		return out, errors.Wrap(err, "get previous doc id from object binary")
 	}

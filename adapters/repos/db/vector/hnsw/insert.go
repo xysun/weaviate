@@ -12,6 +12,7 @@
 package hnsw
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -76,7 +77,7 @@ func (h *hnsw) insert(node *vertex, nodeVec []float32) error {
 	defer h.deleteVsInsertLock.RUnlock()
 
 	before := time.Now()
-
+	fmt.Printf("  ==> inserting [%v][%v]\n", node.id, nodeVec)
 	wasFirst := false
 	var firstInsertError error
 	h.initialInsertOnce.Do(func() {

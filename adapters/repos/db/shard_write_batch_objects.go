@@ -13,6 +13,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -278,6 +279,7 @@ func (b *objectsBatcher) storeSingleObjectInAdditionalStorage(ctx context.Contex
 	}
 
 	if object.Vector != nil {
+		fmt.Printf("  ==> adding vector for [%v]\n", object.ID())
 		// vector is now optional as of
 		// https://github.com/semi-technologies/weaviate/issues/1800
 		if err := b.shard.updateVectorIndex(object.Vector, status); err != nil {
