@@ -48,6 +48,12 @@ func (vo *vectorObtainer) Do(ctx context.Context, obj *models.Object,
 		return err
 	}
 
+	// Early termination for vamana
+	// TODO make validateVectorPresent work with non HNSW configs
+	if vectorizerName == config.VectorizerModuleNone {
+		return nil
+	}
+
 	hnswConfig, ok := cfg.(hnsw.UserConfig)
 	if !ok {
 		return errors.Errorf("vector index config (%T) is not of type HNSW, "+
