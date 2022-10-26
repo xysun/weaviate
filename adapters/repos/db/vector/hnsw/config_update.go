@@ -19,6 +19,7 @@ import (
 )
 
 func ValidateUserConfigUpdate(initial, updated schema.VectorIndexConfig) error {
+	return nil
 	initialParsed, ok := initial.(UserConfig)
 	if !ok {
 		return errors.Errorf("initial is not UserConfig, but %T", initial)

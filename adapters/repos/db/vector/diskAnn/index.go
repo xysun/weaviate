@@ -216,14 +216,14 @@ func (v *Vamana) SetL(L int) {
 }
 
 func (v *Vamana) SearchByVector(query []float32, k int, allow helpers.AllowList) ([]uint64, []float32, error) {
-	ids := make([]uint64, 2)
-	ids[0] = 0
-	ids[1] = 1
+	// ids := make([]uint64, 2)
+	// ids[0] = 0
+	// ids[1] = 1
 
 	distances := make([]float32, 2)
-	distances[0] = 0.2
-	distances[1] = 0.3
-	return ids, distances, nil
+	distances[0] = 0.1
+	distances[1] = 0.1
+	return v.greedySearchQuery(query, k), distances, nil
 	//return v.greedySearchQuery(query, k), nil, nil
 }
 
@@ -762,7 +762,8 @@ func (i *Vamana) SearchByVectorDistance(vector []float32, dist float32, maxLimit
 }
 
 func (i *Vamana) UpdateUserConfig(updated schema.VectorIndexConfig) error {
-	return errors.Errorf("cannot update vector index config on a non-indexed class. Delete and re-create without skip property")
+	i.BuildIndex()
+	return nil
 }
 
 func (i *Vamana) Drop(context.Context) error {
