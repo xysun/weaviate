@@ -378,11 +378,14 @@ func min(x int, y int) int {
 	return y
 }
 
-func (s *Set) Elements(k int) []uint64 {
+func (s *Set) Elements(k int) ([]uint64, []float32) {
 	size := min(s.capacity, k)
-	res := make([]uint64, 0, size)
+
+	indices := make([]uint64, 0, size)
+	distances := make([]float32, 0, size)
 	for i := 0; i < size; i++ {
-		res = append(res, s.items[i].index)
+		indices = append(indices, s.items[i].index)
+		distances = append(distances, s.items[i].distance)
 	}
-	return res
+	return indices, distances
 }

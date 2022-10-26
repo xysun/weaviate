@@ -217,14 +217,8 @@ func (v *Vamana) SetL(L int) {
 }
 
 func (v *Vamana) SearchByVector(query []float32, k int, allow helpers.AllowList) ([]uint64, []float32, error) {
-	// ids := make([]uint64, 2)
-	// ids[0] = 0
-	// ids[1] = 1
-
-	distances := make([]float32, 2)
-	distances[0] = 0.1
-	distances[1] = 0.1
-	return v.greedySearchQuery(query, k), distances, nil
+	ids, distances := v.greedySearchQuery(query, k)
+	return ids, distances, nil
 	//return v.greedySearchQuery(query, k), nil, nil
 }
 
@@ -465,7 +459,8 @@ func (v *Vamana) greedySearch(x []float32, k int, allVisited []uint64, updateVis
 	if v.data.OnDisk && v.userConfig.BeamSize > 1 {
 		v.beamSearchHolder = initBeamSearch
 	}
-	return v.set.Elements(k), allVisited
+	indices, _ := v.set.Elements(k)
+	return indices, allVisited
 }
 
 func (v *Vamana) greedySearchWithVisited(x []float32, k int) ([]uint64, []uint64) {
