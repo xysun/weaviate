@@ -103,3 +103,74 @@ You can find [code examples here](https://github.com/semi-technologies/weaviate-
 ## Contributing
 
 - [How to Contribute](https://weaviate.io/developers/contributor-guide/current/)
+
+
+
+
+
+% curl \
+    -X POST \
+    -H "Content-Type: application/json" \
+    -d '{
+        "class": "Article",
+        "description": "A written text, for example a news article or blog post",
+        "properties": [
+            {
+            "dataType": [
+                "string"
+            ],
+            "description": "Title of the article",
+            "name": "title"
+            },
+            {
+            "dataType": [
+                "text"
+            ],
+            "description": "The content of the article",
+            "name": "content"
+            }
+        ],
+        "vectorIndexType": "vamana"
+    }' \
+    http://localhost:8080/v1/schema
+
+
+    curl \
+    -X POST \
+    -H "Content-Type: application/json" \
+    -d '{
+      "class": "Article",
+      "vector": [0.3, 0.2, 0.1, 0.9]
+  }' \
+    http://localhost:8080/v1/objects
+
+
+    curl \
+    -X GET \
+    http://localhost:8080/v1/objects
+
+    curl \
+    -X PUT \
+    -H "Content-Type: application/json" \
+    -d '{
+        "class": "Article",
+        "description": "A written text, for example a news article or blog post",
+        "properties": [
+            {
+            "dataType": [
+                "string"
+            ],
+            "description": "Title of the article",
+            "name": "title"
+            },
+            {
+            "dataType": [
+                "text"
+            ],
+            "description": "The content of the article",
+            "name": "content"
+            }
+        ],
+        "vectorIndexType": "vamana"
+    }' \
+    http://localhost:8080/v1/schema/Article

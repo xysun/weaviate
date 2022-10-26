@@ -32,6 +32,7 @@ import (
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/noop"
+	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	"github.com/semi-technologies/weaviate/entities/filters"
 	"github.com/semi-technologies/weaviate/entities/models"
 	"github.com/semi-technologies/weaviate/entities/schema"
@@ -117,6 +118,7 @@ func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
 	if index.vectorIndexUserConfig.IndexType() == "vamana" {
 		vi, err := diskAnn.New(diskAnn.Config{
 			VectorForIDThunk: s.vectorByIndexID,
+			Distance:         ssdhelpers.L2,
 		}, diskAnn.NewUserConfig())
 		if err != nil {
 			return nil, errors.Wrapf(err, "init shard %q: hnsw index", s.ID())

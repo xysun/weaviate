@@ -69,7 +69,8 @@ const GraphFileName = "graph.gob"
 
 func New(config Config, userConfig UserConfig) (*Vamana, error) {
 	index := &Vamana{
-		config: config,
+		config:     config,
+		userConfig: userConfig,
 	}
 	index.set = *ssdhelpers.NewSet(userConfig.L, config.VectorForIDThunk, config.Distance, nil, int(userConfig.VectorsSize))
 	index.outNeighbors = index.outNeighborsFromMemory
@@ -198,7 +199,7 @@ func (v *Vamana) BuildIndex() {
 	v.SetL(v.userConfig.L)
 	v.edges = v.makeRandomGraph()
 	v.data.SIndex = v.medoid()
-	v.pass() //Not sure yet what did they mean in the paper with two passes... Two passes is exactly the same as only the last pass to the best of my knowledge.
+	v.pass()
 }
 
 func (v *Vamana) GetGraph() [][]uint64 {
@@ -360,6 +361,7 @@ func (v *Vamana) pass() {
 		x := random_order[i]
 		x64 := uint64(x)
 		q, err := v.config.VectorForIDThunk(context.Background(), x64)
+		fmt.Println(q)
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", x64)))
 		}
@@ -402,7 +404,7 @@ func (v *Vamana) medoid() uint64 {
 	var min_dist float32 = math.MaxFloat32
 	min_index := uint64(0)
 
-	mean := make([]float32, v.userConfig.VectorsSize)
+	mean := make([]float32, v.userConfig.Dimensions)
 	for i := uint64(0); i < v.userConfig.VectorsSize; i++ {
 		x, err := v.config.VectorForIDThunk(context.Background(), i)
 		if err != nil {
@@ -762,6 +764,9 @@ func (i *Vamana) SearchByVectorDistance(vector []float32, dist float32, maxLimit
 }
 
 func (i *Vamana) UpdateUserConfig(updated schema.VectorIndexConfig) error {
+	i.config.VectorForIDThunk = func(ctx context.Context, id uint64) ([]float32, error) {
+		return i.data.Vertices[id].Vector, nil
+	}
 	i.BuildIndex()
 	return nil
 }

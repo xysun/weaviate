@@ -46,5 +46,7 @@ func NewUserConfig() UserConfig {
 		ClusterOverlapping: 2,
 		C:                  10000,
 		BeamSize:           1,
+		Dimensions:         4,
+		VectorsSize:        2,
 	}
 }
