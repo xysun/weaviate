@@ -162,7 +162,7 @@ func (d *DistributedBackupDescriptor) Validate() error {
 
 // resetStatus sets status and sub-statuses to Started
 // It also empties error and sub-errors
-func (d *DistributedBackupDescriptor) ResetStatus() {
+func (d *DistributedBackupDescriptor) ResetStatus() *DistributedBackupDescriptor {
 	d.Status = Started
 	d.Error = ""
 	d.StartedAt = time.Now()
@@ -171,6 +171,7 @@ func (d *DistributedBackupDescriptor) ResetStatus() {
 		node.Status = Started
 		node.Error = ""
 	}
+	return d
 }
 
 // ShardDescriptor contains everything needed to completely restore a partition of a specific class
