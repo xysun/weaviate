@@ -50,6 +50,10 @@ func (m *BackupFileSystemModule) Name() string {
 	return Name
 }
 
+func (m *BackupFileSystemModule) IsExternal() bool {
+	return false
+}
+
 func (m *BackupFileSystemModule) AltNames() []string {
 	return []string{AltName1}
 }
