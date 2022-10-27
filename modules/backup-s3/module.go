@@ -40,33 +40,33 @@ const (
 	s3Path = "BACKUP_S3_PATH"
 )
 
-type BackupS3Module struct {
+type Module struct {
 	*s3Client
 	logger   logrus.FieldLogger
 	dataPath string
 }
 
-func New() *BackupS3Module {
-	return &BackupS3Module{}
+func New() *Module {
+	return &Module{}
 }
 
-func (m *BackupS3Module) Name() string {
+func (m *Module) Name() string {
 	return Name
 }
 
-func (m *BackupS3Module) IsExternal() bool {
+func (m *Module) IsExternal() bool {
 	return true
 }
 
-func (m *BackupS3Module) AltNames() []string {
+func (m *Module) AltNames() []string {
 	return []string{AltName1}
 }
 
-func (m *BackupS3Module) Type() modulecapabilities.ModuleType {
+func (m *Module) Type() modulecapabilities.ModuleType {
 	return modulecapabilities.Backup
 }
 
-func (m *BackupS3Module) Init(ctx context.Context,
+func (m *Module) Init(ctx context.Context,
 	params moduletools.ModuleInitParams,
 ) error {
 	m.logger = params.GetLogger()
@@ -86,12 +86,12 @@ func (m *BackupS3Module) Init(ctx context.Context,
 	return nil
 }
 
-func (m *BackupS3Module) RootHandler() http.Handler {
+func (m *Module) RootHandler() http.Handler {
 	// TODO: remove once this is a capability interface
 	return nil
 }
 
-func (m *BackupS3Module) MetaInfo() (map[string]interface{}, error) {
+func (m *Module) MetaInfo() (map[string]interface{}, error) {
 	metaInfo := make(map[string]interface{}, 4)
 	metaInfo["endpoint"] = m.config.Endpoint
 	metaInfo["bucketName"] = m.config.Bucket
