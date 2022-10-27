@@ -26,16 +26,20 @@ type Config struct {
 }
 
 type UserConfig struct {
-	R                  int     `json:"r"`
-	L                  int     `json:"l"`
-	Alpha              float32 `json:"a"`
+	R                  int     `json:"radius"`
+	L                  int     `json:"list"`
+	Alpha              float32 `json:"alpha"`
 	ClustersSize       int
 	ClusterOverlapping int
 	C                  int `json:"c"`
 	OriginalCacheSize  int
 	BeamSize           int
-	Dimensions         int    `json:"d"`
-	VectorsSize        uint64 `json:"s"`
+	Dimensions         int    `json:"dimensions"`
+	VectorsSize        uint64 `json:"size"`
+	Segments           int    `json:"segments"`
+	Centroids          int    `json:"centroids"`
+	Path               string `json:"path"`
+	OnDisk             bool   `json:"disk"`
 }
 
 func (config UserConfig) IndexType() string {
@@ -53,6 +57,10 @@ func NewUserConfig() UserConfig {
 		BeamSize:           1,
 		Dimensions:         4,
 		VectorsSize:        2,
+		Centroids:          255,
+		Segments:           4,
+		Path:               "",
+		OnDisk:             false,
 	}
 }
 
@@ -64,43 +72,84 @@ func ParseUserConfig(input interface{}) (schema.VectorIndexConfig, error) {
 		return uc, fmt.Errorf("input must be a non-nil map")
 	}
 
-	if err := optionalIntFromMap(asMap, "r", func(v int) {
+	if err := optionalIntFromMap(asMap, "radius", func(v int) {
 		uc.R = v
 	}); err != nil {
 		return uc, err
 	}
 
-	if err := optionalIntFromMap(asMap, "l", func(v int) {
+	if err := optionalIntFromMap(asMap, "list", func(v int) {
 		uc.L = v
 	}); err != nil {
 		return uc, err
 	}
 
-	if err := optionalFloatFromMap(asMap, "a", func(v float32) {
+	if err := optionalFloatFromMap(asMap, "alpha", func(v float32) {
 		uc.Alpha = v
 	}); err != nil {
 		return uc, err
 	}
 
-	if err := optionalIntFromMap(asMap, "c", func(v int) {
+	if err := optionalIntFromMap(asMap, "cache", func(v int) {
 		uc.C = v
 	}); err != nil {
 		return uc, err
 	}
 
-	if err := optionalIntFromMap(asMap, "d", func(v int) {
+	if err := optionalIntFromMap(asMap, "dimensions", func(v int) {
 		uc.Dimensions = v
 	}); err != nil {
 		return uc, err
 	}
 
-	if err := optionalIntFromMap(asMap, "s", func(v int) {
+	if err := optionalIntFromMap(asMap, "size", func(v int) {
 		uc.VectorsSize = uint64(v)
 	}); err != nil {
 		return uc, err
 	}
 
+	if err := optionalIntFromMap(asMap, "segments", func(v int) {
+		uc.Segments = v
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalIntFromMap(asMap, "segments", func(v int) {
+		uc.Segments = v
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalStringFromMap(asMap, "path", func(v string) {
+		uc.Path = v
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalBoolFromMap(asMap, "disk", func(v bool) {
+		uc.OnDisk = v
+	}); err != nil {
+		return uc, err
+	}
+
 	return uc, nil
+}
+
+func optionalStringFromMap(in map[string]interface{}, name string,
+	setFn func(v string),
+) error {
+	value, ok := in[name]
+	if !ok {
+		return nil
+	}
+
+	asString, ok := value.(string)
+	if !ok {
+		return nil
+	}
+
+	setFn(asString)
+	return nil
 }
 
 func optionalIntFromMap(in map[string]interface{}, name string,
@@ -127,6 +176,23 @@ func optionalIntFromMap(in map[string]interface{}, name string,
 	}
 
 	setFn(int(asInt64))
+	return nil
+}
+
+func optionalBoolFromMap(in map[string]interface{}, name string,
+	setFn func(v bool),
+) error {
+	value, ok := in[name]
+	if !ok {
+		return nil
+	}
+
+	asBool, ok := value.(bool)
+	if !ok {
+		return nil
+	}
+
+	setFn(asBool)
 	return nil
 }
 

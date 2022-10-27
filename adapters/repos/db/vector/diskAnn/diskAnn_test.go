@@ -77,7 +77,7 @@ func TestBigDataVamana(t *testing.T) {
 			paramR := paramsRs[paramIndex]
 			paramL := paramsLs[paramIndex]
 			before = time.Now()
-			index := testinghelpers.BuildVamana(
+			index := diskAnn.BuildDiskVamana(
 				paramR,
 				paramL,
 				10000,

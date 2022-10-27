@@ -116,15 +116,38 @@ func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
 	defer s.metrics.ShardStartup(before)
 
 	if index.vectorIndexUserConfig.IndexType() == "vamana" {
-		vi, err := diskAnn.New(diskAnn.Config{
-			VectorForIDThunk: s.vectorByIndexID,
-			Distance:         ssdhelpers.L2,
-		}, diskAnn.NewUserConfig())
-		if err != nil {
-			return nil, errors.Wrapf(err, "init shard %q: hnsw index", s.ID())
+		vamanaUserConfig, ok := index.vectorIndexUserConfig.(diskAnn.UserConfig)
+		if !ok {
+			return nil, errors.Errorf("vamana vector index: config is not diskAnn.UserConfig: %T",
+				index.vectorIndexUserConfig)
 		}
-		s.vectorIndex = vi
-
+		if vamanaUserConfig.OnDisk {
+			s.vectorIndex = diskAnn.BuildDiskVamana(
+				vamanaUserConfig.R,
+				vamanaUserConfig.L,
+				vamanaUserConfig.C,
+				vamanaUserConfig.Alpha,
+				0,
+				s.vectorByIndexID,
+				vamanaUserConfig.VectorsSize,
+				ssdhelpers.L2,
+				vamanaUserConfig.Path,
+				vamanaUserConfig.Dimensions,
+				vamanaUserConfig.Segments,
+				vamanaUserConfig.Centroids)
+		} else {
+			s.vectorIndex = diskAnn.BuildVamana(
+				vamanaUserConfig.R,
+				vamanaUserConfig.L,
+				vamanaUserConfig.C,
+				vamanaUserConfig.Alpha,
+				0,
+				s.vectorByIndexID,
+				vamanaUserConfig.VectorsSize,
+				ssdhelpers.L2,
+				vamanaUserConfig.Path,
+				vamanaUserConfig.Dimensions)
+		}
 	} else {
 
 		hnswUserConfig, ok := index.vectorIndexUserConfig.(hnsw.UserConfig)
