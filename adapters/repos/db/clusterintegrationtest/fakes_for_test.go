@@ -243,6 +243,14 @@ func (f *fakeBackupBackend) SourceDataPath() string {
 	return f.backupsPath
 }
 
+func (f *fakeBackupBackend) IsExternal() bool{
+	return true
+}
+
+func (f *fakeBackupBackend) Name() string {
+	return "fakeBackupBackend"
+}
+
 func (f *fakeBackupBackend) PutFile(ctx context.Context, backupID, key, srcPath string) error {
 	f.Lock()
 	defer f.Unlock()
