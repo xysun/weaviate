@@ -74,7 +74,7 @@ func TestPQ(t *testing.T) {
 		for v := range vectors {
 			s.AddPQVector(uint64(v), nil, nil)
 		}
-		results := s.Elements(k)
+		results, _ := s.Elements(k)
 		relevant += testinghelpers.MatchesInLists(truth, results)
 	}
 	recall := float32(relevant) / float32(k*queries_size)

@@ -42,6 +42,7 @@ type Manager struct {
 	cluster                 *cluster.TxManager
 	clusterState            clusterState
 	hnswConfigParser        VectorConfigParser
+	vamanaConfigParser      VectorConfigParser
 	invertedConfigValidator InvertedConfigValidator
 	backups                 backups.BackupManager
 	RestoreStatus           sync.Map
@@ -91,7 +92,7 @@ type clusterState interface {
 // NewManager creates a new manager
 func NewManager(migrator migrate.Migrator, repo Repo,
 	logger logrus.FieldLogger, authorizer authorizer, config config.Config,
-	hnswConfigParser VectorConfigParser, vectorizerValidator VectorizerValidator,
+	hnswConfigParser VectorConfigParser, vamanaConfigParser VectorConfigParser, vectorizerValidator VectorizerValidator,
 	invertedConfigValidator InvertedConfigValidator,
 	moduleConfig ModuleConfig, clusterState clusterState,
 	txClient cluster.Client, backupManager backups.BackupManager,
@@ -104,6 +105,7 @@ func NewManager(migrator migrate.Migrator, repo Repo,
 		logger:                  logger,
 		authorizer:              authorizer,
 		hnswConfigParser:        hnswConfigParser,
+		vamanaConfigParser:      vamanaConfigParser,
 		vectorizerValidator:     vectorizerValidator,
 		invertedConfigValidator: invertedConfigValidator,
 		moduleConfig:            moduleConfig,

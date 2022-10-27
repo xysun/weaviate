@@ -12,7 +12,12 @@
 package diskAnn
 
 import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/pkg/errors"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
+	"github.com/semi-technologies/weaviate/entities/schema"
 )
 
 type Config struct {
@@ -21,16 +26,16 @@ type Config struct {
 }
 
 type UserConfig struct {
-	R                  int     // degree bound
-	L                  int     // search list size
-	Alpha              float32 // to decide on the range of long connections
+	R                  int     `json:"r"`
+	L                  int     `json:"l"`
+	Alpha              float32 `json:"a"`
 	ClustersSize       int
 	ClusterOverlapping int
-	C                  int
+	C                  int `json:"c"`
 	OriginalCacheSize  int
 	BeamSize           int
-	Dimensions         int
-	VectorsSize        uint64 // size of the dataset
+	Dimensions         int    `json:"d"`
+	VectorsSize        uint64 `json:"s"`
 }
 
 func (config UserConfig) IndexType() string {
@@ -49,4 +54,105 @@ func NewUserConfig() UserConfig {
 		Dimensions:         4,
 		VectorsSize:        2,
 	}
+}
+
+func ParseUserConfig(input interface{}) (schema.VectorIndexConfig, error) {
+	uc := NewUserConfig()
+
+	asMap, ok := input.(map[string]interface{})
+	if !ok || asMap == nil {
+		return uc, fmt.Errorf("input must be a non-nil map")
+	}
+
+	if err := optionalIntFromMap(asMap, "r", func(v int) {
+		uc.R = v
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalIntFromMap(asMap, "l", func(v int) {
+		uc.L = v
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalFloatFromMap(asMap, "a", func(v float32) {
+		uc.Alpha = v
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalIntFromMap(asMap, "c", func(v int) {
+		uc.C = v
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalIntFromMap(asMap, "d", func(v int) {
+		uc.Dimensions = v
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalIntFromMap(asMap, "s", func(v int) {
+		uc.VectorsSize = uint64(v)
+	}); err != nil {
+		return uc, err
+	}
+
+	return uc, nil
+}
+
+func optionalIntFromMap(in map[string]interface{}, name string,
+	setFn func(v int),
+) error {
+	value, ok := in[name]
+	if !ok {
+		return nil
+	}
+
+	var asInt64 int64
+	var err error
+
+	// depending on whether we get the results from disk or from the REST API,
+	// numbers may be represented slightly differently
+	switch typed := value.(type) {
+	case json.Number:
+		asInt64, err = typed.Int64()
+	case float64:
+		asInt64 = int64(typed)
+	}
+	if err != nil {
+		return errors.Wrapf(err, "%s", name)
+	}
+
+	setFn(int(asInt64))
+	return nil
+}
+
+func optionalFloatFromMap(in map[string]interface{}, name string,
+	setFn func(v float32),
+) error {
+	value, ok := in[name]
+	if !ok {
+		return nil
+	}
+
+	var asFloat float64
+	var err error
+
+	// depending on whether we get the results from disk or from the REST API,
+	// numbers may be represented slightly differently
+	switch typed := value.(type) {
+	case json.Number:
+		asFloat, err = typed.Float64()
+	case float64:
+		asFloat = float64(typed)
+	}
+	if err != nil {
+		return errors.Wrapf(err, "%s", name)
+	}
+
+	setFn(float32(asFloat))
+	return nil
 }

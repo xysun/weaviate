@@ -35,6 +35,7 @@ import (
 	"github.com/semi-technologies/weaviate/adapters/repos/classifications"
 	"github.com/semi-technologies/weaviate/adapters/repos/db"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/inverted"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw"
 	modulestorage "github.com/semi-technologies/weaviate/adapters/repos/modules"
 	schemarepo "github.com/semi-technologies/weaviate/adapters/repos/schema"
@@ -200,7 +201,7 @@ func configureAPI(api *operations.WeaviateAPI) http.Handler {
 	schemaTxClient := clients.NewClusterSchema(clusterHttpClient)
 	schemaManager, err := schemaUC.NewManager(migrator, schemaRepo,
 		appState.Logger, appState.Authorizer, appState.ServerConfig.Config,
-		hnsw.ParseUserConfig, appState.Modules, inverted.ValidateConfig, appState.Modules, appState.Cluster,
+		hnsw.ParseUserConfig, diskAnn.ParseUserConfig, appState.Modules, inverted.ValidateConfig, appState.Modules, appState.Cluster,
 		schemaTxClient, backupManager)
 	if err != nil {
 		appState.Logger.

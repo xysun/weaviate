@@ -20,7 +20,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/inverted/stopwords"
-	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
 	"github.com/semi-technologies/weaviate/entities/models"
 	"github.com/semi-technologies/weaviate/entities/schema"
 	"github.com/semi-technologies/weaviate/entities/snapshots"
@@ -295,8 +294,11 @@ func (m *Manager) parseVectorIndexConfig(ctx context.Context,
 		class.VectorIndexConfig = parsed
 
 	case "vamana":
-		// Override to use new config
-		class.VectorIndexConfig = diskAnn.NewUserConfig()
+		parsed, err := m.vamanaConfigParser(class.VectorIndexConfig)
+		if err != nil {
+			return errors.Wrap(err, "parse vector index config")
+		}
+		class.VectorIndexConfig = parsed
 
 	default:
 		return errors.Errorf(
