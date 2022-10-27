@@ -14,11 +14,12 @@ package modstgs3
 import (
 	"context"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/entities/modulecapabilities"
 	"github.com/semi-technologies/weaviate/entities/moduletools"
-	"github.com/semi-technologies/weaviate/modules/backup-s3/s3"
 	"github.com/sirupsen/logrus"
 )
 
@@ -40,10 +41,9 @@ const (
 )
 
 type BackupS3Module struct {
-	logger          logrus.FieldLogger
-	backendProvider modulecapabilities.BackupBackend
-	config          s3.Config
-	dataPath        string
+	*s3Client
+	logger   logrus.FieldLogger
+	dataPath string
 }
 
 func New() *BackupS3Module {
@@ -52,6 +52,10 @@ func New() *BackupS3Module {
 
 func (m *BackupS3Module) Name() string {
 	return Name
+}
+
+func (m *BackupS3Module) IsExternal() bool {
+	return true
 }
 
 func (m *BackupS3Module) AltNames() []string {
@@ -67,11 +71,18 @@ func (m *BackupS3Module) Init(ctx context.Context,
 ) error {
 	m.logger = params.GetLogger()
 	m.dataPath = params.GetStorageProvider().DataPath()
-
-	if err := m.initBackupBackend(ctx); err != nil {
-		return errors.Wrap(err, "init backup backend")
+	bucket := os.Getenv(s3Bucket)
+	if bucket == "" {
+		return errors.Errorf("backup init: '%s' must be set", s3Bucket)
 	}
-
+	// SSL on by default
+	useSSL := strings.ToLower(os.Getenv(s3UseSSL)) != "false"
+	config := newConfig(os.Getenv(s3Endpoint), bucket, os.Getenv(s3Path), useSSL)
+	client, err := newClient(config, m.logger, m.dataPath)
+	if err != nil {
+		return errors.Wrap(err, "initialize S3 backup module")
+	}
+	m.s3Client = client
 	return nil
 }
 
@@ -81,13 +92,13 @@ func (m *BackupS3Module) RootHandler() http.Handler {
 }
 
 func (m *BackupS3Module) MetaInfo() (map[string]interface{}, error) {
-	metaInfo := make(map[string]interface{})
-	metaInfo["endpoint"] = m.config.Endpoint()
-	metaInfo["bucketName"] = m.config.BucketName()
-	if root := m.config.BackupPath(); root != "" {
+	metaInfo := make(map[string]interface{}, 4)
+	metaInfo["endpoint"] = m.config.Endpoint
+	metaInfo["bucketName"] = m.config.Bucket
+	if root := m.config.BackupPath; root != "" {
 		metaInfo["rootName"] = root
 	}
-	metaInfo["useSSL"] = m.config.UseSSL()
+	metaInfo["useSSL"] = m.config.UseSSL
 	return metaInfo, nil
 }
 
