@@ -12,6 +12,7 @@
 package diskAnn
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"encoding/gob"
@@ -19,6 +20,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -86,8 +88,10 @@ func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDTh
 		index.SetBeamSize(beamSize)
 		return index
 	}
-	os.Mkdir(completePath, os.ModePerm)
-
+	err := os.Mkdir(completePath, os.ModePerm)
+	if err != nil {
+		panic(err)
+	}
 	index, _ := New(Config{
 		VectorForIDThunk: VectorForIDThunk,
 		Distance:         distance,
@@ -139,7 +143,7 @@ func BuildDiskVamana(R int, L int, C int, alpha float32, beamSize int, VectorFor
 	if _, err := os.Stat(noDiskPath); err == nil {
 		index := VamanaFromDisk(noDiskPath, VectorForIDThunk, distance)
 		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), segments, 256)
-		os.Mkdir(completePath, os.ModePerm)
+		os.Mkdir(completePath, 0o777)
 		index.ToDisk(completePath)
 		return index
 	}
@@ -252,7 +256,12 @@ func (v *Vamana) SearchByVector(query []float32, k int, allow helpers.AllowList)
 }
 
 func (v *Vamana) ToDisk(path string) {
-	fConfig, err := os.Create(fmt.Sprintf("%s/%s", path, ConfigFileName))
+	completePath := fmt.Sprintf("%s/%s", path, ConfigFileName)
+	cmd := exec.Command("ls data")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Run()
+	fConfig, err := os.Create(completePath)
 	if err != nil {
 		panic(errors.Wrap(err, "Could not create config file"))
 	}
@@ -269,7 +278,7 @@ func (v *Vamana) ToDisk(path string) {
 	defer fGraph.Close()
 
 	cEnc := gob.NewEncoder(fConfig)
-	err = cEnc.Encode(v.config)
+	err = cEnc.Encode(v.userConfig)
 	if err != nil {
 		panic(errors.Wrap(err, "Could not encode config"))
 	}
@@ -340,7 +349,6 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 	var userConfig UserConfig
 	cDec := gob.NewDecoder(fConfig)
 	err = cDec.Decode(&userConfig)
-	userConfig.Dimensions = 128
 	if err != nil {
 		panic(errors.Wrap(err, "Could not decode config"))
 	}
@@ -384,7 +392,6 @@ func (v *Vamana) pass() {
 		x := random_order[i]
 		x64 := uint64(x)
 		q, err := v.config.VectorForIDThunk(context.Background(), x64)
-		fmt.Println(q)
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", x64)))
 		}
