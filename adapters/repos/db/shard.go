@@ -121,7 +121,11 @@ func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
 			return nil, errors.Errorf("vamana vector index: config is not diskAnn.UserConfig: %T",
 				index.vectorIndexUserConfig)
 		}
-		os.Mkdir(vamanaUserConfig.Path, 0o777)
+		vamanaUserConfig.Path = "data/" + vamanaUserConfig.Path
+		if _, err := os.Stat(vamanaUserConfig.Path); os.IsNotExist(err) {
+			os.Mkdir(vamanaUserConfig.Path, 0o777)
+		}
+		fmt.Println(vamanaUserConfig.R)
 		if vamanaUserConfig.OnDisk {
 			s.vectorIndex = diskAnn.BuildDiskVamana(
 				vamanaUserConfig.R,
