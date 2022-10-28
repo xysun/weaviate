@@ -56,7 +56,7 @@ func NewUserConfig() UserConfig {
 		C:                  10000,
 		BeamSize:           1,
 		Dimensions:         4,
-		VectorsSize:        2,
+		VectorsSize:        0,
 		Centroids:          255,
 		Segments:           4,
 		Path:               "",
@@ -90,7 +90,7 @@ func ParseUserConfig(input interface{}) (schema.VectorIndexConfig, error) {
 		return uc, err
 	}
 
-	if err := optionalIntFromMap(asMap, "cache", func(v int) {
+	if err := optionalIntFromMap(asMap, "vectorIndexCache", func(v int) {
 		uc.C = v
 	}); err != nil {
 		return uc, err

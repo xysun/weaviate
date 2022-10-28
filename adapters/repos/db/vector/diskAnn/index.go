@@ -50,6 +50,11 @@ type VamanaData struct {
 	Mean            []float32
 }
 
+type Vector struct {
+	id     uint64
+	coords []float32
+}
+
 type Vamana struct {
 	config     Config // configuration
 	userConfig UserConfig
@@ -251,8 +256,12 @@ func (v *Vamana) SetL(L int) {
 
 func (v *Vamana) SearchByVector(query []float32, k int, allow helpers.AllowList) ([]uint64, []float32, error) {
 	ids, distances := v.greedySearchQuery(query, k)
+	if v.vectors != nil {
+		for i := 0; i < len(ids); i++ {
+			ids[i] = v.vectors[ids[i]].id
+		}
+	}
 	return ids, distances, nil
-	//return v.greedySearchQuery(query, k), nil, nil
 }
 
 func (v *Vamana) ToDisk(path string) {
