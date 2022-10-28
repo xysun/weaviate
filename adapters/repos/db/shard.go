@@ -125,7 +125,6 @@ func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
 		if _, err := os.Stat(vamanaUserConfig.Path); os.IsNotExist(err) {
 			os.Mkdir(vamanaUserConfig.Path, 0o777)
 		}
-		fmt.Println(vamanaUserConfig.R)
 		if vamanaUserConfig.OnDisk {
 			s.vectorIndex = diskAnn.BuildDiskVamana(
 				vamanaUserConfig.R,
@@ -151,7 +150,9 @@ func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
 				vamanaUserConfig.VectorsSize,
 				ssdhelpers.L2,
 				vamanaUserConfig.Path,
-				vamanaUserConfig.Dimensions)
+				vamanaUserConfig.Dimensions,
+				vamanaUserConfig.Segments,
+				vamanaUserConfig.Centroids)
 		}
 	} else {
 

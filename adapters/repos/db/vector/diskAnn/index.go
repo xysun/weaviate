@@ -111,21 +111,17 @@ func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDTh
 			Dimensions:         dimensions,
 			C:                  0,
 			BeamSize:           beamSize,
+			Path:               completePath,
+			Segments:           segments,
+			Centroids:          centroids,
 		})
 	index.SetCacheSize(C)
 	index.BuildIndex()
 	if toDisk {
-		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), segments, 256)
+		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), segments, centroids)
 	}
 	index.ToDisk(completePath)
 	return index
-}
-
-func minInt(x int, y int) int {
-	if x < y {
-		return x
-	}
-	return y
 }
 
 func (v *Vamana) SetCacheSize(size int) {
@@ -133,9 +129,9 @@ func (v *Vamana) SetCacheSize(size int) {
 	v.userConfig.C = minInt(size, int(v.userConfig.VectorsSize))
 }
 
-func BuildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int) *Vamana {
+func BuildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int) *Vamana {
 	completePath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
-	return buildVamana(R, L, C, alpha, beamSize, VectorForIDThunk, vectorsSize, distance, completePath, dimensions, false, 0, 0)
+	return buildVamana(R, L, C, alpha, beamSize, VectorForIDThunk, vectorsSize, distance, completePath, dimensions, false, segments, centroids)
 }
 
 func BuildDiskVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int) *Vamana {
@@ -147,7 +143,7 @@ func BuildDiskVamana(R int, L int, C int, alpha float32, beamSize int, VectorFor
 	}
 	if _, err := os.Stat(noDiskPath); err == nil {
 		index := VamanaFromDisk(noDiskPath, VectorForIDThunk, distance)
-		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), segments, 256)
+		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), segments, centroids)
 		os.Mkdir(completePath, 0o777)
 		index.ToDisk(completePath)
 		return index
@@ -256,9 +252,9 @@ func (v *Vamana) SetL(L int) {
 
 func (v *Vamana) SearchByVector(query []float32, k int, allow helpers.AllowList) ([]uint64, []float32, error) {
 	ids, distances := v.greedySearchQuery(query, k)
-	if v.vectors != nil {
+	if v.data.Vertices != nil {
 		for i := 0; i < len(ids); i++ {
-			ids[i] = v.vectors[ids[i]].id
+			ids[i] = v.data.Vertices[ids[i]].Id
 		}
 	}
 	return ids, distances, nil
@@ -811,6 +807,14 @@ func (i *Vamana) SearchByVectorDistance(vector []float32, dist float32, maxLimit
 }
 
 func (i *Vamana) UpdateUserConfig(updated schema.VectorIndexConfig) error {
+	vamanaUserConfig, ok := updated.(UserConfig)
+	if !ok {
+		return errors.Errorf("vamana vector index: config is not diskAnn.UserConfig: %T", updated)
+	}
+	if !i.data.OnDisk && vamanaUserConfig.OnDisk {
+		i.SwitchGraphToDisk(fmt.Sprintf("%s.graph", i.userConfig.Path), i.userConfig.Segments, i.userConfig.Centroids)
+		i.ToDisk(i.userConfig.Path)
+	}
 	i.config.VectorForIDThunk = func(ctx context.Context, id uint64) ([]float32, error) {
 		return i.data.Vertices[id].Vector, nil
 	}

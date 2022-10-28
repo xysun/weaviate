@@ -114,8 +114,8 @@ func ParseUserConfig(input interface{}) (schema.VectorIndexConfig, error) {
 		return uc, err
 	}
 
-	if err := optionalIntFromMap(asMap, "segments", func(v int) {
-		uc.Segments = v
+	if err := optionalIntFromMap(asMap, "centroids", func(v int) {
+		uc.Centroids = v
 	}); err != nil {
 		return uc, err
 	}
