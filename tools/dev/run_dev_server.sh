@@ -288,6 +288,28 @@ case $CONFIG in
         --write-timeout=600s
     ;;
 
+    local-s3-second-node)
+        CONTEXTIONARY_URL=localhost:9999 \
+        AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true \
+        DEFAULT_VECTORIZER_MODULE=text2vec-contextionary \
+        PERSISTENCE_DATA_PATH="${PERSISTENCE_DATA_PATH}-node2" \
+        BACKUP_S3_ENDPOINT="localhost:9000" \
+        BACKUP_S3_BUCKET="weaviate-backups" \
+        AWS_ACCESS_KEY_ID="aws_access_key" \
+        AWS_SECRET_KEY="aws_secret_key" \
+        ENABLE_MODULES="text2vec-contextionary,backup-s3" \
+        CLUSTER_HOSTNAME="node2" \
+        CLUSTER_GOSSIP_BIND_PORT="7102" \
+        CLUSTER_DATA_BIND_PORT="7103" \
+        CLUSTER_JOIN="localhost:7100" \
+        go_run ./cmd/weaviate-server \
+          --scheme http \
+          --host "127.0.0.1" \
+          --port 8081 \
+          --read-timeout=600s \
+          --write-timeout=600s
+      ;;
+
   local-gcs)
       CONTEXTIONARY_URL=localhost:9999 \
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true \
