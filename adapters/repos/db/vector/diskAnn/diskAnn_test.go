@@ -54,21 +54,22 @@ func loadQueries(queries_size int) [][]float32 {
 	return queries
 }
 
+/*
 func TestBigDataVamana(t *testing.T) {
 	rand.Seed(0)
 	dimensions := 128
-	vectors_size := 1000000
+	vectors_size := 100000
 	queries_size := 1000
 	before := time.Now()
-	//vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
 
-	var vectors [][]float32 = nil
-	queries := testinghelpers.ReadQueries(dimensions, queries_size)
+	//var vectors [][]float32 = nil
+	//queries := testinghelpers.ReadQueries(dimensions, queries_size)
 
 	fmt.Printf("generating data took %s\n", time.Since(before))
 
-	paramsRs := []int{32, 50}
-	paramsLs := []int{50, 125}
+	paramsRs := []int{32}
+	paramsLs := []int{50}
 	alphas := []float32{1.2}
 	results := make(map[string][][]float32, 0)
 	for _, paramAlpha := range alphas {
@@ -76,7 +77,7 @@ func TestBigDataVamana(t *testing.T) {
 			paramR := paramsRs[paramIndex]
 			paramL := paramsLs[paramIndex]
 			before = time.Now()
-			index := testinghelpers.BuildDiskVamana(
+			index := testinghelpers.BuildVamana(
 				paramR,
 				paramL,
 				10000,
@@ -89,12 +90,83 @@ func TestBigDataVamana(t *testing.T) {
 				ssdhelpers.L2,
 				"./data",
 				dimensions,
-				64,
-				256,
 			)
 
 			fmt.Printf("Index built in: %s\n", time.Since(before))
-			Ks := []int{10, 100}
+			Ks := []int{10}
+			L := []int{1, 2, 3, 4, 5, 10}
+			for _, k := range Ks {
+				fmt.Println("K\tL\trecall\t\tquerying")
+				truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.L2)
+				data := make([][]float32, len(L))
+				for i, l := range L {
+					l = l * k
+					index.SetL(l)
+					var relevant uint64
+					var retrieved int
+
+					var querying time.Duration = 0
+					for i := 0; i < len(queries); i++ {
+						before = time.Now()
+						results := index.SearchByVector(queries[i], k)
+						querying += time.Since(before)
+						retrieved += k
+						relevant += testinghelpers.MatchesInLists(truths[i], results)
+					}
+
+					recall := float32(relevant) / float32(retrieved)
+					queryingTime := float32(querying.Microseconds()) / 1000
+					data[i] = []float32{queryingTime, recall}
+					fmt.Printf("{%f,%f},\n", float32(querying.Microseconds())/float32(1000), recall)
+				}
+				results[fmt.Sprintf("Vamana - K: %d (R: %d, L: %d, alpha:%.1f)", k, paramR, paramL, paramAlpha)] = data
+			}
+		}
+	}
+	testinghelpers.ChartData("Recall Vs Latency", "", results, "index.html")
+}
+*/
+
+func TestVamanaAdd(t *testing.T) {
+	fmt.Println("Vamana Add")
+	rand.Seed(0)
+	dimensions := 128
+	vectors_size := 100000
+	queries_size := 1000
+	before := time.Now()
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
+	fmt.Printf("generating data took %s\n", time.Since(before))
+
+	paramsRs := []int{32}
+	paramsLs := []int{50}
+	alphas := []float32{1.2}
+	results := make(map[string][][]float32, 0)
+	for _, paramAlpha := range alphas {
+		for paramIndex := range paramsRs {
+			paramR := paramsRs[paramIndex]
+			paramL := paramsLs[paramIndex]
+			before = time.Now()
+			index := testinghelpers.BuildVamana(
+				paramR,
+				paramL,
+				10000,
+				paramAlpha,
+				1,
+				func(ctx context.Context, id uint64) ([]float32, error) {
+					return vectors[int(id)], nil
+				},
+				uint64(0),
+				ssdhelpers.L2,
+				"./data",
+				dimensions,
+			)
+			index.BuildIndex()
+			for id, v := range vectors {
+				index.Add(uint64(id), v)
+			}
+
+			fmt.Printf("Index built in: %s\n", time.Since(before))
+			Ks := []int{10}
 			L := []int{1, 2, 3, 4, 5, 10}
 			for _, k := range Ks {
 				fmt.Println("K\tL\trecall\t\tquerying")

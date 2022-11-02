@@ -31,12 +31,19 @@ type Stats struct {
 	Hops int
 }
 
+type Vertex struct {
+	Id     uint64
+	Vector []float32
+}
+
 type VamanaData struct {
 	SIndex          uint64 // entry point
 	GraphID         string
 	CachedEdges     map[uint64]*ssdhelpers.VectorWithNeighbors
 	EncondedVectors [][]byte
 	OnDisk          bool
+	Vertices        []Vertex
+	Mean            []float32
 }
 
 type Vamana struct {
@@ -50,7 +57,7 @@ type Vamana struct {
 	pq               *ssdhelpers.ProductQuantizer
 	outNeighbors     func(uint64) ([]uint64, []float32)
 	addRange         func([]uint64)
-	beamSearchHolder func(*Vamana)
+	beamSearchHolder func(*Vamana, []uint64, func([]uint64, ...uint64) []uint64) []uint64
 }
 
 const ConfigFileName = "cfg.gob"
@@ -123,7 +130,7 @@ func (v *Vamana) BuildIndexSharded() {
 	vectorsSize := v.config.VectorsSize
 	shardedGraphs := make([][][]uint64, v.config.ClustersSize)
 
-	ssdhelpers.Concurrently(uint64(len(shards)), func(workerId, taskIndex uint64, mutex *sync.Mutex) {
+	ssdhelpers.Concurrently(uint64(len(shards)), func(_, taskIndex uint64, _ *sync.Mutex) {
 		config := Config{
 			R:     v.config.R,
 			L:     v.config.L,
@@ -173,6 +180,7 @@ func (v *Vamana) BuildIndexSharded() {
 }
 
 func (v *Vamana) BuildIndex() {
+	v.data.Mean = make([]float32, v.config.Dimensions)
 	v.SetL(v.config.L)
 	v.edges = v.makeRandomGraph()
 	v.data.SIndex = v.medoid()
@@ -337,7 +345,7 @@ func (v *Vamana) pass() {
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", x64)))
 		}
-		_, visited := v.greedySearch(q, 1)
+		_, visited := v.greedySearchWithVisited(q, 1)
 		v.robustPrune(x64, visited)
 		n_out_i := v.edges[x]
 		for j := range n_out_i {
@@ -360,7 +368,7 @@ func min(x uint64, y uint64) uint64 {
 
 func (v *Vamana) makeRandomGraph() [][]uint64 {
 	edges := make([][]uint64, v.config.VectorsSize)
-	ssdhelpers.Concurrently(v.config.VectorsSize, func(workerID uint64, i uint64, mutex *sync.Mutex) {
+	ssdhelpers.Concurrently(v.config.VectorsSize, func(_ uint64, i uint64, _ *sync.Mutex) {
 		edges[i] = make([]uint64, v.config.R)
 		for j := 0; j < v.config.R; j++ {
 			edges[i][j] = rand.Uint64() % (v.config.VectorsSize - 1)
@@ -391,7 +399,7 @@ func (v *Vamana) medoid() uint64 {
 	}
 
 	//ToDo: Not really helping like this
-	ssdhelpers.Concurrently(v.config.VectorsSize, func(workerID uint64, i uint64, mutex *sync.Mutex) {
+	ssdhelpers.Concurrently(v.config.VectorsSize, func(_ uint64, i uint64, mutex *sync.Mutex) {
 		x, err := v.config.VectorForIDThunk(context.Background(), i)
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", i)))
@@ -422,16 +430,35 @@ func permutation(n int) []int {
 	return permutation
 }
 
-func (v *Vamana) greedySearch(x []float32, k int) ([]uint64, []uint64) {
+func (v *Vamana) greedySearch(x []float32, k int, allVisited []uint64, updateVisited func([]uint64, ...uint64) []uint64) ([]uint64, []uint64) {
 	v.set.ReCenter(x)
-	v.set.Add(v.data.SIndex)
-	allVisited := []uint64{v.data.SIndex}
+	if v.data.OnDisk {
+		v.set.AddPQVector(v.data.SIndex, v.data.CachedEdges, v.cachedBitMap)
+	} else {
+		v.set.Add(v.data.SIndex)
+	}
+
+	//allVisited := []uint64{v.data.SIndex}
 	for v.set.NotVisited() {
-		nn, _ := v.set.Top()
-		v.set.AddRange(v.edges[nn])
-		allVisited = append(allVisited, nn)
+		allVisited = v.beamSearchHolder(v, allVisited, updateVisited)
+	}
+	if v.data.OnDisk && v.config.BeamSize > 1 {
+		v.beamSearchHolder = initBeamSearch
 	}
 	return v.set.Elements(k), allVisited
+}
+
+func (v *Vamana) greedySearchWithVisited(x []float32, k int) ([]uint64, []uint64) {
+	return v.greedySearch(x, k, []uint64{v.data.SIndex}, func(source []uint64, elements ...uint64) []uint64 {
+		return append(source, elements...)
+	})
+}
+
+func (v *Vamana) greedySearchQuery(x []float32, k int) []uint64 {
+	res, _ := v.greedySearch(x, k, nil, func(source []uint64, elements ...uint64) []uint64 {
+		return nil
+	})
+	return res
 }
 
 func (v *Vamana) addRangeVectors(elements []uint64) {
@@ -442,16 +469,17 @@ func (v *Vamana) addRangePQ(elements []uint64) {
 	v.set.AddRangePQ(elements, v.data.CachedEdges, v.cachedBitMap)
 }
 
-func initBeamSearch(v *Vamana) {
-	secuentialBeamSearch(v)
+func initBeamSearch(v *Vamana, visited []uint64, updateVisited func([]uint64, ...uint64) []uint64) []uint64 {
+	newVisited := secuentialBeamSearch(v, visited, updateVisited)
 	v.beamSearchHolder = beamSearch
+	return newVisited
 }
 
-func beamSearch(v *Vamana) {
+func beamSearch(v *Vamana, visited []uint64, updateVisited func([]uint64, ...uint64) []uint64) []uint64 {
 	tops, indexes := v.set.TopN(v.config.BeamSize)
 	neighbours := make([][]uint64, v.config.BeamSize)
 	vectors := make([][]float32, v.config.BeamSize)
-	ssdhelpers.Concurrently(uint64(len(tops)), func(workerId, i uint64, mutex *sync.Mutex) {
+	ssdhelpers.Concurrently(uint64(len(tops)), func(_, i uint64, _ *sync.Mutex) {
 		neighbours[i], vectors[i] = v.outNeighbors(tops[i])
 	})
 	for i := range indexes {
@@ -459,37 +487,33 @@ func beamSearch(v *Vamana) {
 			v.set.ReSort(indexes[i], vectors[i])
 		}
 		v.addRange(neighbours[i])
+		visited = updateVisited(visited, neighbours[i]...)
 	}
+	return visited
 }
 
-func secuentialBeamSearch(v *Vamana) {
+func secuentialBeamSearch(v *Vamana, visited []uint64, updateVisited func([]uint64, ...uint64) []uint64) []uint64 {
 	top, index := v.set.Top()
 	neighbours, vector := v.outNeighbors(top)
 	if vector != nil {
 		v.set.ReSort(index, vector)
 	}
 	v.addRange(neighbours)
-}
-
-func (v *Vamana) greedySearchQuery(x []float32, k int) []uint64 {
-	v.set.ReCenter(x)
-	if v.data.OnDisk {
-		v.set.AddPQVector(v.data.SIndex, v.data.CachedEdges, v.cachedBitMap)
-	} else {
-		v.set.Add(v.data.SIndex)
-	}
-
-	for v.set.NotVisited() {
-		v.beamSearchHolder(v)
-	}
-	if v.data.OnDisk && v.config.BeamSize > 1 {
-		v.beamSearchHolder = initBeamSearch
-	}
-	return v.set.Elements(k)
+	visited = updateVisited(visited, neighbours...)
+	return visited
 }
 
 func (v *Vamana) outNeighborsFromMemory(x uint64) ([]uint64, []float32) {
 	return v.edges[x], nil
+}
+
+func (v *Vamana) VectorFromDisk(x uint64) []float32 {
+	cached, found := v.data.CachedEdges[x]
+	if found {
+		return cached.Vector
+	}
+	_, vector := ssdhelpers.ReadGraphRowWithBinary(v.graphFile, x, v.config.R, v.config.Dimensions)
+	return vector
 }
 
 func (v *Vamana) OutNeighborsFromDisk(x uint64) ([]uint64, []float32) {
@@ -544,13 +568,16 @@ func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int) {
 	if v.config.BeamSize > 1 {
 		v.beamSearchHolder = initBeamSearch
 	}
+	v.config.VectorForIDThunk = func(_ context.Context, id uint64) ([]float32, error) {
+		return v.VectorFromDisk(id), nil
+	}
 }
 
 func (v *Vamana) encondeVectors(segments int, centroids int) [][]byte {
 	v.pq = ssdhelpers.NewProductQunatizer(segments, centroids, v.config.Distance, v.config.VectorForIDThunk, v.config.Dimensions, int(v.config.VectorsSize))
 	v.pq.Fit()
 	enconded := make([][]byte, v.config.VectorsSize)
-	ssdhelpers.Concurrently(v.config.VectorsSize, func(workerID uint64, vIndex uint64, mutex *sync.Mutex) {
+	ssdhelpers.Concurrently(v.config.VectorsSize, func(_ uint64, vIndex uint64, _ *sync.Mutex) {
 		found := v.cachedBitMap.Contains(vIndex)
 		if found {
 			enconded[vIndex] = nil
@@ -623,4 +650,51 @@ func (v *Vamana) closest(x []float32, set *Set2) *IndexAndDistance {
 		}
 	}
 	return indice
+}
+
+func (v *Vamana) addOutNeighbor(id uint64, neighbor uint64) {
+	if v.data.OnDisk {
+		panic("Not implemented yet")
+	}
+
+	v.edges[id] = append(v.edges[id], neighbor)
+	if len(v.edges[id]) > v.config.R {
+		v.robustPrune(id, v.edges[id])
+	}
+}
+
+func (v *Vamana) addVectorAndOutNeighbors(id uint64, vector []float32, outneighbors []uint64) {
+	v.config.VectorsSize++
+	if v.data.OnDisk {
+		panic("Not implemented yet")
+	}
+
+	v.data.Vertices = append(v.data.Vertices, Vertex{Id: id, Vector: vector})
+	v.edges = append(v.edges, outneighbors)
+}
+
+func (v *Vamana) updateEntryPointAfterAdd(vector []float32) {
+	size := float32(v.config.VectorsSize)
+	for i := range v.data.Mean {
+		v.data.Mean[i] = (v.data.Mean[i]*(size-1) + vector[i]) / size
+	}
+	v.data.SIndex = v.greedySearchQuery(v.data.Mean, 1)[0]
+}
+
+func (v *Vamana) Add(id uint64, vector []float32) error {
+	v.SetL(v.config.L)
+	v.addVectorAndOutNeighbors(id, vector, make([]uint64, 0))
+	_, visited := v.greedySearchWithVisited(vector, 1)
+	v.robustPrune(id, visited)
+	out, _ := v.outNeighbors(id)
+	for _, x := range out {
+		v.addOutNeighbor(x, id)
+	}
+	v.updateEntryPointAfterAdd(vector)
+	return nil
+}
+
+func (i *Vamana) Delete(id uint64) error {
+	// silently ignore
+	return nil
 }
