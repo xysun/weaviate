@@ -100,8 +100,16 @@ func BuildVamana(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.Vector
 	return index
 }
 
+func minInt(x int, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
 func (v *Vamana) SetCacheSize(size int) {
-	v.config.C = size
+	v.config.C = minInt(size, int(v.config.VectorsSize))
+	v.config.OriginalCacheSize = size
 }
 
 func (v *Vamana) SetBeamSize(size int) {
@@ -599,9 +607,10 @@ func elementsFromMap(set map[uint64]struct{}) []uint64 {
 	return res
 }
 
-func (v *Vamana) robustPrune(p uint64, visited []uint64) {
+func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
 	visitedSet := NewSet2()
-	visitedSet.AddRange(visited).AddRange(v.edges[p]).Remove(p)
+	outneighbors, _ := v.outNeighbors(p)
+	visitedSet.AddRange(visited).AddRange(outneighbors).Remove(p)
 	qP, err := v.config.VectorForIDThunk(context.Background(), p)
 	if err != nil {
 		panic(err)
@@ -628,7 +637,10 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) {
 			}
 		}
 	}
-	v.edges[p] = out.Elements()
+
+	elements := out.Elements()
+	v.updateOutNeighbors(p, elements)
+	return elements
 }
 
 func (v *Vamana) closest(x []float32, set *Set2) *IndexAndDistance {
@@ -654,7 +666,21 @@ func (v *Vamana) closest(x []float32, set *Set2) *IndexAndDistance {
 
 func (v *Vamana) addOutNeighbor(id uint64, neighbor uint64) {
 	if v.data.OnDisk {
-		panic("Not implemented yet")
+		cached, found := v.data.CachedEdges[id]
+		if found {
+			cached.OutNeighbors = append(cached.OutNeighbors, neighbor)
+			if len(cached.OutNeighbors) > v.config.R {
+				v.robustPrune(id, cached.OutNeighbors)
+			}
+			return
+		}
+		outneighbors, vector := ssdhelpers.ReadGraphRowWithBinary(v.graphFile, id, v.config.R, v.config.Dimensions)
+		outneighbors = append(outneighbors, neighbor)
+		if len(outneighbors) > v.config.R {
+			v.robustPrune(id, outneighbors)
+			return
+		}
+		ssdhelpers.WriteRowToGraphWithBinary(v.graphFile, v.config.VectorsSize, v.config.R, v.config.Dimensions, vector, outneighbors)
 	}
 
 	v.edges[id] = append(v.edges[id], neighbor)
@@ -666,11 +692,32 @@ func (v *Vamana) addOutNeighbor(id uint64, neighbor uint64) {
 func (v *Vamana) addVectorAndOutNeighbors(id uint64, vector []float32, outneighbors []uint64) {
 	v.config.VectorsSize++
 	if v.data.OnDisk {
-		panic("Not implemented yet")
+		if v.config.C < v.config.OriginalCacheSize {
+			v.data.CachedEdges[v.config.VectorsSize-1] = &ssdhelpers.VectorWithNeighbors{Vector: vector, OutNeighbors: outneighbors}
+			v.config.C++
+			return
+		}
+
+		ssdhelpers.WriteRowToGraphWithBinary(v.graphFile, v.config.VectorsSize, v.config.R, v.config.Dimensions, vector, outneighbors)
+		return
 	}
 
 	v.data.Vertices = append(v.data.Vertices, Vertex{Id: id, Vector: vector})
 	v.edges = append(v.edges, outneighbors)
+}
+
+func (v *Vamana) updateOutNeighbors(id uint64, outneighbors []uint64) {
+	if v.data.OnDisk {
+		cached, found := v.data.CachedEdges[id]
+		if found {
+			cached.OutNeighbors = outneighbors
+			return
+		}
+
+		ssdhelpers.WriteOutNeighborsToGraphWithBinary(v.graphFile, id, v.config.R, v.config.Dimensions, outneighbors)
+		return
+	}
+	v.edges[id] = outneighbors
 }
 
 func (v *Vamana) updateEntryPointAfterAdd(vector []float32) {
@@ -683,6 +730,7 @@ func (v *Vamana) updateEntryPointAfterAdd(vector []float32) {
 
 func (v *Vamana) Add(id uint64, vector []float32) error {
 	v.SetL(v.config.L)
+	//ToDo: should use position and not id...
 	v.addVectorAndOutNeighbors(id, vector, make([]uint64, 0))
 	_, visited := v.greedySearchWithVisited(vector, 1)
 	v.robustPrune(id, visited)

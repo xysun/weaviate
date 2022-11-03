@@ -161,8 +161,13 @@ func TestVamanaAdd(t *testing.T) {
 				dimensions,
 			)
 			index.BuildIndex()
-			for id, v := range vectors {
-				index.Add(uint64(id), v)
+			switchAt := 99500
+			for id := 0; id < switchAt; id++ {
+				index.Add(uint64(id), vectors[id])
+			}
+			index.SwitchGraphToDisk("data/test.praph", 64, 255)
+			for id := switchAt; id < len(vectors); id++ {
+				index.Add(uint64(id), vectors[id])
 			}
 
 			fmt.Printf("Index built in: %s\n", time.Since(before))

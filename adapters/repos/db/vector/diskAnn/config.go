@@ -26,5 +26,6 @@ type Config struct {
 	ClusterOverlapping int
 	Dimensions         int
 	C                  int
+	OriginalCacheSize  int
 	BeamSize           int
 }

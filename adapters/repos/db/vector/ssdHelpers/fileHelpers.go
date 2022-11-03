@@ -26,6 +26,23 @@ func DumpGraphToDiskWithBinary(path string, edges [][]uint64, r int, vectorForID
 	}
 }
 
+func WriteRowToGraphWithBinary(f *os.File, position uint64, r int, dimensions int, vector []float32, outNeighbors []uint64) {
+	vectorSize := dimensions * 4
+	f.Seek((int64(r*8+vectorSize))*int64(position), 0)
+	data := make([]byte, r*8+vectorSize)
+	bytesFromFloat32s(vector, data)
+	bytesFromUint64s(outNeighbors, data[vectorSize:])
+	f.Write(data)
+}
+
+func WriteOutNeighborsToGraphWithBinary(f *os.File, position uint64, r int, dimensions int, outNeighbors []uint64) {
+	vectorSize := dimensions * 4
+	f.Seek((int64(r*8+vectorSize))*int64(position)+int64(vectorSize), 0)
+	data := make([]byte, r*8)
+	bytesFromUint64s(outNeighbors, data)
+	f.Write(data)
+}
+
 func DumpGraphToDisk(path string, edges [][]uint64, r int, vectorForIDThunk VectorForID) {
 	f, err := os.Create(path)
 	if err != nil {
