@@ -400,7 +400,7 @@ func (v *Vamana) pass() {
 		if err != nil {
 			panic(errors.Wrap(err, fmt.Sprintf("Could not fetch vector with id %d", x64)))
 		}
-		_, visited := v.greedySearchWithVisited(q, 1)
+		_, visited, _ := v.greedySearchWithVisited(q, 1)
 		v.robustPrune(x64, visited)
 		n_out_i := v.edges[x]
 		for j := range n_out_i {
@@ -492,7 +492,7 @@ func permutation(n int) []int {
 	return permutation
 }
 
-func (v *Vamana) greedySearch(x []float32, k int, allVisited []uint64, updateVisited func([]uint64, ...uint64) []uint64) ([]uint64, []uint64) {
+func (v *Vamana) greedySearch(x []float32, k int, allVisited []uint64, updateVisited func([]uint64, ...uint64) []uint64) ([]uint64, []uint64, []float32) {
 	v.set.ReCenter(x, v.data.OnDisk)
 	if v.data.OnDisk {
 		v.set.AddPQVector(v.data.SIndex, v.data.CachedEdges, v.cachedBitMap)
@@ -507,21 +507,21 @@ func (v *Vamana) greedySearch(x []float32, k int, allVisited []uint64, updateVis
 	if v.data.OnDisk && v.userConfig.BeamSize > 1 {
 		v.beamSearchHolder = initBeamSearch
 	}
-	indices, _ := v.set.Elements(k)
-	return indices, allVisited
+	indices, distances := v.set.Elements(k)
+	return indices, allVisited, distances
 }
 
-func (v *Vamana) greedySearchWithVisited(x []float32, k int) ([]uint64, []uint64) {
+func (v *Vamana) greedySearchWithVisited(x []float32, k int) ([]uint64, []uint64, []float32) {
 	return v.greedySearch(x, k, []uint64{v.data.SIndex}, func(source []uint64, elements ...uint64) []uint64 {
 		return append(source, elements...)
 	})
 }
 
-func (v *Vamana) greedySearchQuery(x []float32, k int) []uint64 {
-	res, _ := v.greedySearch(x, k, nil, func(source []uint64, elements ...uint64) []uint64 {
+func (v *Vamana) greedySearchQuery(x []float32, k int) ([]uint64, []float32) {
+	res, _, distances := v.greedySearch(x, k, nil, func(source []uint64, elements ...uint64) []uint64 {
 		return nil
 	})
-	return res
+	return res, distances
 }
 
 func (v *Vamana) addRangeVectors(elements []uint64) {
@@ -780,14 +780,15 @@ func (v *Vamana) updateEntryPointAfterAdd(vector []float32) {
 	for i := range v.data.Mean {
 		v.data.Mean[i] = (v.data.Mean[i]*(size-1) + vector[i]) / size
 	}
-	v.data.SIndex = v.greedySearchQuery(v.data.Mean, 1)[0]
+	indexes, _ := v.greedySearchQuery(v.data.Mean, 1)
+	v.data.SIndex = indexes[0]
 }
 
 func (v *Vamana) Add(id uint64, vector []float32) error {
 	v.SetL(v.userConfig.L)
 	//ToDo: should use position and not id...
 	v.addVectorAndOutNeighbors(id, vector, make([]uint64, 0))
-	_, visited := v.greedySearchWithVisited(vector, 1)
+	_, visited, _ := v.greedySearchWithVisited(vector, 1)
 	v.robustPrune(id, visited)
 	out, _ := v.outNeighbors(id)
 	for _, x := range out {
