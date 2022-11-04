@@ -14,14 +14,19 @@ package diskAnn_test
 import (
 	"context"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
 )
@@ -134,7 +139,7 @@ func TestVamanaAdd(t *testing.T) {
 	vectors_size := 100000
 	queries_size := 1000
 	before := time.Now()
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
 	fmt.Printf("generating data took %s\n", time.Since(before))
 
 	paramsRs := []int{32}
@@ -146,7 +151,7 @@ func TestVamanaAdd(t *testing.T) {
 			paramR := paramsRs[paramIndex]
 			paramL := paramsLs[paramIndex]
 			before = time.Now()
-			index := testinghelpers.BuildVamana(
+			index := diskAnn.BuildVamana(
 				paramR,
 				paramL,
 				10000,
@@ -159,6 +164,8 @@ func TestVamanaAdd(t *testing.T) {
 				ssdhelpers.L2,
 				"./data",
 				dimensions,
+				64,
+				255,
 			)
 			index.BuildIndex()
 			switchAt := 99500
@@ -385,6 +392,125 @@ func TestChartsRestrictedMemory(t *testing.T) {
 		{6629.953125, 0.999790},
 	}
 	testinghelpers.ChartData("Recall vs Latency (restricted memory)", "", results, "local-memory.html")
+}
+
+func initClass(url string) {
+	payload := strings.NewReader(`{
+        "class": "Article",
+        "description": "A written text, for example a news article or blog post",
+        "properties": [
+            {
+            "dataType": [
+                "string"
+            ],
+            "description": "Title of the article",
+            "name": "title"
+            },
+            {
+            "dataType": [
+                "text"
+            ],
+            "description": "The content of the article",
+            "name": "content"
+            }
+        ],
+        "vectorIndexType": "vamana",
+        "vectorIndexConfig": {
+          "radius": 50,
+          "dimensions":4,
+          "path": "vamana",
+          "segments": 64,
+          "centroids": 255,
+          "dimensions": 128
+        }
+    }`)
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/%s", url, "schema"), payload)
+	req.Header.Add("content-type", "application/json")
+	res, _ := http.DefaultClient.Do(req)
+
+	defer res.Body.Close()
+
+	body, _ := ioutil.ReadAll(res.Body)
+
+	fmt.Println(string(body))
+}
+
+func sendVector(url string, vector []float32) {
+	j, _ := json.Marshal(vector)
+	payload := strings.NewReader(fmt.Sprintf("%s%s%s",
+		`{
+			"class": "Article",
+			"vector": `, j,
+		`}`))
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/%s", url, "objects"), payload)
+	req.Header.Add("content-type", "application/json")
+	res, _ := http.DefaultClient.Do(req)
+
+	defer res.Body.Close()
+
+	body, _ := ioutil.ReadAll(res.Body)
+
+	fmt.Println(string(body))
+}
+
+func sendSwitchToDisk(url string) {
+	payload := strings.NewReader(`{
+        "class": "Article",
+        "description": "A written text, for example a news article or blog post",
+        "properties": [
+            {
+            "dataType": [
+                "string"
+            ],
+            "description": "Title of the article",
+            "name": "title"
+            },
+            {
+            "dataType": [
+                "text"
+            ],
+            "description": "The content of the article",
+            "name": "content"
+            }
+        ],
+        "vectorIndexType": "vamana",
+        "vectorIndexConfig": {
+          "disk": true
+        }
+    }`)
+
+	req, _ := http.NewRequest("PUT", fmt.Sprintf("%s/%s", url, "schema"), payload)
+	req.Header.Add("content-type", "application/json")
+	res, _ := http.DefaultClient.Do(req)
+
+	defer res.Body.Close()
+
+	body, _ := ioutil.ReadAll(res.Body)
+
+	fmt.Println(string(body))
+}
+
+func TestFixtures(t *testing.T) {
+	url := "http://localhost:8080/v1"
+
+	initClass(url)
+
+	vectors_size := 100000
+	queries_size := 1000
+	before := time.Now()
+	vectors, _ /*queries*/ := testinghelpers.ReadVecs(vectors_size, queries_size, "adapters/handlers/repos/db/vector/diskAnn")
+	fmt.Printf("generating data took %s\n", time.Since(before))
+
+	switchAt := 99500
+	for id := 0; id < switchAt; id++ {
+		sendVector(url, vectors[id])
+	}
+	sendSwitchToDisk(url)
+	for id := switchAt; id < len(vectors); id++ {
+		sendVector(url, vectors[id])
+	}
 }
 
 func TestChartsDisk(t *testing.T) {

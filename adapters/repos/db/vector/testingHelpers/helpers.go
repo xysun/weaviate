@@ -90,15 +90,19 @@ func ReadSiftVecsFrom(path string, size int) [][]float32 {
 	return vectors
 }
 
-func ReadVecs(size int, dimensions int, queriesSize int) ([][]float32, [][]float32) {
+func ReadVecs(size int, queriesSize int, path ...string) ([][]float32, [][]float32) {
 	fmt.Printf("generating %d vectors...", size+queriesSize)
-	vectors := readSiftFloat("sift/sift_base.fvecs", size)
-	queries := readSiftFloat("sift/sift_query.fvecs", queriesSize)
+	uri := "sift"
+	if len(path) > 0 {
+		uri = fmt.Sprintf("%s/%s", path, uri)
+	}
+	vectors := readSiftFloat(fmt.Sprintf("%s/%s", uri, "sift_base.fvecs"), size)
+	queries := readSiftFloat(fmt.Sprintf("%s/%s", uri, "sift_query.fvecs"), queriesSize)
 	fmt.Printf(" done\n")
 	return vectors, queries
 }
 
-func ReadQueries(dimensions int, queriesSize int) [][]float32 {
+func ReadQueries(queriesSize int) [][]float32 {
 	fmt.Printf("generating %d vectors...", queriesSize)
 	queries := readSiftFloat("sift/sift_query.fvecs", queriesSize)
 	fmt.Printf(" done\n")
