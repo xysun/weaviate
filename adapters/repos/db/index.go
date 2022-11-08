@@ -280,7 +280,7 @@ func (i *Index) putObject(ctx context.Context, object *storobj.Object) error {
 			return errors.Wrapf(err, "shard %s", shard.ID())
 		}
 		if shardingState.Config.Replicas > 1 {
-			err = i.remote.ReplicateInsertion(ctx, i.getSchema.NodeName(), shardName, object)
+			err = i.remote.ReplicatePutObject(ctx, i.getSchema.NodeName(), shardName, object)
 			if err != nil {
 				return fmt.Errorf("failed to relay object put across replicas: %w", err)
 			}
@@ -441,16 +441,25 @@ func (i *Index) putObjectBatch(ctx context.Context,
 		go func(shardName string, group objsAndPos) {
 			defer wg.Done()
 
-			local := i.getSchema.
-				ShardingState(i.Config.ClassName.String()).
-				IsShardLocal(shardName)
+			shardingState := i.getSchema.
+				ShardingState(i.Config.ClassName.String())
 
 			var errs []error
-			if !local {
+			if !shardingState.IsShardLocal(shardName) {
 				errs = i.remote.BatchPutObjects(ctx, shardName, group.objects)
 			} else {
+				if shardingState.Config.Replicas > 1 {
+					errs = i.remote.ReplicateBatchPutObjects(ctx, i.getSchema.NodeName(), shardName, group.objects)
+				}
 				shard := i.Shards[shardName]
-				errs = shard.putObjectBatch(ctx, group.objects)
+				localErrs := shard.putObjectBatch(ctx, group.objects)
+				for i := range errs {
+					// TODO: only return the first encountered error for each position
+					//       there are probably better ways to do this
+					if errs[i] == nil && localErrs[i] != nil {
+						errs[i] = localErrs[i]
+					}
+				}
 			}
 			for i, err := range errs {
 				desiredPos := group.pos[i]
@@ -1278,6 +1287,12 @@ func (ri *replicatedIndex) PutObject(ctx context.Context, shardName string,
 	object *storobj.Object,
 ) error {
 	return (*Index)(ri).IncomingPutObject(ctx, shardName, object)
+}
+
+func (ri *replicatedIndex) BatchPutObjects(ctx context.Context, shardName string,
+	objects []*storobj.Object,
+) []error {
+	return (*Index)(ri).IncomingBatchPutObjects(ctx, shardName, objects)
 }
 
 func (ri *replicatedIndex) DeleteObject(ctx context.Context, shardName string,
