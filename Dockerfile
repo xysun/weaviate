@@ -37,5 +37,8 @@ FROM alpine AS weaviate
 ENTRYPOINT ["/bin/weaviate"]
 COPY --from=server_builder /weaviate-server /bin/weaviate
 COPY --from=build_base /etc/ssl/certs /etc/ssl/certs
+ENV PERSISTENCE_DATA_PATH=/var/lib/weaviate
+EXPOSE 8080
+EXPOSE 2112
 RUN mkdir ./modules
 CMD [ "--host", "0.0.0.0", "--port", "8080", "--scheme", "http"]
