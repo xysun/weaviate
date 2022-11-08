@@ -59,14 +59,13 @@ func loadQueries(queries_size int) [][]float32 {
 	return queries
 }
 
-/*
 func TestBigDataVamana(t *testing.T) {
 	rand.Seed(0)
 	dimensions := 128
 	vectors_size := 100000
 	queries_size := 1000
 	before := time.Now()
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
 
 	//var vectors [][]float32 = nil
 	//queries := testinghelpers.ReadQueries(dimensions, queries_size)
@@ -95,6 +94,8 @@ func TestBigDataVamana(t *testing.T) {
 				ssdhelpers.L2,
 				"./data",
 				dimensions,
+				64,
+				255,
 			)
 
 			fmt.Printf("Index built in: %s\n", time.Since(before))
@@ -113,7 +114,7 @@ func TestBigDataVamana(t *testing.T) {
 					var querying time.Duration = 0
 					for i := 0; i < len(queries); i++ {
 						before = time.Now()
-						results := index.SearchByVector(queries[i], k)
+						results, _, _ := index.SearchByVector(queries[i], k, nil)
 						querying += time.Since(before)
 						retrieved += k
 						relevant += testinghelpers.MatchesInLists(truths[i], results)
@@ -130,13 +131,12 @@ func TestBigDataVamana(t *testing.T) {
 	}
 	testinghelpers.ChartData("Recall Vs Latency", "", results, "index.html")
 }
-*/
 
 func TestVamanaAdd(t *testing.T) {
 	fmt.Println("Vamana Add")
 	rand.Seed(0)
 	dimensions := 128
-	vectors_size := 100000
+	vectors_size := 1000000
 	queries_size := 1000
 	before := time.Now()
 	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
@@ -154,13 +154,13 @@ func TestVamanaAdd(t *testing.T) {
 			index := diskAnn.BuildVamana(
 				paramR,
 				paramL,
-				10000,
+				10,
 				paramAlpha,
 				1,
 				func(ctx context.Context, id uint64) ([]float32, error) {
 					return vectors[int(id)], nil
 				},
-				uint64(0),
+				0,
 				ssdhelpers.L2,
 				"./data",
 				dimensions,
@@ -168,13 +168,20 @@ func TestVamanaAdd(t *testing.T) {
 				255,
 			)
 			index.BuildIndex()
-			switchAt := 99500
+			switchAt := 100001
 			for id := 0; id < switchAt; id++ {
 				index.Add(uint64(id), vectors[id])
+				if id%10000 == 0 {
+					fmt.Println(id, time.Since(before))
+				}
 			}
+			fmt.Println("Moving index to disk")
 			index.SwitchGraphToDisk("data/test.praph", 64, 255)
 			for id := switchAt; id < len(vectors); id++ {
 				index.Add(uint64(id), vectors[id])
+				if id%10000 == 0 {
+					fmt.Println(id, time.Since(before))
+				}
 			}
 
 			fmt.Printf("Index built in: %s\n", time.Since(before))
@@ -417,11 +424,12 @@ func initClass(url string) {
         "vectorIndexType": "vamana",
         "vectorIndexConfig": {
           "radius": 50,
-          "dimensions":4,
+		  "list": 125,
           "path": "vamana",
           "segments": 64,
           "centroids": 255,
-          "dimensions": 128
+          "dimensions": 128,
+		  "vectorIndexCache": 10
         }
     }`)
 
@@ -436,7 +444,7 @@ func initClass(url string) {
 	fmt.Println(string(body))
 }
 
-func sendVector(url string, vector []float32) {
+func sendVector(url string, vector []float32) string {
 	j, _ := json.Marshal(vector)
 	payload := strings.NewReader(fmt.Sprintf("%s%s%s",
 		`{
@@ -452,13 +460,13 @@ func sendVector(url string, vector []float32) {
 
 	body, _ := ioutil.ReadAll(res.Body)
 
-	fmt.Println(string(body))
+	return string(body)
 }
 
 func sendSwitchToDisk(url string) {
 	payload := strings.NewReader(`{
         "class": "Article",
-        "description": "A written text, for example a news article or blog post",
+		"description": "A written text, for example a news article or blog post",
         "properties": [
             {
             "dataType": [
@@ -481,7 +489,7 @@ func sendSwitchToDisk(url string) {
         }
     }`)
 
-	req, _ := http.NewRequest("PUT", fmt.Sprintf("%s/%s", url, "schema"), payload)
+	req, _ := http.NewRequest("PUT", fmt.Sprintf("%s/%s", url, "schema/Article"), payload)
 	req.Header.Add("content-type", "application/json")
 	res, _ := http.DefaultClient.Do(req)
 
@@ -497,20 +505,32 @@ func TestFixtures(t *testing.T) {
 
 	initClass(url)
 
-	vectors_size := 100000
+	vectors_size := 1000000
 	queries_size := 1000
 	before := time.Now()
-	vectors, _ /*queries*/ := testinghelpers.ReadVecs(vectors_size, queries_size, "adapters/handlers/repos/db/vector/diskAnn")
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
+	fmt.Println(queries[0])
 	fmt.Printf("generating data took %s\n", time.Since(before))
-
-	switchAt := 99500
+	switchAt := 1000000
+	before = time.Now()
 	for id := 0; id < switchAt; id++ {
 		sendVector(url, vectors[id])
+		if id%10000 == 0 {
+			fmt.Println(id, time.Since(before))
+		}
 	}
+	fmt.Printf("sending data (in memory) took %s\n", time.Since(before))
+	before = time.Now()
 	sendSwitchToDisk(url)
+	fmt.Printf("switching to disk took %s\n", time.Since(before))
+	before = time.Now()
 	for id := switchAt; id < len(vectors); id++ {
 		sendVector(url, vectors[id])
+		if id%10000 == 0 {
+			fmt.Println(id, time.Since(before))
+		}
 	}
+	fmt.Printf("sending data (on disk) took %s\n", time.Since(before))
 }
 
 func TestChartsDisk(t *testing.T) {

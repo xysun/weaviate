@@ -49,13 +49,13 @@ func (config UserConfig) IndexType() string {
 func NewUserConfig() UserConfig {
 	return UserConfig{
 		R:                  32,
-		L:                  125,
+		L:                  50,
 		Alpha:              1.2,
 		ClustersSize:       40,
 		ClusterOverlapping: 2,
 		C:                  10000,
 		BeamSize:           1,
-		Dimensions:         4,
+		Dimensions:         0,
 		VectorsSize:        0,
 		Centroids:          255,
 		Segments:           4,

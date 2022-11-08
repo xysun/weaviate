@@ -35,24 +35,15 @@ type Stats struct {
 	Hops int
 }
 
-type Vertex struct {
-	Id     uint64
-	Vector []float32
-}
-
 type VamanaData struct {
 	SIndex          uint64 // entry point
 	GraphID         string
 	CachedEdges     map[uint64]*ssdhelpers.VectorWithNeighbors
 	EncondedVectors [][]byte
 	OnDisk          bool
-	Vertices        []Vertex
+	Ids             []uint64
+	Vectors         [][]float32
 	Mean            []float32
-}
-
-type Vector struct {
-	id     uint64
-	coords []float32
 }
 
 type Vamana struct {
@@ -115,6 +106,9 @@ func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDTh
 			Segments:           segments,
 			Centroids:          centroids,
 		})
+	index.config.VectorForIDThunk = func(ctx context.Context, id uint64) ([]float32, error) {
+		return index.data.Vectors[id], nil
+	}
 	index.SetCacheSize(C)
 	index.BuildIndex()
 	if toDisk {
@@ -252,9 +246,9 @@ func (v *Vamana) SetL(L int) {
 
 func (v *Vamana) SearchByVector(query []float32, k int, allow helpers.AllowList) ([]uint64, []float32, error) {
 	ids, distances := v.greedySearchQuery(query, k)
-	if v.data.Vertices != nil {
+	if v.data.Ids != nil {
 		for i := 0; i < len(ids); i++ {
-			ids[i] = v.data.Vertices[ids[i]].Id
+			ids[i] = v.data.Ids[ids[i]]
 		}
 	}
 	return ids, distances, nil
@@ -634,6 +628,7 @@ func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int) {
 	v.config.VectorForIDThunk = func(_ context.Context, id uint64) ([]float32, error) {
 		return v.VectorFromDisk(id), nil
 	}
+	v.data.Vectors = nil
 }
 
 func (v *Vamana) encondeVectors(segments int, centroids int) [][]byte {
@@ -757,7 +752,7 @@ func (v *Vamana) addVectorAndOutNeighbors(id uint64, vector []float32, outneighb
 		return
 	}
 
-	v.data.Vertices = append(v.data.Vertices, Vertex{Id: id, Vector: vector})
+	v.data.Ids = append(v.data.Ids, id)
 	v.edges = append(v.edges, outneighbors)
 }
 
@@ -780,11 +775,14 @@ func (v *Vamana) updateEntryPointAfterAdd(vector []float32) {
 	for i := range v.data.Mean {
 		v.data.Mean[i] = (v.data.Mean[i]*(size-1) + vector[i]) / size
 	}
+	v.SetL(3)
 	indexes, _ := v.greedySearchQuery(v.data.Mean, 1)
+	v.SetL(v.userConfig.L)
 	v.data.SIndex = indexes[0]
 }
 
 func (v *Vamana) Add(id uint64, vector []float32) error {
+	v.data.Vectors = append(v.data.Vectors, vector)
 	v.SetL(v.userConfig.L)
 	//ToDo: should use position and not id...
 	v.addVectorAndOutNeighbors(id, vector, make([]uint64, 0))
@@ -816,10 +814,6 @@ func (i *Vamana) UpdateUserConfig(updated schema.VectorIndexConfig) error {
 		i.SwitchGraphToDisk(fmt.Sprintf("%s.graph", i.userConfig.Path), i.userConfig.Segments, i.userConfig.Centroids)
 		i.ToDisk(i.userConfig.Path)
 	}
-	i.config.VectorForIDThunk = func(ctx context.Context, id uint64) ([]float32, error) {
-		return i.data.Vertices[id].Vector, nil
-	}
-	i.BuildIndex()
 	return nil
 }
 
