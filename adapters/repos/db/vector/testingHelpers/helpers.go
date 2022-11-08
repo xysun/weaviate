@@ -94,7 +94,7 @@ func ReadVecs(size int, queriesSize int, path ...string) ([][]float32, [][]float
 	fmt.Printf("generating %d vectors...", size+queriesSize)
 	uri := "sift"
 	if len(path) > 0 {
-		uri = fmt.Sprintf("%s/%s", path, uri)
+		uri = fmt.Sprintf("%s/%s", path[0], uri)
 	}
 	vectors := readSiftFloat(fmt.Sprintf("%s/%s", uri, "sift_base.fvecs"), size)
 	queries := readSiftFloat(fmt.Sprintf("%s/%s", uri, "sift_query.fvecs"), queriesSize)

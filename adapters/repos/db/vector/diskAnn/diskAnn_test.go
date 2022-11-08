@@ -511,7 +511,7 @@ func TestFixtures(t *testing.T) {
 	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
 	fmt.Println(queries[0])
 	fmt.Printf("generating data took %s\n", time.Since(before))
-	switchAt := 1000000
+	switchAt := 10001
 	before = time.Now()
 	for id := 0; id < switchAt; id++ {
 		sendVector(url, vectors[id])
