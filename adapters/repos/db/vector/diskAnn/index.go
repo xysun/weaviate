@@ -317,7 +317,7 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 		index.graphFile, _ = os.Open(index.data.GraphID)
 	} else {
 		index.getOutNeighbors = index.outNeighborsFromMemory
-		index.setOutNeighbors = index.OutNeighborsToDisk
+		index.setOutNeighbors = index.outNeighborsToMemory
 		index.addRange = index.addRangeVectors
 	}
 	return index
@@ -623,23 +623,23 @@ func (v *Vamana) getVector(id uint64) []float32 {
 }
 
 func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
-	visitedSet := NewNaiveSet()
+	visitedSet := ssdhelpers.NewNaiveSet(int(v.userConfig.VectorsSize))
 	outneighbors, _ := v.getOutNeighbors(p)
 	visitedSet.AddRange(visited).AddRange(outneighbors).Remove(p)
 	qP := v.getVector(p)
 	out := ssdhelpers.NewFullBitSet(int(v.userConfig.VectorsSize))
 	for visitedSet.Size() > 0 {
-		pMin := v.closest(qP, visitedSet)
-		out.Add(pMin.index)
-		qPMin := v.getVector(pMin.index)
+		pMin := v.closest(qP, visitedSet).GetIndex()
+		out.Add(pMin)
+		qPMin := v.getVector(pMin)
 		if out.Size() == v.userConfig.R {
 			break
 		}
 
-		for _, x := range visitedSet.items {
-			qX := v.getVector(x.index)
-			if (v.userConfig.Alpha * v.config.Distance(qPMin, qX)) <= x.distance {
-				visitedSet.Remove(x.index)
+		for _, x := range visitedSet.GetItems() {
+			qX := v.getVector(x.GetIndex())
+			if (v.userConfig.Alpha * v.config.Distance(qPMin, qX)) <= x.GetDistance() {
+				visitedSet.Remove(x.GetIndex())
 			}
 		}
 	}
@@ -647,15 +647,15 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
 	return out.Elements()
 }
 
-func (v *Vamana) closest(x []float32, set *NaiveSet) *IndexAndDistance {
+func (v *Vamana) closest(x []float32, set *ssdhelpers.NaiveSet) *ssdhelpers.IndexAndDistance {
 	var min float32 = math.MaxFloat32
-	var indice *IndexAndDistance = nil
-	for _, element := range set.items {
-		distance := element.distance
+	var indice *ssdhelpers.IndexAndDistance = nil
+	for _, element := range set.GetItems() {
+		distance := element.GetDistance()
 		if distance == 0 {
-			qi := v.getVector(element.index)
+			qi := v.getVector(element.GetIndex())
 			distance = v.config.Distance(qi, x)
-			element.distance = distance
+			element.SetDistance(distance)
 		}
 		if min > distance {
 			min = distance

@@ -31,6 +31,65 @@ import (
 	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
 )
 
+func TestRecall(t *testing.T) {
+	rand.Seed(0)
+	dimensions := 128
+	vectors_size := 100000
+	queries_size := 1000
+	before := time.Now()
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
+	fmt.Printf("generating data took %s\n", time.Since(before))
+
+	before = time.Now()
+	index := diskAnn.BuildVamana(
+		32,
+		50,
+		10,
+		1.2,
+		1,
+		func(ctx context.Context, id uint64) ([]float32, error) {
+			return vectors[int(id)], nil
+		},
+		0,
+		ssdhelpers.L2,
+		"./data",
+		dimensions,
+		64,
+		255,
+	)
+	index.BuildIndex()
+	for id := 0; id < vectors_size; id++ {
+		index.Add(uint64(id), vectors[id])
+		if id%10000 == 0 {
+			fmt.Println(id, time.Since(before))
+		}
+	}
+	fmt.Printf("Building the index took %s\n", time.Since(before))
+
+	k := 10
+	L := []int{1, 2, 3, 4, 5, 10}
+	truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.L2)
+	for _, l := range L {
+		l = l * k
+		index.SetL(l)
+		var relevant uint64
+		var retrieved int
+
+		var querying time.Duration = 0
+		for i := 0; i < len(queries); i++ {
+			before = time.Now()
+			results, _, _ := index.SearchByVector(queries[i], k, nil)
+			querying += time.Since(before)
+			retrieved += k
+			relevant += testinghelpers.MatchesInLists(truths[i], results)
+		}
+
+		recall := float32(relevant) / float32(retrieved)
+		latency := float32(querying.Microseconds()) / float32(queries_size)
+		fmt.Println(recall, latency)
+	}
+}
+
 func generate_vecs(size int, dimensions int, width int) [][]float32 {
 	vectors := make([][]float32, 0, size)
 	for i := 0; i < size; i++ {
@@ -168,7 +227,7 @@ func TestVamanaAdd(t *testing.T) {
 				255,
 			)
 			index.BuildIndex()
-			switchAt := 100001
+			switchAt := 1000000
 			for id := 0; id < switchAt; id++ {
 				index.Add(uint64(id), vectors[id])
 				if id%10000 == 0 {
@@ -207,9 +266,9 @@ func TestVamanaAdd(t *testing.T) {
 					}
 
 					recall := float32(relevant) / float32(retrieved)
-					queryingTime := float32(querying.Microseconds()) / 1000
+					queryingTime := float32(querying.Microseconds()) / float32(queries_size)
 					data[i] = []float32{queryingTime, recall}
-					fmt.Printf("{%f,%f},\n", float32(querying.Microseconds())/float32(1000), recall)
+					fmt.Printf("{%f,%f},\n", queryingTime, recall)
 				}
 				results[fmt.Sprintf("Vamana - K: %d (R: %d, L: %d, alpha:%.1f)", k, paramR, paramL, paramAlpha)] = data
 			}
