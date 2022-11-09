@@ -1,6 +1,6 @@
 package diskAnn
 
-type Set2 struct {
+type NaiveSet struct {
 	items map[uint64]*IndexAndDistance
 }
 
@@ -9,14 +9,14 @@ type IndexAndDistance struct {
 	distance float32
 }
 
-func NewSet2() *Set2 {
-	set := &Set2{
+func NewNaiveSet() *NaiveSet {
+	set := &NaiveSet{
 		items: make(map[uint64]*IndexAndDistance, 0),
 	}
 	return set
 }
 
-func (s *Set2) Add(x uint64) *Set2 {
+func (s *NaiveSet) Add(x uint64) *NaiveSet {
 	s.items[x] = &IndexAndDistance{
 		index:    x,
 		distance: 0,
@@ -24,25 +24,25 @@ func (s *Set2) Add(x uint64) *Set2 {
 	return s
 }
 
-func (s *Set2) AddRange(others []uint64) *Set2 {
+func (s *NaiveSet) AddRange(others []uint64) *NaiveSet {
 	for _, item := range others {
 		s.Add(item)
 	}
 	return s
 }
 
-func (s *Set2) Remove(x uint64) *Set2 {
+func (s *NaiveSet) Remove(x uint64) *NaiveSet {
 	delete(s.items, x)
 	return s
 }
 
-func (s *Set2) RemoveRange(others []uint64) *Set2 {
+func (s *NaiveSet) RemoveRange(others []uint64) *NaiveSet {
 	for _, item := range others {
 		s.Remove(item)
 	}
 	return s
 }
 
-func (s *Set2) Size() int {
+func (s *NaiveSet) Size() int {
 	return len(s.items)
 }

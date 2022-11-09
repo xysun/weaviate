@@ -70,7 +70,7 @@ func (rl *remainingList) Add(index uint64, pqDistance float32) {
 	})
 }
 
-type Set struct {
+type SortedSet struct {
 	bitSet                 *BitSet
 	items                  []IndexAndDistance
 	vectorForID            VectorForID
@@ -82,9 +82,9 @@ type Set struct {
 	encondedVectors        [][]byte
 	pq                     *ProductQuantizer
 	remainingList          *remainingList
-	addRemainingHolder     func(*Set, uint64, float32)
-	nextRemainingHolder    func(*Set) uint64
-	hasNextRemainingHolder func(*Set) bool
+	addRemainingHolder     func(*SortedSet, uint64, float32)
+	nextRemainingHolder    func(*SortedSet) uint64
+	hasNextRemainingHolder func(*SortedSet) bool
 }
 
 type VectorWithNeighbors struct {
@@ -99,8 +99,8 @@ type IndexAndDistance struct {
 	visited    bool
 }
 
-func NewSet(capacity int, vectorForID VectorForID, distance DistanceFunction, center []float32, vectorSize int) *Set {
-	s := Set{
+func NewSortedSet(capacity int, vectorForID VectorForID, distance DistanceFunction, center []float32, vectorSize int) *SortedSet {
+	s := SortedSet{
 		items:       make([]IndexAndDistance, capacity),
 		vectorForID: vectorForID,
 		distance:    distance,
@@ -122,7 +122,7 @@ func NewSet(capacity int, vectorForID VectorForID, distance DistanceFunction, ce
 	return &s
 }
 
-func (s *Set) SwitchToDisk() {
+func (s *SortedSet) SwitchToDisk() {
 	if s.remainingList.memoryThreshold < 0 {
 		return
 	}
@@ -139,7 +139,7 @@ func max(x int, y int) int {
 	return x
 }
 
-func (s *Set) ReCenter(center []float32, onDisk bool) {
+func (s *SortedSet) ReCenter(center []float32, onDisk bool) {
 	s.center = center
 	s.bitSet.Clean()
 	for i := range s.items {
@@ -155,39 +155,39 @@ func (s *Set) ReCenter(center []float32, onDisk bool) {
 	s.remainingList.Clear()
 }
 
-func distanceForVector(s *Set, x uint64) float32 {
+func distanceForVector(s *SortedSet, x uint64) float32 {
 	vec, _ := s.vectorForID(context.Background(), x)
 	return s.distance(vec, s.center)
 }
 
-func distanceForPQVector(s *Set, x uint64) float32 {
+func distanceForPQVector(s *SortedSet, x uint64) float32 {
 	vec := s.encondedVectors[x]
 	return s.pq.Distance(vec)
 }
 
-func storeRemaining(s *Set, x uint64, distance float32) {
+func storeRemaining(s *SortedSet, x uint64, distance float32) {
 	s.remainingList.Add(x, distance)
 }
 
-func nextRemaining(s *Set) uint64 {
+func nextRemaining(s *SortedSet) uint64 {
 	return s.remainingList.Next()
 }
 
-func noNextRemaining(s *Set) uint64 {
+func noNextRemaining(s *SortedSet) uint64 {
 	return 0
 }
 
-func hasNextRemaining(s *Set) bool {
+func hasNextRemaining(s *SortedSet) bool {
 	return s.remainingList.HasNext()
 }
 
-func noHasNextRemaining(s *Set) bool {
+func noHasNextRemaining(s *SortedSet) bool {
 	return false
 }
 
-func dropRemaining(s *Set, x uint64, distance float32) {}
+func dropRemaining(s *SortedSet, x uint64, distance float32) {}
 
-func (s *Set) add(x uint64, distancer func(s *Set, x uint64) float32) bool {
+func (s *SortedSet) add(x uint64, distancer func(s *SortedSet, x uint64) float32) bool {
 	if s.bitSet.ContainsAndAdd(x) {
 		return false
 	}
@@ -210,25 +210,25 @@ func (s *Set) add(x uint64, distancer func(s *Set, x uint64) float32) bool {
 	return true
 }
 
-func (s *Set) AddPQVector(item uint64, cache map[uint64]*VectorWithNeighbors, bitSet *BitSet) bool {
+func (s *SortedSet) AddPQVector(item uint64, cache map[uint64]*VectorWithNeighbors, bitSet *BitSet) bool {
 	if bitSet == nil {
 		return s.add(item, distanceForPQVector)
 	}
 	found := bitSet.Contains(item)
 	if found {
 		vector, _ := cache[item]
-		return s.add(item, func(s *Set, x uint64) float32 {
+		return s.add(item, func(s *SortedSet, x uint64) float32 {
 			return s.distance(vector.Vector, s.center)
 		})
 	}
 	return s.add(item, distanceForPQVector)
 }
 
-func (s *Set) Add(x uint64) bool {
+func (s *SortedSet) Add(x uint64) bool {
 	return s.add(x, distanceForVector)
 }
 
-func (s *Set) insert(data IndexAndDistance) int {
+func (s *SortedSet) insert(data IndexAndDistance) int {
 	left := 0
 	right := s.last
 
@@ -266,18 +266,18 @@ func (s *Set) insert(data IndexAndDistance) int {
 	return right
 }
 
-func (s *Set) AddRange(indices []uint64) {
+func (s *SortedSet) AddRange(indices []uint64) {
 	for _, item := range indices {
 		s.Add(item)
 	}
 }
 
-func (s *Set) AddRangePQ(indices []uint64, cache map[uint64]*VectorWithNeighbors, bitSet *BitSet) {
+func (s *SortedSet) AddRangePQ(indices []uint64, cache map[uint64]*VectorWithNeighbors, bitSet *BitSet) {
 	for _, item := range indices {
 		found := bitSet.Contains(item)
 		if found {
 			vector, _ := cache[item]
-			s.add(item, func(s *Set, x uint64) float32 {
+			s.add(item, func(s *SortedSet, x uint64) float32 {
 				return s.distance(vector.Vector, s.center)
 			})
 		}
@@ -285,16 +285,16 @@ func (s *Set) AddRangePQ(indices []uint64, cache map[uint64]*VectorWithNeighbors
 	}
 }
 
-func (s *Set) SetPQ(encondedVectors [][]byte, pq *ProductQuantizer) {
+func (s *SortedSet) SetPQ(encondedVectors [][]byte, pq *ProductQuantizer) {
 	s.encondedVectors = encondedVectors
 	s.pq = pq
 }
 
-func (s *Set) NotVisited() bool {
+func (s *SortedSet) NotVisited() bool {
 	return s.firstIndex < s.capacity-1 || s.hasNextRemainingHolder(s)
 }
 
-func (s *Set) Top() (uint64, int) {
+func (s *SortedSet) Top() (uint64, int) {
 	if s.firstIndex < s.capacity-1 {
 		s.items[s.firstIndex].visited = true
 		lastFirst := s.firstIndex
@@ -307,7 +307,7 @@ func (s *Set) Top() (uint64, int) {
 	return s.nextRemainingHolder(s), -1
 }
 
-func (s *Set) TopN(n int) ([]uint64, []int) {
+func (s *SortedSet) TopN(n int) ([]uint64, []int) {
 	tops, indexes := make([]uint64, 0, n), make([]int, 0, n)
 	for i := 0; i < n; i++ {
 		top, index := s.Top()
@@ -320,7 +320,7 @@ func (s *Set) TopN(n int) ([]uint64, []int) {
 	return tops, indexes
 }
 
-func (s *Set) ReSort(i int, vector []float32) {
+func (s *SortedSet) ReSort(i int, vector []float32) {
 	if i == -1 {
 		distance := s.distance(vector, s.center)
 		j := len(s.items) - 1
@@ -378,7 +378,7 @@ func min(x int, y int) int {
 	return y
 }
 
-func (s *Set) Elements(k int) ([]uint64, []float32) {
+func (s *SortedSet) Elements(k int) ([]uint64, []float32) {
 	size := min(s.capacity, k)
 
 	indices := make([]uint64, 0, size)

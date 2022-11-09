@@ -57,7 +57,7 @@ type Vamana struct {
 
 	cachedBitMap     *ssdhelpers.BitSet
 	edges            [][]uint64 // edges on the graph
-	set              ssdhelpers.Set
+	set              ssdhelpers.SortedSet
 	graphFile        *os.File
 	pq               *ssdhelpers.ProductQuantizer
 	getOutNeighbors  func(uint64) ([]uint64, []float32)
@@ -75,7 +75,7 @@ func New(config Config, userConfig UserConfig) (*Vamana, error) {
 		config:     config,
 		userConfig: userConfig,
 	}
-	index.set = *ssdhelpers.NewSet(userConfig.L, config.VectorForIDThunk, config.Distance, nil, int(userConfig.VectorsSize))
+	index.set = *ssdhelpers.NewSortedSet(userConfig.L, config.VectorForIDThunk, config.Distance, nil, int(userConfig.VectorsSize))
 	index.getOutNeighbors = index.outNeighborsFromMemory
 	index.setOutNeighbors = index.outNeighborsToMemory
 	index.addRange = index.addRangeVectors
@@ -176,7 +176,7 @@ func (v *Vamana) GetEntry() uint64 {
 
 func (v *Vamana) SetL(L int) {
 	v.userConfig.L = L
-	v.set = *ssdhelpers.NewSet(L, v.config.VectorForIDThunk, v.config.Distance, nil, int(v.userConfig.VectorsSize))
+	v.set = *ssdhelpers.NewSortedSet(L, v.config.VectorForIDThunk, v.config.Distance, nil, int(v.userConfig.VectorsSize))
 	v.set.SetPQ(v.data.EncondedVectors, v.pq)
 }
 
@@ -623,7 +623,7 @@ func (v *Vamana) getVector(id uint64) []float32 {
 }
 
 func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
-	visitedSet := NewSet2()
+	visitedSet := NewNaiveSet()
 	outneighbors, _ := v.getOutNeighbors(p)
 	visitedSet.AddRange(visited).AddRange(outneighbors).Remove(p)
 	qP := v.getVector(p)
@@ -647,7 +647,7 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
 	return out.Elements()
 }
 
-func (v *Vamana) closest(x []float32, set *Set2) *IndexAndDistance {
+func (v *Vamana) closest(x []float32, set *NaiveSet) *IndexAndDistance {
 	var min float32 = math.MaxFloat32
 	var indice *IndexAndDistance = nil
 	for _, element := range set.items {

@@ -56,7 +56,7 @@ func TestPQ(t *testing.T) {
 	})
 	fmt.Println(collisions)
 	fmt.Println("=============")
-	s := ssdhelpers.NewSet(
+	s := ssdhelpers.NewSortedSet(
 		k,
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[int(id)], nil
