@@ -14,7 +14,6 @@ import (
 	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/go-echarts/go-echarts/v2/types"
 	"github.com/pkg/errors"
-	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 )
 
@@ -374,27 +373,4 @@ func min(x int, y int) int {
 		return x
 	}
 	return y
-}
-
-func BuildVamanaSharded(R int, L int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string) *diskAnn.Vamana {
-	completePath := fmt.Sprintf("%s/vamana-r%d-l%d-a%.1f", path, R, L, alpha)
-	if _, err := os.Stat(completePath); err == nil {
-		return diskAnn.VamanaFromDisk(completePath, VectorForIDThunk, distance)
-	}
-
-	index, _ := diskAnn.New(diskAnn.Config{
-		VectorForIDThunk: VectorForIDThunk,
-		Distance:         distance,
-	}, diskAnn.UserConfig{
-		R:                  R,
-		L:                  L,
-		Alpha:              alpha,
-		VectorsSize:        vectorsSize,
-		ClustersSize:       40,
-		ClusterOverlapping: 2,
-	})
-
-	index.BuildIndexSharded()
-	index.ToDisk(completePath)
-	return index
 }
