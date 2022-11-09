@@ -99,6 +99,18 @@ type IndexAndDistance struct {
 	visited    bool
 }
 
+func (r *IndexAndDistance) GetIndex() uint64 {
+	return r.index
+}
+
+func (r *IndexAndDistance) GetDistance() float32 {
+	return r.distance
+}
+
+func (r *IndexAndDistance) SetDistance(distance float32) {
+	r.distance = distance
+}
+
 func NewSortedSet(capacity int, vectorForID VectorForID, distance DistanceFunction, center []float32, vectorSize int) *SortedSet {
 	s := SortedSet{
 		items:       make([]IndexAndDistance, capacity),
