@@ -44,34 +44,45 @@ func Init(userConfig Config, logger logrus.FieldLogger) (*State, error) {
 		cfg.BindPort = userConfig.GossipBindPort
 	}
 
+	var err error
+	cfg.AdvertiseAddr, err = parseAdvertiseAddr(userConfig)
+	if err != nil {
+		return nil, fmt.Errorf("parse advertise addr: %w", err)
+	}
+
 	list, err := memberlist.Create(cfg)
 	if err != nil {
 		return nil, errors.Wrap(err, "create member list")
 	}
 
-	var joinAddr []string
-	if userConfig.Join != "" {
-		joinAddr = strings.Split(userConfig.Join, ",")
-	}
-
-	if len(joinAddr) > 0 {
-
-		_, err := net.LookupIP(strings.Split(joinAddr[0], ":")[0])
+	_, err = net.LookupIP(cfg.AdvertiseAddr)
+	if err != nil {
+		logger.WithField("action", "cluster_attempt_join").
+			WithField("remote_hostname", cfg.AdvertiseAddr).
+			WithError(err).
+			Warn("specified hostname to join cluster cannot be resolved. This is fine" +
+				"if this is the first node of a new cluster, but problematic otherwise.")
+	} else {
+		_, err := list.Join([]string{cfg.AdvertiseAddr})
 		if err != nil {
-			logger.WithField("action", "cluster_attempt_join").
-				WithField("remote_hostname", joinAddr[0]).
-				WithError(err).
-				Warn("specified hostname to join cluster cannot be resolved. This is fine" +
-					"if this is the first node of a new cluster, but problematic otherwise.")
-		} else {
-			_, err := list.Join(joinAddr)
-			if err != nil {
-				return nil, errors.Wrap(err, "join cluster")
-			}
+			return nil, errors.Wrap(err, "join cluster")
 		}
 	}
 
 	return &State{list: list}, nil
+}
+
+func parseAdvertiseAddr(userConfig Config) (string, error) {
+	if userConfig.Join != "" {
+		joinAddr := strings.Split(userConfig.Join, ",")
+		joinAddr = strings.Split(joinAddr[0], ":")
+		addrs, err := net.LookupHost(joinAddr[0])
+		if err != nil {
+			return "", fmt.Errorf("lookup host: %w", err)
+		}
+		return addrs[0], nil
+	}
+	return "127.0.0.1", nil
 }
 
 // Hostnames for all live members, except self. Use AllHostnames to include
