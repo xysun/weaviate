@@ -46,8 +46,9 @@ type VamanaData struct {
 	Mean            []float32
 
 	//ToDo: Remove this fast please...
-	tempId  uint64
-	tempVec []float32
+	tempId    uint64
+	tempVec   []float32
+	addsCount int
 }
 
 type Vamana struct {
@@ -623,46 +624,32 @@ func (v *Vamana) getVector(id uint64) []float32 {
 }
 
 func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
-	visitedSet := ssdhelpers.NewNaiveSet(int(v.userConfig.VectorsSize))
+	visitedSet := ssdhelpers.NewNaiveSet(p, v.config.VectorForIDThunk, v.config.Distance, int(v.userConfig.VectorsSize))
 	outneighbors, _ := v.getOutNeighbors(p)
-	visitedSet.AddRange(visited).AddRange(outneighbors).Remove(p)
-	qP := v.getVector(p)
-	out := ssdhelpers.NewFullBitSet(int(v.userConfig.VectorsSize))
+	visitedSet.AddRange(visited).AddRange(outneighbors)
+	out := make([]uint64, 0, visitedSet.Size())
+	outSize := 0
 	for visitedSet.Size() > 0 {
-		pMin := v.closest(qP, visitedSet).GetIndex()
-		out.Add(pMin)
-		qPMin := v.getVector(pMin)
-		if out.Size() == v.userConfig.R {
+		pMin := visitedSet.Pop().GetIndex()
+		out = append(out, pMin)
+		outSize++
+		if outSize == v.userConfig.R {
 			break
 		}
 
+		qPMin := v.getVector(pMin)
 		for _, x := range visitedSet.GetItems() {
+			if visitedSet.SkipOn(x) {
+				continue
+			}
 			qX := v.getVector(x.GetIndex())
 			if (v.userConfig.Alpha * v.config.Distance(qPMin, qX)) <= x.GetDistance() {
-				visitedSet.Remove(x.GetIndex())
+				visitedSet.Remove(x)
 			}
 		}
 	}
 
-	return out.Elements()
-}
-
-func (v *Vamana) closest(x []float32, set *ssdhelpers.NaiveSet) *ssdhelpers.IndexAndDistance {
-	var min float32 = math.MaxFloat32
-	var indice *ssdhelpers.IndexAndDistance = nil
-	for _, element := range set.GetItems() {
-		distance := element.GetDistance()
-		if distance == 0 {
-			qi := v.getVector(element.GetIndex())
-			distance = v.config.Distance(qi, x)
-			element.SetDistance(distance)
-		}
-		if min > distance {
-			min = distance
-			indice = element
-		}
-	}
-	return indice
+	return out
 }
 
 func (v *Vamana) addOutNeighbor(id uint64, neighbor uint64) {
@@ -696,13 +683,18 @@ func (v *Vamana) addVectorAndOutNeighbors(id uint64, vector []float32, outneighb
 }
 
 func (v *Vamana) updateEntryPointAfterAdd(vector []float32) {
+	if v.data.addsCount > 2000 {
+		return
+	}
 	size := float32(v.userConfig.VectorsSize)
 	for i := range v.data.Mean {
 		v.data.Mean[i] = (v.data.Mean[i]*(size-1) + vector[i]) / size
 	}
-	v.SetL(3)
+	v.data.addsCount++
+	if v.data.addsCount%100 != 0 {
+		return
+	}
 	indexes, _ := v.greedySearchQuery(v.data.Mean, 1)
-	v.SetL(v.userConfig.L)
 	v.data.SIndex = indexes[0]
 }
 
@@ -718,7 +710,7 @@ func (v *Vamana) Add(id uint64, vector []float32) error {
 	for _, x := range outneighbors {
 		v.addOutNeighbor(x, id)
 	}
-	v.updateEntryPointAfterAdd(vector)
+	//v.updateEntryPointAfterAdd(vector)
 	return nil
 }
 

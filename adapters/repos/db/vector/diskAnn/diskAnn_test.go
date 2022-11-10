@@ -34,7 +34,7 @@ import (
 func TestRecall(t *testing.T) {
 	rand.Seed(0)
 	dimensions := 128
-	vectors_size := 100000
+	vectors_size := 1000000
 	queries_size := 1000
 	before := time.Now()
 	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
