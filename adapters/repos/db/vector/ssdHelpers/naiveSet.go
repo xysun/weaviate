@@ -13,19 +13,22 @@ type NaiveSet struct {
 	size        int
 }
 
-func NewNaiveSet(center uint64, vectorForID VectorForID, distance DistanceFunction, capacity int) *NaiveSet {
+func NewNaiveSet(vectorForID VectorForID, distance DistanceFunction, capacity int) *NaiveSet {
 	set := &NaiveSet{
-		items:       make([]*IndexAndDistance, 0),
-		center:      center,
 		vectorForID: vectorForID,
 		distance:    distance,
-		current:     0,
 		bitSet:      NewBitSet(capacity),
-		size:        0,
 	}
-	set.x, _ = vectorForID(context.Background(), center)
-
 	return set
+}
+
+func (s *NaiveSet) ReCenter(center uint64) {
+	s.items = make([]*IndexAndDistance, 0)
+	s.center = center
+	s.current = 0
+	s.size = 0
+	s.x, _ = s.vectorForID(context.Background(), center)
+	s.bitSet.Clean()
 }
 
 func (s *NaiveSet) Add(x uint64) *NaiveSet {
@@ -92,6 +95,9 @@ func (s *NaiveSet) AddRange(others []uint64) *NaiveSet {
 }
 
 func (s *NaiveSet) Remove(x *IndexAndDistance) {
+	if x.visited {
+		return
+	}
 	x.visited = true
 	s.size--
 }
@@ -102,6 +108,7 @@ func (s *NaiveSet) Pop() *IndexAndDistance {
 	}
 
 	x := s.items[s.current]
+	x.visited = true
 	s.current++
 	s.size--
 	return x

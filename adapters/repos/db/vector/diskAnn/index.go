@@ -56,6 +56,7 @@ type Vamana struct {
 	data       VamanaData
 
 	cachedBitMap     *ssdhelpers.BitSet
+	visitedSet       *ssdhelpers.NaiveSet
 	edges            [][]uint64 // edges on the graph
 	set              ssdhelpers.SortedSet
 	graphFile        *os.File
@@ -83,7 +84,7 @@ func New(config Config, userConfig UserConfig) (*Vamana, error) {
 	return index, nil
 }
 
-func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, completePath string, dimensions int, toDisk bool, segments int, centroids int) *Vamana {
+func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, capacity uint64, distance ssdhelpers.DistanceFunction, completePath string, dimensions int, toDisk bool, segments int, centroids int) *Vamana {
 	if _, err := os.Stat(completePath); err == nil {
 		index := VamanaFromDisk(completePath, VectorForIDThunk, distance)
 		index.SetCacheSize(C)
@@ -103,6 +104,7 @@ func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDTh
 			L:                  L,
 			Alpha:              alpha,
 			VectorsSize:        vectorsSize,
+			Capacity:           capacity,
 			ClustersSize:       40,
 			ClusterOverlapping: 2,
 			Dimensions:         dimensions,
@@ -112,13 +114,14 @@ func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDTh
 			Segments:           segments,
 			Centroids:          centroids,
 		})
-	index.config.VectorForIDThunk = func(ctx context.Context, id uint64) ([]float32, error) {
+	index.config.VectorForIDThunk = func(_ context.Context, id uint64) ([]float32, error) {
 		if id == index.data.tempId {
 			return index.data.tempVec, nil
 		}
 		return index.data.Vectors[id], nil
 	}
 	index.SetCacheSize(C)
+	//index.SetL(int(index.userConfig.Capacity))
 	index.BuildIndex()
 	if toDisk {
 		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), segments, centroids)
@@ -127,17 +130,22 @@ func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDTh
 	return index
 }
 
+func (v *Vamana) SetVectors(vectors [][]float32) {
+	v.data.Vectors = vectors
+	v.userConfig.VectorsSize = uint64(len(vectors))
+}
+
 func (v *Vamana) SetCacheSize(size int) {
 	v.userConfig.OriginalCacheSize = size
 	v.userConfig.C = minInt(size, int(v.userConfig.VectorsSize))
 }
 
-func BuildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int) *Vamana {
+func BuildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, capacity uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int) *Vamana {
 	completePath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
-	return buildVamana(R, L, C, alpha, beamSize, VectorForIDThunk, vectorsSize, distance, completePath, dimensions, false, segments, centroids)
+	return buildVamana(R, L, C, alpha, beamSize, VectorForIDThunk, vectorsSize, capacity, distance, completePath, dimensions, false, segments, centroids)
 }
 
-func BuildDiskVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int) *Vamana {
+func BuildDiskVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, capacity uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int) *Vamana {
 	noDiskPath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	completePath := fmt.Sprintf("%s/Disk.%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	if _, err := os.Stat(completePath); err == nil {
@@ -151,7 +159,7 @@ func BuildDiskVamana(R int, L int, C int, alpha float32, beamSize int, VectorFor
 		index.ToDisk(completePath)
 		return index
 	}
-	return buildVamana(R, L, C, alpha, beamSize, VectorForIDThunk, vectorsSize, distance, completePath, dimensions, true, segments, centroids)
+	return buildVamana(R, L, C, alpha, beamSize, VectorForIDThunk, vectorsSize, capacity, distance, completePath, dimensions, true, segments, centroids)
 }
 
 func (v *Vamana) SetBeamSize(size int) {
@@ -161,6 +169,7 @@ func (v *Vamana) SetBeamSize(size int) {
 func (v *Vamana) BuildIndex() {
 	v.data.Mean = make([]float32, v.userConfig.Dimensions)
 	v.SetL(v.userConfig.L)
+	v.visitedSet = ssdhelpers.NewNaiveSet(v.config.VectorForIDThunk, v.config.Distance, int(v.userConfig.Capacity))
 	v.edges = v.makeRandomGraph()
 	v.data.SIndex = v.medoid()
 	v.pass()
@@ -176,7 +185,7 @@ func (v *Vamana) GetEntry() uint64 {
 
 func (v *Vamana) SetL(L int) {
 	v.userConfig.L = L
-	v.set = *ssdhelpers.NewSortedSet(L, v.config.VectorForIDThunk, v.config.Distance, nil, int(v.userConfig.VectorsSize))
+	v.set = *ssdhelpers.NewSortedSet(L, v.config.VectorForIDThunk, v.config.Distance, nil, int(v.userConfig.Capacity))
 	v.set.SetPQ(v.data.EncondedVectors, v.pq)
 }
 
@@ -623,25 +632,25 @@ func (v *Vamana) getVector(id uint64) []float32 {
 }
 
 func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
-	visitedSet := ssdhelpers.NewNaiveSet(p, v.config.VectorForIDThunk, v.config.Distance, int(v.userConfig.VectorsSize))
+	v.visitedSet.ReCenter(p)
 	outneighbors, _ := v.getOutNeighbors(p)
-	visitedSet.AddRange(visited).AddRange(outneighbors)
-	out := make([]uint64, 0, visitedSet.Size())
+	v.visitedSet.AddRange(visited).AddRange(outneighbors)
+	out := make([]uint64, 0, v.visitedSet.Size())
 	outSize := 0
-	for visitedSet.Size() > 0 {
-		pMin := visitedSet.Pop()
+	for v.visitedSet.Size() > 0 {
+		pMin := v.visitedSet.Pop()
 		out = append(out, pMin.GetIndex())
 		outSize++
 		if outSize == v.userConfig.R {
 			break
 		}
 
-		for _, x := range visitedSet.GetItems() {
-			if visitedSet.SkipOn(x) {
+		for _, x := range v.visitedSet.GetItems() {
+			if v.visitedSet.SkipOn(x) {
 				continue
 			}
 			if (v.userConfig.Alpha * v.config.Distance(pMin.GetVector(), x.GetVector())) <= x.GetDistance() {
-				visitedSet.Remove(x)
+				v.visitedSet.Remove(x)
 			}
 		}
 	}
@@ -689,7 +698,6 @@ func (v *Vamana) updateEntryPointAfterAdd(vector []float32) {
 }
 
 func (v *Vamana) Add(id uint64, vector []float32) error {
-	v.SetL(v.userConfig.L)
 	v.data.tempId = id
 	v.data.tempVec = vector
 	//ToDo: should use position and not id...

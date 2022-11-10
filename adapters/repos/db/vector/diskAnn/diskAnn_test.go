@@ -20,21 +20,27 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"testing"
 
 	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRecall(t *testing.T) {
 	rand.Seed(0)
 	dimensions := 128
-	vectors_size := 1000000
+	vectors_size := 10000
 	queries_size := 1000
 	before := time.Now()
 	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
@@ -51,6 +57,7 @@ func TestRecall(t *testing.T) {
 			return vectors[int(id)], nil
 		},
 		0,
+		uint64(vectors_size),
 		ssdhelpers.L2,
 		"./data",
 		dimensions,
@@ -60,14 +67,15 @@ func TestRecall(t *testing.T) {
 	index.BuildIndex()
 	for id := 0; id < vectors_size; id++ {
 		index.Add(uint64(id), vectors[id])
-		if id%10000 == 0 {
+		if id%1000 == 0 {
 			fmt.Println(id, time.Since(before))
 		}
 	}
+	index.SetL(50)
 	fmt.Printf("Building the index took %s\n", time.Since(before))
 
 	k := 10
-	L := []int{1, 2, 3, 4, 5, 10}
+	L := []int{4, 5, 10}
 	truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.L2)
 	for _, l := range L {
 		l = l * k
@@ -86,6 +94,8 @@ func TestRecall(t *testing.T) {
 
 		recall := float32(relevant) / float32(retrieved)
 		latency := float32(querying.Microseconds()) / float32(queries_size)
+		assert.True(t, recall > 0.99)
+		assert.True(t, latency < 700)
 		fmt.Println(recall, latency)
 	}
 }
@@ -121,7 +131,7 @@ func loadQueries(queries_size int) [][]float32 {
 func TestBigDataVamana(t *testing.T) {
 	rand.Seed(0)
 	dimensions := 128
-	vectors_size := 100000
+	vectors_size := 10000
 	queries_size := 1000
 	before := time.Now()
 	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
@@ -140,7 +150,7 @@ func TestBigDataVamana(t *testing.T) {
 			paramR := paramsRs[paramIndex]
 			paramL := paramsLs[paramIndex]
 			before = time.Now()
-			index := diskAnn.BuildDiskVamana(
+			index := diskAnn.BuildVamana(
 				paramR,
 				paramL,
 				10000,
@@ -149,6 +159,7 @@ func TestBigDataVamana(t *testing.T) {
 				func(ctx context.Context, id uint64) ([]float32, error) {
 					return vectors[int(id)], nil
 				},
+				uint64(0),
 				uint64(vectors_size),
 				ssdhelpers.L2,
 				"./data",
@@ -156,6 +167,9 @@ func TestBigDataVamana(t *testing.T) {
 				64,
 				255,
 			)
+
+			index.SetVectors(vectors)
+			index.BuildIndex()
 
 			fmt.Printf("Index built in: %s\n", time.Since(before))
 			Ks := []int{10}
@@ -220,6 +234,7 @@ func TestVamanaAdd(t *testing.T) {
 					return vectors[int(id)], nil
 				},
 				0,
+				uint64(vectors_size),
 				ssdhelpers.L2,
 				"./data",
 				dimensions,
@@ -761,14 +776,12 @@ func TestChartsDisk(t *testing.T) {
 	testinghelpers.ChartData("Recall vs Latency (restricted memory)", "", results, "local-threshold.html")
 }
 
-/*
 func TestBigDataHNSW(t *testing.T) {
 	rand.Seed(0)
-	dimensions := 128
-	vectors_size := 1000000
+	vectors_size := 10000
 	queries_size := 1000
 	before := time.Now()
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, dimensions, queries_size)
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
 	if vectors == nil {
 		panic("Error generating vectors")
 	}
@@ -801,6 +814,7 @@ func TestBigDataHNSW(t *testing.T) {
 		workerID := i % workerCount
 		jobsForWorker[workerID] = append(jobsForWorker[workerID], vec)
 	}
+	fmt.Println(workerCount)
 
 	wg := &sync.WaitGroup{}
 	for workerID, jobs := range jobsForWorker {
@@ -820,11 +834,11 @@ func TestBigDataHNSW(t *testing.T) {
 	fmt.Printf("Indexing done in: %s\n", indexing)
 	efs := []int{8, 16, 32, 64, 128, 256, 512}
 	fmt.Println("ef	recall	querying")
-	Ks := []int{10, 100}
+	Ks := []int{10}
 
 	fmt.Printf("Index built in: %s\n", time.Since(before))
 	for _, k := range Ks {
-		truths := testinghelpers.BuildTruths(queries_size, queries, vectors, k, ssdhelpers.L2)
+		truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.L2)
 		for _, efSearch := range efs {
 			index.UpdateUserConfig(hnsw.UserConfig{
 				MaxConnections: maxN,
@@ -1040,6 +1054,7 @@ func TestCharts(t *testing.T) {
 	testinghelpers.ChartData("Recall vs Latency", "", results, "line-10-100.html")
 }
 
+/*
 func TestChartsHighlighted(t *testing.T) {
 	rand.Seed(0)
 	dimensions := 2
@@ -1063,6 +1078,7 @@ func TestChartsHighlighted(t *testing.T) {
 			return vectors[int(id)], nil
 		},
 		uint64(vectors_size),
+
 		ssdhelpers.L2,
 		"./data",
 	)

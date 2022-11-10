@@ -36,6 +36,7 @@ type UserConfig struct {
 	BeamSize           int
 	Dimensions         int    `json:"dimensions"`
 	VectorsSize        uint64 `json:"size"`
+	Capacity           uint64 `json:"capacity"`
 	Segments           int    `json:"segments"`
 	Centroids          int    `json:"centroids"`
 	Path               string `json:"path"`
@@ -104,6 +105,12 @@ func ParseUserConfig(input interface{}) (schema.VectorIndexConfig, error) {
 
 	if err := optionalIntFromMap(asMap, "size", func(v int) {
 		uc.VectorsSize = uint64(v)
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalIntFromMap(asMap, "capacity", func(v int) {
+		uc.Capacity = uint64(v)
 	}); err != nil {
 		return uc, err
 	}
