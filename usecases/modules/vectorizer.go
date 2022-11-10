@@ -79,14 +79,33 @@ func (m *Provider) UsingRef2Vec(className string) bool {
 	return false
 }
 
-func (m *Provider) UpdateVector(ctx context.Context, object *models.Object,
+func (m *Provider) UpdateVectors(ctx context.Context, objects []*models.Object,
 	findObjectFn modulecapabilities.FindObjectFn, logger logrus.FieldLogger,
 ) error {
+	objectsPerClass := make(map[string][]*models.Object)
+	for _, b := range objects {
+		objectsPerClass[b.Class] = append(objectsPerClass[b.Class], b)
+	}
+
+	for _, objectsForClass := range objectsPerClass {
+		//todo introducce go routine
+		err := m.GenerateVectors(ctx, objectsForClass, findObjectFn, logger)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *Provider) GenerateVectors(ctx context.Context, objects []*models.Object,
+	findObjectFn modulecapabilities.FindObjectFn, logger logrus.FieldLogger,
+) error {
+	object := objects[0]
 	class, err := m.getClass(object.Class)
 	if err != nil {
 		return err
 	}
-
 	vectorizerName, idxCfg, err := m.getClassVectorizer(object.Class)
 	if err != nil {
 		return err
@@ -126,21 +145,20 @@ func (m *Provider) UpdateVector(ctx context.Context, object *models.Object,
 	}
 
 	cfg := NewClassBasedModuleConfig(class, found.Name())
-
 	if vectorizer, ok := found.(modulecapabilities.Vectorizer); ok {
 		if object.Vector == nil {
-			if err := vectorizer.VectorizeObject(ctx, object, cfg); err != nil {
+			//todo This is where we actually call the module that vectorizers the object
+			if err := vectorizer.VectorizeObjects(ctx, objects, cfg); err != nil {
 				return fmt.Errorf("update vector: %w", err)
 			}
 		}
 	} else {
 		refVectorizer := found.(modulecapabilities.ReferenceVectorizer)
-		if err := refVectorizer.VectorizeObject(
-			ctx, object, cfg, findObjectFn); err != nil {
+		if err := refVectorizer.VectorizeObjects(
+			ctx, objects, cfg, findObjectFn); err != nil {
 			return fmt.Errorf("update reference vector: %w", err)
 		}
 	}
-
 	return nil
 }
 

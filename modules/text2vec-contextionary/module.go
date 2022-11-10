@@ -209,11 +209,11 @@ func (m *ContextionaryModule) RootHandler() http.Handler {
 	return mux
 }
 
-func (m *ContextionaryModule) VectorizeObject(ctx context.Context,
-	obj *models.Object, cfg moduletools.ClassConfig,
+func (m *ContextionaryModule) VectorizeObjects(ctx context.Context,
+	objects []*models.Object, cfg moduletools.ClassConfig,
 ) error {
 	icheck := localvectorizer.NewIndexChecker(cfg)
-	return m.vectorizer.Object(ctx, obj, icheck)
+	return m.vectorizer.Objects(ctx, objects, icheck)
 }
 
 func (m *ContextionaryModule) Arguments() map[string]modulecapabilities.GraphQLArgument {

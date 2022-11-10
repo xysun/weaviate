@@ -14,6 +14,7 @@ package objects
 import (
 	"context"
 	"fmt"
+	"github.com/semi-technologies/weaviate/usecases/objects/validation"
 	"sync"
 	"time"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/semi-technologies/weaviate/entities/errorcompounder"
 	"github.com/semi-technologies/weaviate/entities/models"
-	"github.com/semi-technologies/weaviate/usecases/objects/validation"
 )
 
 // AddObjects Class Instances in batch to the connected DB
@@ -48,14 +48,14 @@ func (b *BatchManager) AddObjects(ctx context.Context, principal *models.Princip
 }
 
 func (b *BatchManager) addObjects(ctx context.Context, principal *models.Principal,
-	classes []*models.Object, fields []*string,
+	objects []*models.Object, fields []*string,
 ) (BatchObjects, error) {
 	beforePreProcessing := time.Now()
-	if err := b.validateObjectForm(classes); err != nil {
+	if err := b.validateObjectForm(objects); err != nil {
 		return nil, NewErrInvalidUserInput("invalid param 'objects': %v", err)
 	}
 
-	batchObjects := b.validateObjectsConcurrently(ctx, principal, classes, fields)
+	batchObjects := b.validateObjectsConcurrently(ctx, principal, objects, fields)
 	b.metrics.BatchOp("total_preprocessing", beforePreProcessing.UnixNano())
 
 	var (
@@ -72,8 +72,8 @@ func (b *BatchManager) addObjects(ctx context.Context, principal *models.Princip
 	return res, nil
 }
 
-func (b *BatchManager) validateObjectForm(classes []*models.Object) error {
-	if len(classes) == 0 {
+func (b *BatchManager) validateObjectForm(objects []*models.Object) error {
+	if len(objects) == 0 {
 		return fmt.Errorf("cannot be empty, need at least one object for batching")
 	}
 
@@ -81,48 +81,66 @@ func (b *BatchManager) validateObjectForm(classes []*models.Object) error {
 }
 
 func (b *BatchManager) validateObjectsConcurrently(ctx context.Context, principal *models.Principal,
-	classes []*models.Object, fields []*string,
+	objects []*models.Object, fields []*string,
 ) BatchObjects {
 	fieldsToKeep := determineResponseFields(fields)
-	c := make(chan BatchObject, len(classes))
+	c := make(chan BatchObjects, len(objects))
 
-	wg := new(sync.WaitGroup)
+	b.validateObjects(ctx, principal, objects, &c, fieldsToKeep)
 
-	// Generate a goroutine for each separate request
-	for i, object := range classes {
-		wg.Add(1)
-		go b.validateObject(ctx, principal, wg, object, i, &c, fieldsToKeep)
-	}
-
-	wg.Wait()
 	close(c)
-	return objectsChanToSlice(c)
+	return objectsChanToSlice(c, len(objects))
 }
 
-func (b *BatchManager) validateObject(ctx context.Context, principal *models.Principal,
-	wg *sync.WaitGroup, concept *models.Object, originalIndex int, resultsC *chan BatchObject,
+func (b *BatchManager) validateObjects(ctx context.Context, principal *models.Principal,
+	objects []*models.Object, resultsC *chan BatchObjects,
 	fieldsToKeep map[string]struct{},
+) {
+	ec := &errorcompounder.ErrorCompounder{}
+	wg := new(sync.WaitGroup)
+
+	for _, object := range objects {
+		wg.Add(1)
+		go b.parseObject(ctx, principal, wg, object, fieldsToKeep, ec)
+	}
+	wg.Wait()
+
+	err := b.modulesProvider.UpdateVectors(ctx, objects, b.findObject, b.logger)
+	ec.Add(err)
+
+	batchObjects := BatchObjects{}
+	for i, object := range objects {
+		batchObjects = append(batchObjects, BatchObject{
+			OriginalIndex: i,
+			Err:           err,
+			Object:        object,
+			UUID:          object.ID,
+			Vector:        object.Vector,
+		})
+	}
+	*resultsC <- batchObjects
+}
+
+func (b *BatchManager) parseObject(ctx context.Context, principal *models.Principal, wg *sync.WaitGroup, object *models.Object,
+	fieldsToKeep map[string]struct{}, ec *errorcompounder.ErrorCompounder,
 ) {
 	defer wg.Done()
 
 	var id strfmt.UUID
-
-	ec := &errorcompounder.ErrorCompounder{}
-
 	// Auto Schema
-	err := b.autoSchemaManager.autoSchema(ctx, principal, concept)
+	err := b.autoSchemaManager.autoSchema(ctx, principal, object)
 	ec.Add(err)
 
-	if concept.ID == "" {
+	if object.ID == "" {
 		// Generate UUID for the new object
 		uid, err := generateUUID()
 		id = uid
 		ec.Add(err)
 	} else {
-		if _, err := uuid.Parse(concept.ID.String()); err != nil {
+		if _, err := uuid.Parse(object.ID.String()); err != nil {
 			ec.Add(err)
 		}
-		id = concept.ID
+		id = object.ID
 	}
 
 	// Validate schema given in body with the weaviate schema
@@ -130,50 +148,40 @@ func (b *BatchManager) validateObject(ctx context.Context, principal *models.Pri
 	ec.Add(err)
 
 	// Create Action object
-	object := &models.Object{}
-	object.LastUpdateTimeUnix = 0
-	object.ID = id
-	object.Vector = concept.Vector
+	obj := &models.Object{}
+	obj.LastUpdateTimeUnix = 0
+	obj.ID = id
+	obj.Vector = object.Vector
 
 	if _, ok := fieldsToKeep["class"]; ok {
-		object.Class = concept.Class
+		obj.Class = object.Class
 	}
 	if _, ok := fieldsToKeep["properties"]; ok {
-		object.Properties = concept.Properties
+		obj.Properties = object.Properties
 	}
 
-	if object.Properties == nil {
-		object.Properties = map[string]interface{}{}
+	if obj.Properties == nil {
+		obj.Properties = map[string]interface{}{}
 	}
 	now := unixNow()
 	if _, ok := fieldsToKeep["creationTimeUnix"]; ok {
-		object.CreationTimeUnix = now
+		obj.CreationTimeUnix = now
 	}
 	if _, ok := fieldsToKeep["lastUpdateTimeUnix"]; ok {
-		object.LastUpdateTimeUnix = now
+		obj.LastUpdateTimeUnix = now
 	}
 
 	err = validation.New(s, b.vectorRepo.Exists, b.config).Object(ctx, object)
 	ec.Add(err)
-
-	err = b.modulesProvider.UpdateVector(ctx, object, b.findObject, b.logger)
-	ec.Add(err)
-
-	*resultsC <- BatchObject{
-		UUID:          id,
-		Object:        object,
-		Err:           ec.ToError(),
-		OriginalIndex: originalIndex,
-		Vector:        object.Vector,
-	}
 }
 
-func objectsChanToSlice(c chan BatchObject) BatchObjects {
-	result := make([]BatchObject, len(c))
-	for object := range c {
-		result[object.OriginalIndex] = object
+func objectsChanToSlice(c chan BatchObjects, i int) BatchObjects {
+	result := make([]BatchObject, i)
+	for objectsPerClass := range c {
+		for _, object := range objectsPerClass {
+			result[object.OriginalIndex] = object
+		}
 	}
-
 	return result
 }
 

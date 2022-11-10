@@ -26,8 +26,8 @@ import (
 )
 
 type embeddingsRequest struct {
-	Input string `json:"input"`
-	Model string `json:"model"`
+	Input []string `json:"input"`
+	Model string   `json:"model"`
 }
 
 type embedding struct {
@@ -70,20 +70,38 @@ func New(apiKey string, logger logrus.FieldLogger) *vectorizer {
 func (v *vectorizer) Vectorize(ctx context.Context, input string,
 	config ent.VectorizationConfig,
 ) (*ent.VectorizationResult, error) {
-	return v.vectorize(ctx, input, v.getModelString(config.Type, config.Model, "document"))
+	vectorize, err := v.vectorize(ctx, []string{input}, v.getModelString(config.Type, config.Model, "document"))
+	if err != nil {
+		return nil, err
+	}
+	return vectorize[0], nil
+}
+
+func (v *vectorizer) VectorizeInputs(ctx context.Context, inputs []string,
+	config ent.VectorizationConfig,
+) ([]*ent.VectorizationResult, error) {
+	vectorize, err := v.vectorize(ctx, inputs, v.getModelString(config.Type, config.Model, "document"))
+	if err != nil {
+		return nil, err
+	}
+	return vectorize, nil
 }
 
 func (v *vectorizer) VectorizeQuery(ctx context.Context, input string,
 	config ent.VectorizationConfig,
 ) (*ent.VectorizationResult, error) {
-	return v.vectorize(ctx, input, v.getModelString(config.Type, config.Model, "query"))
+	vectorize, err := v.vectorize(ctx, []string{input}, v.getModelString(config.Type, config.Model, "query"))
+	if err != nil {
+		return nil, err
+	}
+	return vectorize[0], nil
 }
 
-func (v *vectorizer) vectorize(ctx context.Context, input string,
+func (v *vectorizer) vectorize(ctx context.Context, inputs []string,
 	model string,
-) (*ent.VectorizationResult, error) {
+) ([]*ent.VectorizationResult, error) {
 	body, err := json.Marshal(embeddingsRequest{
-		Input: input,
+		Input: inputs,
 		Model: model,
 	})
 	if err != nil {
@@ -130,15 +148,19 @@ func (v *vectorizer) vectorize(ctx context.Context, input string,
 		return nil, errors.Errorf("failed with status: %d", res.StatusCode)
 	}
 
-	if len(resBody.Data) != 1 {
+	if len(resBody.Data) != len(inputs) {
 		return nil, errors.Errorf("wrong number of embeddings: %v", len(resBody.Data))
 	}
 
-	return &ent.VectorizationResult{
-		Text:       input,
-		Dimensions: len(resBody.Data[0].Embedding),
-		Vector:     resBody.Data[0].Embedding,
-	}, nil
+	var vectorizationResult []*ent.VectorizationResult
+	for _, v := range resBody.Data {
+		vectorizationResult = append(vectorizationResult, &ent.VectorizationResult{
+			Text:       v.Object,
+			Dimensions: len(v.Embedding),
+			Vector:     v.Embedding,
+		})
+	}
+	return vectorizationResult, nil
 }
 
 func (v *vectorizer) getApiKey(ctx context.Context) (string, error) {

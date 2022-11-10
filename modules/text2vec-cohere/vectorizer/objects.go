@@ -57,15 +57,18 @@ func sortStringKeys(schema_map map[string]interface{}) []string {
 	return keys
 }
 
-func (v *Vectorizer) Object(ctx context.Context, object *models.Object,
+func (v *Vectorizer) Objects(ctx context.Context, objects []*models.Object,
 	settings ClassSettings,
 ) error {
-	vec, err := v.object(ctx, object.Class, object.Properties, settings)
-	if err != nil {
-		return err
-	}
+	//todo here we need to fix
+	for _, object := range objects {
+		vec, err := v.object(ctx, object.Class, object.Properties, settings)
+		if err != nil {
+			return err
+		}
 
-	object.Vector = vec
+		object.Vector = vec
+	}
 	return nil
 }
 

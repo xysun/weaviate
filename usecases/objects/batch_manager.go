@@ -13,7 +13,6 @@ package objects
 
 import (
 	"context"
-
 	"github.com/semi-technologies/weaviate/usecases/config"
 	"github.com/semi-technologies/weaviate/usecases/monitoring"
 	"github.com/sirupsen/logrus"

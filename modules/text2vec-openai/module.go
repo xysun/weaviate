@@ -42,7 +42,7 @@ type OpenAIModule struct {
 }
 
 type textVectorizer interface {
-	Object(ctx context.Context, obj *models.Object,
+	Objects(ctx context.Context, objects []*models.Object,
 		settings vectorizer.ClassSettings) error
 	Texts(ctx context.Context, input []string,
 		settings vectorizer.ClassSettings) ([]float32, error)
@@ -122,11 +122,11 @@ func (m *OpenAIModule) RootHandler() http.Handler {
 	return nil
 }
 
-func (m *OpenAIModule) VectorizeObject(ctx context.Context,
-	obj *models.Object, cfg moduletools.ClassConfig,
+func (m *OpenAIModule) VectorizeObjects(ctx context.Context,
+	objects []*models.Object, cfg moduletools.ClassConfig,
 ) error {
 	icheck := vectorizer.NewClassSettings(cfg)
-	return m.vectorizer.Object(ctx, obj, icheck)
+	return m.vectorizer.Objects(ctx, objects, icheck)
 }
 
 func (m *OpenAIModule) MetaInfo() (map[string]interface{}, error) {

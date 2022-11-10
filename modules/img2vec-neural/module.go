@@ -37,7 +37,7 @@ type ImageModule struct {
 }
 
 type imageVectorizer interface {
-	Object(ctx context.Context, object *models.Object,
+	Objects(ctx context.Context, object []*models.Object,
 		settings vectorizer.ClassSettings) error
 	VectorizeImage(ctx context.Context,
 		id, image string) ([]float32, error)
@@ -89,11 +89,11 @@ func (m *ImageModule) RootHandler() http.Handler {
 	return nil
 }
 
-func (m *ImageModule) VectorizeObject(ctx context.Context,
-	obj *models.Object, cfg moduletools.ClassConfig,
+func (m *ImageModule) VectorizeObjects(ctx context.Context,
+	objects []*models.Object, cfg moduletools.ClassConfig,
 ) error {
 	icheck := vectorizer.NewClassSettings(cfg)
-	return m.vectorizer.Object(ctx, obj, icheck)
+	return m.vectorizer.Objects(ctx, objects, icheck)
 }
 
 func (m *ImageModule) MetaInfo() (map[string]interface{}, error) {

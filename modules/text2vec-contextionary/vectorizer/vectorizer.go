@@ -60,30 +60,32 @@ func New(client client) *Vectorizer {
 }
 
 // Object object to vector
-func (v *Vectorizer) Object(ctx context.Context, object *models.Object,
+func (v *Vectorizer) Objects(ctx context.Context, objects []*models.Object,
 	icheck ClassIndexCheck,
 ) error {
-	var overrides map[string]string
-	if object.VectorWeights != nil {
-		overrides = object.VectorWeights.(map[string]string)
+	//todo Here the v.object needs to be fixed
+	for _, object := range objects {
+		var overrides map[string]string
+		if object.VectorWeights != nil {
+			overrides = object.VectorWeights.(map[string]string)
+		}
+
+		vec, sources, err := v.object(ctx, object.Class, object.Properties, overrides,
+			icheck)
+		if err != nil {
+			return err
+		}
+
+		object.Vector = vec
+
+		if object.Additional == nil {
+			object.Additional = models.AdditionalProperties{}
+		}
+
+		object.Additional["interpretation"] = &txt2vecmodels.Interpretation{
+			Source: sourceFromInputElements(sources),
+		}
 	}
-
-	vec, sources, err := v.object(ctx, object.Class, object.Properties, overrides,
-		icheck)
-	if err != nil {
-		return err
-	}
-
-	object.Vector = vec
-
-	if object.Additional == nil {
-		object.Additional = models.AdditionalProperties{}
-	}
-
-	object.Additional["interpretation"] = &txt2vecmodels.Interpretation{
-		Source: sourceFromInputElements(sources),
-	}
-
 	return nil
 }
 

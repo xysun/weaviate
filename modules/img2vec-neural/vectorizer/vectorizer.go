@@ -40,15 +40,18 @@ type ClassSettings interface {
 	ImageField(property string) bool
 }
 
-func (v *Vectorizer) Object(ctx context.Context, object *models.Object,
+func (v *Vectorizer) Objects(ctx context.Context, objects []*models.Object,
 	settings ClassSettings,
 ) error {
-	vec, err := v.object(ctx, object.ID, object.Properties, settings)
-	if err != nil {
-		return err
+	for _, object := range objects {
+		vec, err := v.object(ctx, object.ID, object.Properties, settings)
+		if err != nil {
+			return err
+		}
+
+		object.Vector = vec
 	}
 
-	object.Vector = vec
 	return nil
 }
 

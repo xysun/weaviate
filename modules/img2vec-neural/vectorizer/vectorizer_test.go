@@ -35,7 +35,7 @@ func TestVectorizer(t *testing.T) {
 		}
 
 		// when
-		err := vectorizer.Object(context.Background(), object, settings)
+		err := vectorizer.Objects(context.Background(), []*models.Object{object}, settings)
 
 		// then
 		require.Nil(t, err)
@@ -57,7 +57,7 @@ func TestVectorizer(t *testing.T) {
 		}
 
 		// when
-		err := vectorizer.Object(context.Background(), object, settings)
+		err := vectorizer.Objects(context.Background(), []*models.Object{object}, settings)
 
 		// then
 		require.Nil(t, err)

@@ -56,12 +56,19 @@ func (m *CentroidModule) MetaInfo() (map[string]interface{}, error) {
 	return map[string]interface{}{}, nil
 }
 
-func (m *CentroidModule) VectorizeObject(ctx context.Context,
-	obj *models.Object, cfg moduletools.ClassConfig,
+func (m *CentroidModule) VectorizeObjects(ctx context.Context,
+	objects []*models.Object, cfg moduletools.ClassConfig,
 	findRefVecsFn modulecapabilities.FindObjectFn,
 ) error {
 	vzr := vectorizer.New(cfg, findRefVecsFn)
-	return vzr.Object(ctx, obj)
+	for _, object := range objects {
+		err := vzr.Object(ctx, object)
+		if err != nil {
+			return err
+		}
+	}
+	//todo does this make sense here?
+	return nil
 }
 
 // verify we implement the modules.Module interface

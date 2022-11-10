@@ -35,6 +35,8 @@ func New(client Client) *Vectorizer {
 type Client interface {
 	Vectorize(ctx context.Context, input string,
 		config ent.VectorizationConfig) (*ent.VectorizationResult, error)
+	VectorizeInputs(ctx context.Context, inputs []string,
+		config ent.VectorizationConfig) ([]*ent.VectorizationResult, error)
 	VectorizeQuery(ctx context.Context, input string,
 		config ent.VectorizationConfig) (*ent.VectorizationResult, error)
 }
@@ -57,16 +59,10 @@ func sortStringKeys(schema_map map[string]interface{}) []string {
 	return keys
 }
 
-func (v *Vectorizer) Object(ctx context.Context, object *models.Object,
+func (v *Vectorizer) Objects(ctx context.Context, objects []*models.Object,
 	settings ClassSettings,
 ) error {
-	vec, err := v.object(ctx, object.Class, object.Properties, settings)
-	if err != nil {
-		return err
-	}
-
-	object.Vector = vec
-	return nil
+	return v.objects(ctx, objects, settings)
 }
 
 func appendPropIfText(icheck ClassSettings, list *[]string, propName string,
@@ -84,28 +80,26 @@ func appendPropIfText(icheck ClassSettings, list *[]string, propName string,
 	}
 }
 
-func (v *Vectorizer) object(ctx context.Context, className string,
-	schema interface{}, icheck ClassSettings,
-) ([]float32, error) {
+func (v *Vectorizer) generateCorpi(className string, schema interface{}, settings ClassSettings) string {
 	var corpi []string
 
-	if icheck.VectorizeClassName() {
+	if settings.VectorizeClassName() {
 		corpi = append(corpi, camelCaseToLower(className))
 	}
 
 	if schema != nil {
 		schemamap := schema.(map[string]interface{})
 		for _, prop := range sortStringKeys(schemamap) {
-			if !icheck.PropertyIndexed(prop) {
+			if !settings.PropertyIndexed(prop) {
 				continue
 			}
 
 			if asSlice, ok := schemamap[prop].([]interface{}); ok {
 				for _, elem := range asSlice {
-					appendPropIfText(icheck, &corpi, prop, elem)
+					appendPropIfText(settings, &corpi, prop, elem)
 				}
 			} else {
-				appendPropIfText(icheck, &corpi, prop, schemamap[prop])
+				appendPropIfText(settings, &corpi, prop, schemamap[prop])
 			}
 		}
 	}
@@ -115,16 +109,25 @@ func (v *Vectorizer) object(ctx context.Context, className string,
 		corpi = append(corpi, camelCaseToLower(className))
 	}
 
-	text := strings.Join(corpi, " ")
-	res, err := v.client.Vectorize(ctx, text, ent.VectorizationConfig{
-		Type:  icheck.Type(),
-		Model: icheck.Model(),
-	})
-	if err != nil {
-		return nil, err
+	return strings.Join(corpi, " ")
+}
+
+func (v *Vectorizer) objects(ctx context.Context, objects []*models.Object, settings ClassSettings) error {
+	inputs := make([]string, len(objects))
+	for i, object := range objects {
+		inputs[i] = v.generateCorpi(object.Class, object.Properties, settings)
 	}
 
-	return res.Vector, nil
+	res, err := v.client.VectorizeInputs(ctx, inputs, ent.VectorizationConfig{
+		Type:  settings.Type(),
+		Model: settings.Model(),
+	})
+
+	for i, v := range res {
+		objects[i].Vector = v.Vector
+	}
+
+	return err
 }
 
 func camelCaseToLower(in string) string {

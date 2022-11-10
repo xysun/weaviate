@@ -14,6 +14,7 @@ package objects
 import (
 	"context"
 	"fmt"
+	"github.com/semi-technologies/weaviate/entities/models"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/semi-technologies/weaviate/entities/additional"
@@ -33,8 +34,8 @@ func (m *Manager) updateRefVector(ctx context.Context,
 
 		obj := parent.Object()
 
-		if err := m.modulesProvider.UpdateVector(
-			ctx, obj, m.findObject, m.logger); err != nil {
+		if err := m.modulesProvider.UpdateVectors(
+			ctx, []*models.Object{obj}, m.findObject, m.logger); err != nil {
 			return fmt.Errorf("calculate ref vector for '%s/%s': %w",
 				className, id, err)
 		}
