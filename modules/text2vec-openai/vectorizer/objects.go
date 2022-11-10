@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/fatih/camelcase"
 	"github.com/semi-technologies/weaviate/entities/models"
@@ -118,10 +119,12 @@ func (v *Vectorizer) objects(ctx context.Context, objects []*models.Object, sett
 		inputs[i] = v.generateCorpi(object.Class, object.Properties, settings)
 	}
 
+	now := time.Now()
 	res, err := v.client.VectorizeInputs(ctx, inputs, ent.VectorizationConfig{
 		Type:  settings.Type(),
 		Model: settings.Model(),
 	})
+	fmt.Printf("OpenAI call time: %v\n", time.Since(now))
 
 	for i, v := range res {
 		objects[i].Vector = v.Vector
