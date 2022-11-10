@@ -448,16 +448,16 @@ func (i *Index) putObjectBatch(ctx context.Context,
 			if !shardingState.IsShardLocal(shardName) {
 				errs = i.remote.BatchPutObjects(ctx, shardName, group.objects)
 			} else {
-				if shardingState.Config.Replicas > 1 {
-					errs = i.remote.ReplicateBatchPutObjects(ctx, i.getSchema.NodeName(), shardName, group.objects)
-				}
 				shard := i.Shards[shardName]
-				localErrs := shard.putObjectBatch(ctx, group.objects)
-				for i := range errs {
-					// TODO: only return the first encountered error for each position
-					//       there are probably better ways to do this
-					if errs[i] == nil && localErrs[i] != nil {
-						errs[i] = localErrs[i]
+				errs = shard.putObjectBatch(ctx, group.objects)
+				if shardingState.Config.Replicas > 1 {
+					remoteErrs := i.remote.ReplicateBatchPutObjects(ctx, i.getSchema.NodeName(), shardName, group.objects)
+					for i := range errs {
+						// only return the first encountered error for each position
+						// TODO: there are probably better ways to do this
+						if errs[i] == nil && remoteErrs[i] != nil {
+							errs[i] = remoteErrs[i]
+						}
 					}
 				}
 			}
