@@ -41,6 +41,7 @@ func (s *NaiveSet) Add(x uint64) *NaiveSet {
 		index:    x,
 		distance: s.distance(s.x, vector),
 		visited:  false,
+		vector:   vector,
 	}
 	s.size++
 	if s.size == 1 {

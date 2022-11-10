@@ -46,9 +46,8 @@ type VamanaData struct {
 	Mean            []float32
 
 	//ToDo: Remove this fast please...
-	tempId    uint64
-	tempVec   []float32
-	addsCount int
+	tempId  uint64
+	tempVec []float32
 }
 
 type Vamana struct {
@@ -630,20 +629,18 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
 	out := make([]uint64, 0, visitedSet.Size())
 	outSize := 0
 	for visitedSet.Size() > 0 {
-		pMin := visitedSet.Pop().GetIndex()
-		out = append(out, pMin)
+		pMin := visitedSet.Pop()
+		out = append(out, pMin.GetIndex())
 		outSize++
 		if outSize == v.userConfig.R {
 			break
 		}
 
-		qPMin := v.getVector(pMin)
 		for _, x := range visitedSet.GetItems() {
 			if visitedSet.SkipOn(x) {
 				continue
 			}
-			qX := v.getVector(x.GetIndex())
-			if (v.userConfig.Alpha * v.config.Distance(qPMin, qX)) <= x.GetDistance() {
+			if (v.userConfig.Alpha * v.config.Distance(pMin.GetVector(), x.GetVector())) <= x.GetDistance() {
 				visitedSet.Remove(x)
 			}
 		}
@@ -683,16 +680,9 @@ func (v *Vamana) addVectorAndOutNeighbors(id uint64, vector []float32, outneighb
 }
 
 func (v *Vamana) updateEntryPointAfterAdd(vector []float32) {
-	if v.data.addsCount > 2000 {
-		return
-	}
 	size := float32(v.userConfig.VectorsSize)
 	for i := range v.data.Mean {
 		v.data.Mean[i] = (v.data.Mean[i]*(size-1) + vector[i]) / size
-	}
-	v.data.addsCount++
-	if v.data.addsCount%100 != 0 {
-		return
 	}
 	indexes, _ := v.greedySearchQuery(v.data.Mean, 1)
 	v.data.SIndex = indexes[0]
@@ -710,7 +700,7 @@ func (v *Vamana) Add(id uint64, vector []float32) error {
 	for _, x := range outneighbors {
 		v.addOutNeighbor(x, id)
 	}
-	//v.updateEntryPointAfterAdd(vector)
+	v.updateEntryPointAfterAdd(vector)
 	return nil
 }
 

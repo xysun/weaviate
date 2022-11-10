@@ -97,6 +97,7 @@ type IndexAndDistance struct {
 	distance   float32
 	pqDistance float32
 	visited    bool
+	vector     []float32
 }
 
 func (r *IndexAndDistance) GetIndex() uint64 {
@@ -109,6 +110,10 @@ func (r *IndexAndDistance) GetDistance() float32 {
 
 func (r *IndexAndDistance) SetDistance(distance float32) {
 	r.distance = distance
+}
+
+func (r *IndexAndDistance) GetVector() []float32 {
+	return r.vector
 }
 
 func NewSortedSet(capacity int, vectorForID VectorForID, distance DistanceFunction, center []float32, vectorSize int) *SortedSet {
