@@ -645,14 +645,9 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
 			break
 		}
 
-		for _, x := range v.visitedSet.GetItems() {
-			if v.visitedSet.SkipOn(x) {
-				continue
-			}
-			if (v.userConfig.Alpha * v.config.Distance(pMin.GetVector(), x.GetVector())) <= x.GetDistance() {
-				v.visitedSet.Remove(x)
-			}
-		}
+		v.visitedSet.RemoveIf(func(x *ssdhelpers.IndexAndDistance) bool {
+			return (v.userConfig.Alpha * v.config.Distance(pMin.GetVector(), x.GetVector())) <= x.GetDistance()
+		})
 	}
 
 	return out

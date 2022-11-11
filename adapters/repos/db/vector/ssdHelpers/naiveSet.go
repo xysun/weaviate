@@ -58,7 +58,12 @@ func (s *NaiveSet) Add(x uint64) *NaiveSet {
 
 func (s *NaiveSet) insert(data *IndexAndDistance) {
 	left := s.current
-	right := len(s.items)
+	right := len(s.items) - 1
+
+	if s.items[right].distance <= data.distance {
+		s.items = append(s.items, data)
+		return
+	}
 
 	if s.items[left].distance >= data.distance {
 		s.items = append([]*IndexAndDistance{data}, s.items...)
@@ -116,4 +121,16 @@ func (s *NaiveSet) Pop() *IndexAndDistance {
 
 func (s *NaiveSet) Size() int {
 	return s.size
+}
+
+func (s *NaiveSet) RemoveIf(filter func(*IndexAndDistance) bool) {
+	for i := s.current; i < s.size; i++ {
+		x := s.items[i]
+		if x.visited {
+			continue
+		}
+		if filter(x) {
+			s.Remove(x)
+		}
+	}
 }
