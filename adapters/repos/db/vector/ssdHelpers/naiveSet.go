@@ -126,9 +126,6 @@ func (s *NaiveSet) Size() int {
 func (s *NaiveSet) RemoveIf(filter func(*IndexAndDistance) bool) {
 	for i := s.current; i < s.size; i++ {
 		x := s.items[i]
-		if x.visited {
-			continue
-		}
 		if filter(x) {
 			s.Remove(x)
 		}

@@ -13,34 +13,22 @@ package diskAnn_test
 
 import (
 	"context"
-	"encoding/gob"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
-	"net/http"
-	"os"
-	"runtime"
-	"strings"
-	"sync"
 	"time"
 
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
-	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw"
-	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRecall(t *testing.T) {
 	rand.Seed(0)
 	dimensions := 128
-	vectors_size := 10000
+	vectors_size := 100000
 	queries_size := 1000
 	before := time.Now()
 	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
@@ -67,11 +55,11 @@ func TestRecall(t *testing.T) {
 	index.BuildIndex()
 	for id := 0; id < vectors_size; id++ {
 		index.Add(uint64(id), vectors[id])
-		if id%1000 == 0 {
+		if id%10000 == 0 {
 			fmt.Println(id, time.Since(before))
 		}
 	}
-	index.SetL(50)
+	index.SwitchGraphToDisk("data/test.praph", 64, 255)
 	fmt.Printf("Building the index took %s\n", time.Since(before))
 
 	k := 10
@@ -100,6 +88,7 @@ func TestRecall(t *testing.T) {
 	}
 }
 
+/*
 func generate_vecs(size int, dimensions int, width int) [][]float32 {
 	vectors := make([][]float32, 0, size)
 	for i := 0; i < size; i++ {
@@ -209,7 +198,7 @@ func TestVamanaAdd(t *testing.T) {
 	fmt.Println("Vamana Add")
 	rand.Seed(0)
 	dimensions := 128
-	vectors_size := 1000000
+	vectors_size := 10000
 	queries_size := 1000
 	before := time.Now()
 	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
@@ -242,10 +231,10 @@ func TestVamanaAdd(t *testing.T) {
 				255,
 			)
 			index.BuildIndex()
-			switchAt := 1000000
+			switchAt := vectors_size
 			for id := 0; id < switchAt; id++ {
 				index.Add(uint64(id), vectors[id])
-				if id%10000 == 0 {
+				if id%1000 == 0 {
 					fmt.Println(id, time.Since(before))
 				}
 			}
@@ -772,7 +761,7 @@ func TestChartsDisk(t *testing.T) {
 			{3105.491943, 0.999060},
 			{3777.148926, 0.999410},
 			{6629.953125, 0.999790},
-		}*/
+		}
 	testinghelpers.ChartData("Recall vs Latency (restricted memory)", "", results, "local-threshold.html")
 }
 
@@ -1054,7 +1043,6 @@ func TestCharts(t *testing.T) {
 	testinghelpers.ChartData("Recall vs Latency", "", results, "line-10-100.html")
 }
 
-/*
 func TestChartsHighlighted(t *testing.T) {
 	rand.Seed(0)
 	dimensions := 2

@@ -9,6 +9,7 @@ import (
 
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
+	"github.com/stretchr/testify/assert"
 )
 
 func compare(x []byte, y []byte) bool {
@@ -22,10 +23,10 @@ func compare(x []byte, y []byte) bool {
 
 func TestPQ(t *testing.T) {
 	dimensions := 128
-	vectors_size := 1000000
+	vectors_size := 100000
 	queries_size := 100
 	k := 100
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, "../diskAnn")
 	pq := ssdhelpers.NewProductQunatizer(
 		32,
 		256,
@@ -79,4 +80,5 @@ func TestPQ(t *testing.T) {
 	}
 	recall := float32(relevant) / float32(k*queries_size)
 	fmt.Println(recall)
+	assert.True(t, recall > 0.8)
 }
