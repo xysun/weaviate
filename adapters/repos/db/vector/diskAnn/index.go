@@ -12,7 +12,6 @@
 package diskAnn
 
 import (
-	"bytes"
 	"context"
 	"encoding/csv"
 	"encoding/gob"
@@ -20,7 +19,6 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,7 +43,7 @@ type VamanaData struct {
 	Vectors         [][]float32
 	Mean            []float32
 
-	//ToDo: Remove this fast please...
+	// ToDo: Remove this fast please...
 	tempId  uint64
 	tempVec []float32
 }
@@ -67,9 +65,11 @@ type Vamana struct {
 	beamSearchHolder func(*Vamana, []uint64, func([]uint64, ...uint64) []uint64) []uint64
 }
 
-const ConfigFileName = "cfg.gob"
-const DataFileName = "data.gob"
-const GraphFileName = "graph.gob"
+const (
+	ConfigFileName = "cfg.gob"
+	DataFileName   = "data.gob"
+	GraphFileName  = "graph.gob"
+)
 
 func New(config Config, userConfig UserConfig) (*Vamana, error) {
 	index := &Vamana{
@@ -121,7 +121,7 @@ func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDTh
 		return index.data.Vectors[id], nil
 	}
 	index.SetCacheSize(C)
-	//index.SetL(int(index.userConfig.Capacity))
+	// index.SetL(int(index.userConfig.Capacity))
 	index.BuildIndex()
 	if toDisk {
 		index.SwitchGraphToDisk(fmt.Sprintf("%s.graph", completePath), segments, centroids)
@@ -201,10 +201,6 @@ func (v *Vamana) SearchByVector(query []float32, k int, allow helpers.AllowList)
 
 func (v *Vamana) ToDisk(path string) {
 	completePath := fmt.Sprintf("%s/%s", path, ConfigFileName)
-	cmd := exec.Command("ls data")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Run()
 	fConfig, err := os.Create(completePath)
 	if err != nil {
 		panic(errors.Wrap(err, "Could not create config file"))
@@ -297,7 +293,7 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 		panic(errors.Wrap(err, "Could not decode config"))
 	}
 
-	index, err := New(Config{}, userConfig)
+	index, _ := New(Config{}, userConfig)
 
 	dDec := gob.NewDecoder(fData)
 	err = dDec.Decode(&index.data)
@@ -354,13 +350,6 @@ func (v *Vamana) pass() {
 	}
 }
 
-func min(x uint64, y uint64) uint64 {
-	if x < y {
-		return x
-	}
-	return y
-}
-
 func minInt(x int, y int) int {
 	if x < y {
 		return x
@@ -374,7 +363,7 @@ func (v *Vamana) makeRandomGraph() [][]uint64 {
 		edges[i] = make([]uint64, v.userConfig.R)
 		for j := 0; j < v.userConfig.R; j++ {
 			edges[i][j] = rand.Uint64() % (v.userConfig.VectorsSize - 1)
-			if edges[i][j] >= i { //avoid connecting with itself
+			if edges[i][j] >= i { // avoid connecting with itself
 				edges[i][j]++
 			}
 		}
@@ -397,7 +386,7 @@ func (v *Vamana) medoid() uint64 {
 		mean[j] /= float32(v.userConfig.VectorsSize)
 	}
 
-	//ToDo: Not really helping like this
+	// ToDo: Not really helping like this
 	ssdhelpers.Concurrently(v.userConfig.VectorsSize, func(_ uint64, i uint64, mutex *sync.Mutex) {
 		x := v.getVector(i)
 		dist := v.config.Distance(x, mean)
@@ -437,7 +426,7 @@ func (v *Vamana) greedySearch(x []float32, k int, allVisited []uint64, updateVis
 		v.set.Add(v.data.SIndex)
 	}
 
-	//allVisited := []uint64{v.data.SIndex}
+	// allVisited := []uint64{v.data.SIndex}
 	for v.set.NotVisited() {
 		allVisited = v.beamSearchHolder(v, allVisited, updateVisited)
 	}
@@ -564,9 +553,7 @@ func (v *Vamana) addToCacheRecursively(hops int, elements []uint64) {
 			Vector:       vec,
 			OutNeighbors: v.edges[x],
 		}
-		for _, n := range v.edges[x] {
-			newElements = append(newElements, n)
-		}
+		newElements = append(newElements, v.edges[x]...)
 	}
 	v.addToCacheRecursively(hops, newElements)
 }
@@ -611,16 +598,6 @@ func (v *Vamana) encondeVectors(segments int, centroids int) [][]byte {
 		enconded[vIndex] = v.pq.Encode(x)
 	})
 	return enconded
-}
-
-func elementsFromMap(set map[uint64]struct{}) []uint64 {
-	res := make([]uint64, len(set))
-	i := 0
-	for x := range set {
-		res[i] = x
-		i++
-	}
-	return res
 }
 
 func (v *Vamana) getVector(id uint64) []float32 {
@@ -695,7 +672,7 @@ func (v *Vamana) updateEntryPointAfterAdd(vector []float32) {
 func (v *Vamana) Add(id uint64, vector []float32) error {
 	v.data.tempId = id
 	v.data.tempVec = vector
-	//ToDo: should use position and not id...
+	// ToDo: should use position and not id...
 	_, visited, _ := v.greedySearchWithVisited(vector, 1)
 	outneighbors := v.robustPrune(id, visited)
 	v.data.tempId = math.MaxUint64

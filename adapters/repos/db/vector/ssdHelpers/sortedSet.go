@@ -146,14 +146,6 @@ func (s *SortedSet) SwitchToDisk() {
 	s.addRemainingHolder = storeRemaining
 	s.nextRemainingHolder = nextRemaining
 	s.hasNextRemainingHolder = hasNextRemaining
-
-}
-
-func max(x int, y int) int {
-	if x < y {
-		return y
-	}
-	return x
 }
 
 func (s *SortedSet) ReCenter(center []float32, onDisk bool) {
@@ -233,7 +225,7 @@ func (s *SortedSet) AddPQVector(item uint64, cache map[uint64]*VectorWithNeighbo
 	}
 	found := bitSet.Contains(item)
 	if found {
-		vector, _ := cache[item]
+		vector := cache[item]
 		return s.add(item, func(s *SortedSet, x uint64) float32 {
 			return s.distance(vector.Vector, s.center)
 		})
@@ -293,7 +285,7 @@ func (s *SortedSet) AddRangePQ(indices []uint64, cache map[uint64]*VectorWithNei
 	for _, item := range indices {
 		found := bitSet.Contains(item)
 		if found {
-			vector, _ := cache[item]
+			vector := cache[item]
 			s.add(item, func(s *SortedSet, x uint64) float32 {
 				return s.distance(vector.Vector, s.center)
 			})
@@ -382,7 +374,7 @@ func (s *SortedSet) ReSort(i int, vector []float32) {
 			return
 		}
 		data := s.items[i]
-		//TODO: add to remaining
+		// TODO: add to remaining
 		copy(s.items[i:j-1], s.items[i+1:j])
 		s.items[j-1] = data
 	}

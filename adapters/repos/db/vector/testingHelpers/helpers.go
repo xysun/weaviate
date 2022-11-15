@@ -30,7 +30,6 @@ func float32FromBytes(bytes []byte) float32 {
 }
 
 func readSiftFloat(file string, maxObjects int) [][]float32 {
-
 	f, err := os.Open(file)
 	if err != nil {
 		panic(errors.Wrap(err, "Could not open SIFT file"))
@@ -167,7 +166,6 @@ func BuildTruths(queries_size int, vectors_size int, queries [][]float32, vector
 }
 
 func loadTruths(fileName string, queries_size int, k int) [][]uint64 {
-
 	f, err := os.Open(fileName)
 	if err != nil {
 		panic(errors.Wrap(err, "Could not open truths file"))
@@ -209,9 +207,7 @@ func PlotGraphHighLighted(name string, edges [][]uint64, vectors [][]float32, w 
 	l[0] = []uint64{entry}
 	for i := 1; i < levels; i++ {
 		for _, x := range l[i-1] {
-			for _, outNeighbor := range edges[x] {
-				l[i] = append(l[i], outNeighbor)
-			}
+			l[i] = append(l[i], edges[x]...)
 		}
 	}
 	colors := [][]float64{
@@ -256,9 +252,7 @@ func PlotGraphHighLightedBold(name string, edges [][]uint64, vectors [][]float32
 	l[0] = []uint64{entry}
 	for i := 1; i < levels; i++ {
 		for _, x := range l[i-1] {
-			for _, outNeighbor := range edges[x] {
-				l[i] = append(l[i], outNeighbor)
-			}
+			l[i] = append(l[i], edges[x]...)
 		}
 	}
 	bold := []float64{0, 0, 0, 1}
@@ -366,11 +360,4 @@ func MatchesInLists(control []uint64, results []uint64) uint64 {
 	}
 
 	return matches
-}
-
-func min(x int, y int) int {
-	if x < y {
-		return x
-	}
-	return y
 }

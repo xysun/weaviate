@@ -15,9 +15,8 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"time"
-
 	"testing"
+	"time"
 
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"

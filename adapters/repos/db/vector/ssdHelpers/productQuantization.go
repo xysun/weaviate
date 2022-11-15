@@ -113,7 +113,6 @@ func (pq *ProductQuantizer) Fit() {
 			pq.dataSize,
 			pq.ds)
 		_, err := pq.kms[i].Partition()
-
 		if err != nil {
 			panic(err)
 		}

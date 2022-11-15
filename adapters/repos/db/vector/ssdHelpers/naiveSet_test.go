@@ -39,10 +39,10 @@ func TestNaiveSetDoesSortTheData(t *testing.T) {
 	p := uint64(0)
 	vectors := [][]float32{
 		{0, 10, 0, 12, 34},
-		{0, 12, 0, 12, 34}, //0
-		{0, 10, 4, 12, 34}, //2
-		{0, 10, 0, 15, 34}, //1
-		{0, 10, 0, 12, 39}, //3
+		{0, 12, 0, 12, 34}, // 0
+		{0, 10, 4, 12, 34}, // 2
+		{0, 10, 0, 15, 34}, // 1
+		{0, 10, 0, 12, 39}, // 3
 	}
 	sorted := []uint64{1, 3, 2, 4}
 	visitedSet := ssdhelpers.NewNaiveSet(
@@ -66,10 +66,10 @@ func TestNaiveSetPopJumpsOverRemoved(t *testing.T) {
 	p := uint64(0)
 	vectors := [][]float32{
 		{0, 10, 0, 12, 34},
-		{0, 12, 0, 12, 34}, //0
-		{0, 10, 4, 12, 34}, //2
-		{0, 10, 0, 15, 34}, //1
-		{0, 10, 0, 12, 39}, //3
+		{0, 12, 0, 12, 34}, // 0
+		{0, 10, 4, 12, 34}, // 2
+		{0, 10, 0, 15, 34}, // 1
+		{0, 10, 0, 12, 39}, // 3
 	}
 	sorted := []uint64{1, 3, 4}
 	visitedSet := ssdhelpers.NewNaiveSet(
@@ -94,10 +94,10 @@ func TestNaiveSetIteratorJumpsOverRemoved(t *testing.T) {
 	p := uint64(0)
 	vectors := [][]float32{
 		{0, 10, 0, 12, 34},
-		{0, 12, 0, 12, 34}, //0
-		{0, 10, 4, 12, 34}, //2
-		{0, 10, 0, 15, 34}, //1
-		{0, 10, 0, 12, 39}, //3
+		{0, 12, 0, 12, 34}, // 0
+		{0, 10, 4, 12, 34}, // 2
+		{0, 10, 0, 15, 34}, // 1
+		{0, 10, 0, 12, 39}, // 3
 	}
 	sorted := []uint64{1, 3, 4}
 	visitedSet := ssdhelpers.NewNaiveSet(
@@ -127,10 +127,10 @@ func TestNaiveSetIteratorJumpsOverRemovedOnLoop(t *testing.T) {
 	p := uint64(0)
 	vectors := [][]float32{
 		{0, 10, 0, 12, 34},
-		{0, 12, 0, 12, 34}, //0
-		{0, 10, 4, 12, 34}, //2
-		{0, 10, 0, 15, 34}, //1
-		{0, 10, 0, 12, 39}, //3
+		{0, 12, 0, 12, 34}, // 0
+		{0, 10, 4, 12, 34}, // 2
+		{0, 10, 0, 15, 34}, // 1
+		{0, 10, 0, 12, 39}, // 3
 	}
 	sorted := []uint64{1, 3, 4}
 	visitedSet := ssdhelpers.NewNaiveSet(
@@ -161,10 +161,10 @@ func TestNaiveSetIgnoresWhenRemovingAlreadyPoped(t *testing.T) {
 	p := uint64(0)
 	vectors := [][]float32{
 		{0, 10, 0, 12, 34},
-		{0, 12, 0, 12, 34}, //0
-		{0, 10, 4, 12, 34}, //2
-		{0, 10, 0, 15, 34}, //1
-		{0, 10, 0, 12, 39}, //3
+		{0, 12, 0, 12, 34}, // 0
+		{0, 10, 4, 12, 34}, // 2
+		{0, 10, 0, 15, 34}, // 1
+		{0, 10, 0, 12, 39}, // 3
 	}
 	visitedSet := ssdhelpers.NewNaiveSet(
 		func(ctx context.Context, id uint64) ([]float32, error) {

@@ -111,7 +111,7 @@ func (m *KMeans) NNearest(point []float32, n int) []uint64 {
 	return mins
 }
 
-func (m *KMeans) Partition() (*KMeans, error) { //init centers using min/max per dimension
+func (m *KMeans) Partition() (*KMeans, error) { // init centers using min/max per dimension
 	k64 := uint64(m.K)
 	Concurrently(k64, func(workerID uint64, i uint64, mutex *sync.Mutex) {
 		var p []float32
