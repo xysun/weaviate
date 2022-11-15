@@ -7,7 +7,6 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -113,15 +112,13 @@ func (m *KMeans) NNearest(point []float32, n int) []uint64 {
 
 func (m *KMeans) Partition() (*KMeans, error) { // init centers using min/max per dimension
 	k64 := uint64(m.K)
-	Concurrently(k64, func(workerID uint64, i uint64, mutex *sync.Mutex) {
+	for i := 0; i < m.K; i++ {
 		var p []float32
 		for j := 0; j < m.dimensions; j++ {
 			p = append(p, rand.Float32())
 		}
-		mutex.Lock()
 		m.centers = append(m.centers, p)
-		mutex.Unlock()
-	})
+	}
 
 	points := make([]uint64, m.dataSize)
 	changes := 1
@@ -133,19 +130,17 @@ func (m *KMeans) Partition() (*KMeans, error) { // init centers using min/max pe
 			cc[j] = make([]uint64, 0)
 		}
 
-		Concurrently(uint64(m.dataSize), func(workerId, p uint64, mutex *sync.Mutex) {
+		for p := 0; p < m.dataSize; p++ {
 			point, _ := m.VectorForIDThunk(context.Background(), uint64(p))
 			ci := m.Nearest(point)
-			mutex.Lock()
 			cc[ci] = append(cc[ci], uint64(p))
-			mutex.Unlock()
 			if points[p] != ci {
 				points[p] = ci
 				changes++
 			}
-		})
+		}
 
-		Concurrently(k64, func(workerID uint64, ci uint64, mutex *sync.Mutex) {
+		for ci := uint64(0); ci < k64; ci++ {
 			if len(cc[ci]) == 0 {
 				var ri int
 				for {
@@ -158,25 +153,25 @@ func (m *KMeans) Partition() (*KMeans, error) { // init centers using min/max pe
 				points[ri] = ci
 				changes = m.dataSize
 			}
-		})
+		}
 
 		if changes > 0 {
-			Concurrently(k64, func(workerID uint64, i uint64, mutex *sync.Mutex) {
-				m.centers[i] = make([]float32, m.dimensions)
-				for j := range m.centers[i] {
-					m.centers[i][j] = 0
+			for index := 0; index < m.K; index++ {
+				m.centers[index] = make([]float32, m.dimensions)
+				for j := range m.centers[index] {
+					m.centers[index][j] = 0
 				}
-				size := len(cc[i])
-				for _, ci := range cc[i] {
+				size := len(cc[index])
+				for _, ci := range cc[index] {
 					v := m.getPoint(ci)
 					for j := 0; j < m.dimensions; j++ {
-						m.centers[i][j] += v[j]
+						m.centers[index][j] += v[j]
 					}
 				}
 				for j := 0; j < m.dimensions; j++ {
-					m.centers[i][j] /= float32(size)
+					m.centers[index][j] /= float32(size)
 				}
-			})
+			}
 		}
 		if i == m.IterationThreshold ||
 			changes < int(float32(m.dataSize)*m.DeltaThreshold) {

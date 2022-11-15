@@ -5,7 +5,6 @@ import (
 	"encoding/gob"
 	"fmt"
 	"os"
-	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -102,7 +101,7 @@ func (pq *ProductQuantizer) extractSegment(i int, v []float32) []float32 {
 
 func (pq *ProductQuantizer) Fit() {
 	pq.kms = make([]*KMeans, pq.m)
-	Concurrently(uint64(pq.m), func(workerID uint64, i uint64, mutex *sync.Mutex) {
+	for i := 0; i < pq.m; i++ {
 		pq.kms[i] = New(
 			pq.ks,
 			pq.distance,
@@ -116,7 +115,7 @@ func (pq *ProductQuantizer) Fit() {
 		if err != nil {
 			panic(err)
 		}
-	})
+	}
 }
 
 func (pq *ProductQuantizer) Encode(vec []float32) []byte {

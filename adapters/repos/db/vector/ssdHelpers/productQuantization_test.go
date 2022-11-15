@@ -42,12 +42,12 @@ func TestPQ(t *testing.T) {
 	fmt.Println("time elapse:", time.Since(before))
 	before = time.Now()
 	encoded := make([][]byte, vectors_size)
-	ssdhelpers.Concurrently(uint64(vectors_size), func(workerID uint64, i uint64, mutex *sync.Mutex) {
+	testinghelpers.Concurrently(uint64(vectors_size), func(_ uint64, i uint64, _ *sync.Mutex) {
 		encoded[i] = pq.Encode(vectors[i])
 	})
 	fmt.Println("time elapse:", time.Since(before))
 	collisions := 0
-	ssdhelpers.Concurrently(uint64(len(encoded)-1), func(workerID uint64, i uint64, mutex *sync.Mutex) {
+	testinghelpers.Concurrently(uint64(len(encoded)-1), func(_ uint64, i uint64, _ *sync.Mutex) {
 		for j := int(i) + 1; j < len(encoded); j++ {
 			if compare(encoded[i], encoded[j]) {
 				collisions++

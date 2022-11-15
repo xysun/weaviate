@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/helpers"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
+	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
 	"github.com/semi-technologies/weaviate/entities/schema"
 )
 
@@ -357,9 +358,10 @@ func minInt(x int, y int) int {
 	return y
 }
 
+//Deprecated
 func (v *Vamana) makeRandomGraph() [][]uint64 {
 	edges := make([][]uint64, v.userConfig.VectorsSize)
-	ssdhelpers.Concurrently(v.userConfig.VectorsSize, func(_ uint64, i uint64, _ *sync.Mutex) {
+	testinghelpers.Concurrently(v.userConfig.VectorsSize, func(_ uint64, i uint64, _ *sync.Mutex) {
 		edges[i] = make([]uint64, v.userConfig.R)
 		for j := 0; j < v.userConfig.R; j++ {
 			edges[i][j] = rand.Uint64() % (v.userConfig.VectorsSize - 1)
@@ -371,6 +373,7 @@ func (v *Vamana) makeRandomGraph() [][]uint64 {
 	return edges
 }
 
+//Deprecated
 func (v *Vamana) medoid() uint64 {
 	var min_dist float32 = math.MaxFloat32
 	min_index := uint64(0)
@@ -386,8 +389,7 @@ func (v *Vamana) medoid() uint64 {
 		mean[j] /= float32(v.userConfig.VectorsSize)
 	}
 
-	// ToDo: Not really helping like this
-	ssdhelpers.Concurrently(v.userConfig.VectorsSize, func(_ uint64, i uint64, mutex *sync.Mutex) {
+	testinghelpers.Concurrently(v.userConfig.VectorsSize, func(_ uint64, i uint64, mutex *sync.Mutex) {
 		x := v.getVector(i)
 		dist := v.config.Distance(x, mean)
 		mutex.Lock()
@@ -464,11 +466,12 @@ func initBeamSearch(v *Vamana, visited []uint64, updateVisited func([]uint64, ..
 	return newVisited
 }
 
+// ToDo: Remove this...
 func beamSearch(v *Vamana, visited []uint64, updateVisited func([]uint64, ...uint64) []uint64) []uint64 {
 	tops, indexes := v.set.TopN(v.userConfig.BeamSize)
 	neighbours := make([][]uint64, v.userConfig.BeamSize)
 	vectors := make([][]float32, v.userConfig.BeamSize)
-	ssdhelpers.Concurrently(uint64(len(tops)), func(_, i uint64, _ *sync.Mutex) {
+	testinghelpers.Concurrently(uint64(len(tops)), func(_, i uint64, _ *sync.Mutex) {
 		neighbours[i], vectors[i] = v.getOutNeighbors(tops[i])
 	})
 	for i := range indexes {
@@ -588,15 +591,15 @@ func (v *Vamana) encondeVectors(segments int, centroids int) [][]byte {
 	v.pq = ssdhelpers.NewProductQunatizer(segments, centroids, v.config.Distance, v.config.VectorForIDThunk, v.userConfig.Dimensions, int(v.userConfig.VectorsSize))
 	v.pq.Fit()
 	enconded := make([][]byte, v.userConfig.VectorsSize)
-	ssdhelpers.Concurrently(v.userConfig.VectorsSize, func(_ uint64, vIndex uint64, _ *sync.Mutex) {
+	for vIndex := uint64(0); vIndex < v.userConfig.VectorsSize; vIndex++ {
 		found := v.cachedBitMap.Contains(vIndex)
 		if found {
 			enconded[vIndex] = nil
-			return
+			continue
 		}
 		x := v.getVector(vIndex)
 		enconded[vIndex] = v.pq.Encode(x)
-	})
+	}
 	return enconded
 }
 
