@@ -472,6 +472,7 @@ func newSchemaManager() *Manager {
 	sm, err := NewManager(&NilMigrator{}, newFakeRepo(), logger, &fakeAuthorizer{},
 		config.Config{DefaultVectorizerModule: config.VectorizerModuleNone},
 		dummyParseVectorConfig, // only option for now
+		dummyParseVectorConfig,
 		vectorizerValidator, dummyValidateInvertedConfig,
 		&fakeModuleConfig{}, &fakeClusterState{},
 		&fakeTxClient{}, &fakeBackupManager{},
@@ -520,6 +521,7 @@ func Test_ParseVectorConfigOnDiskLoad(t *testing.T) {
 	sm, err := NewManager(&NilMigrator{}, repo, logger, &fakeAuthorizer{},
 		config.Config{DefaultVectorizerModule: config.VectorizerModuleNone},
 		dummyParseVectorConfig, // only option for now
+		dummyParseVectorConfig,
 		&fakeVectorizerValidator{}, dummyValidateInvertedConfig,
 		&fakeModuleConfig{}, &fakeClusterState{},
 		&fakeTxClient{}, &fakeBackupManager{},
@@ -548,6 +550,7 @@ func Test_DestinationPath(t *testing.T) {
 	sm, err := NewManager(&NilMigrator{}, repo, logger, &fakeAuthorizer{},
 		config.Config{DefaultVectorizerModule: config.VectorizerModuleNone},
 		dummyParseVectorConfig, // only option for now
+		dummyParseVectorConfig,
 		&fakeVectorizerValidator{}, dummyValidateInvertedConfig,
 		&fakeModuleConfig{}, &fakeClusterState{},
 		&fakeTxClient{}, &fakeBackupManager{},
