@@ -83,9 +83,7 @@ func New(config Config, userConfig UserConfig) (*Vamana, error) {
 		return index.data.Vectors[id], nil
 	}
 	index.set = *ssdhelpers.NewSortedSet(userConfig.L, config.VectorForIDThunk, config.Distance, nil, int(userConfig.VectorsSize))
-	index.getOutNeighbors = index.outNeighborsFromMemory
-	index.setOutNeighbors = index.outNeighborsToMemory
-	index.addRange = index.addRangeVectors
+	index.funcHoldersFromMemory()
 	return index, nil
 }
 
@@ -131,6 +129,18 @@ func buildVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers
 	}
 	index.ToDisk(completePath)
 	return index
+}
+
+func (v *Vamana) funcHoldersFromMemory() {
+	v.getOutNeighbors = v.outNeighborsFromMemory
+	v.setOutNeighbors = v.outNeighborsToMemory
+	v.addRange = v.addRangeVectors
+}
+
+func (v *Vamana) funcHoldersFromDisk() {
+	v.getOutNeighbors = v.OutNeighborsFromDisk
+	v.setOutNeighbors = v.OutNeighborsToDisk
+	v.addRange = v.addRangePQ
 }
 
 func (v *Vamana) SetVectors(vectors [][]float32) {
@@ -310,14 +320,10 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 	index.pq = ssdhelpers.PQFromDisk(path, VectorForIDThunk, distance)
 	index.cachedBitMap = ssdhelpers.BitSetFromDisk(path)
 	if index.data.OnDisk {
-		index.getOutNeighbors = index.OutNeighborsFromDisk
-		index.setOutNeighbors = index.OutNeighborsToDisk
-		index.addRange = index.addRangePQ
+		index.funcHoldersFromDisk()
 		index.graphFile, _ = os.Open(index.data.GraphID)
 	} else {
-		index.getOutNeighbors = index.outNeighborsFromMemory
-		index.setOutNeighbors = index.outNeighborsToMemory
-		index.addRange = index.addRangeVectors
+		index.funcHoldersFromMemory()
 	}
 	return index
 }
@@ -527,8 +533,7 @@ func (v *Vamana) addToCacheRecursively(hops int, elements []uint64) {
 func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int) {
 	v.data.GraphID = path
 	ssdhelpers.DumpGraphToDiskWithBinary(v.data.GraphID, v.edges, v.userConfig.R, v.config.VectorForIDThunk, v.userConfig.Dimensions)
-	v.getOutNeighbors = v.OutNeighborsFromDisk
-	v.setOutNeighbors = v.OutNeighborsToDisk
+	v.funcHoldersFromDisk()
 	v.data.CachedEdges = make(map[uint64]*ssdhelpers.VectorWithNeighbors, v.userConfig.C)
 	v.cachedBitMap = ssdhelpers.NewBitSet(int(v.userConfig.VectorsSize))
 	v.addToCacheRecursively(v.userConfig.C, []uint64{v.data.SIndex})
@@ -536,7 +541,6 @@ func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int) {
 	v.graphFile, _ = os.Open(v.data.GraphID)
 	v.data.EncondedVectors = v.encondeVectors(segments, centroids)
 	v.set.SetPQ(v.data.EncondedVectors, v.pq)
-	v.addRange = v.addRangePQ
 	v.data.OnDisk = true
 	v.config.VectorForIDThunk = func(_ context.Context, id uint64) ([]float32, error) {
 		if id == v.data.tempId {
