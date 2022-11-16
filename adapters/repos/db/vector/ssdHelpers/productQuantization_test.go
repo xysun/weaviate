@@ -23,7 +23,7 @@ func compare(x []byte, y []byte) bool {
 
 func TestPQ(t *testing.T) {
 	dimensions := 128
-	vectors_size := 100000
+	vectors_size := 10000
 	queries_size := 100
 	k := 100
 	vectors, queries := testinghelpers.RandomVecs(vectors_size, queries_size, dimensions)
@@ -80,5 +80,5 @@ func TestPQ(t *testing.T) {
 	}
 	recall := float32(relevant) / float32(k*queries_size)
 	fmt.Println(recall)
-	assert.True(t, recall > 0.8)
+	assert.True(t, recall > 0.65)
 }
