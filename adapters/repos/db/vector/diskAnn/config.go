@@ -33,7 +33,6 @@ type UserConfig struct {
 	ClusterOverlapping int
 	C                  int `json:"c"`
 	OriginalCacheSize  int
-	BeamSize           int
 	Dimensions         int    `json:"dimensions"`
 	VectorsSize        uint64 `json:"size"`
 	Capacity           uint64 `json:"capacity"`
@@ -55,7 +54,6 @@ func NewUserConfig() UserConfig {
 		ClustersSize:       40,
 		ClusterOverlapping: 2,
 		C:                  10000,
-		BeamSize:           1,
 		Dimensions:         0,
 		VectorsSize:        0,
 		Centroids:          255,

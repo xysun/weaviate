@@ -54,16 +54,15 @@ type Vamana struct {
 	userConfig UserConfig
 	data       VamanaData
 
-	cachedBitMap     *ssdhelpers.BitSet
-	visitedSet       *ssdhelpers.NaiveSet
-	edges            [][]uint64 // edges on the graph
-	set              ssdhelpers.SortedSet
-	graphFile        *os.File
-	pq               *ssdhelpers.ProductQuantizer
-	getOutNeighbors  func(uint64) ([]uint64, []float32)
-	setOutNeighbors  func(uint64, []uint64, []float32)
-	addRange         func([]uint64)
-	beamSearchHolder func(*Vamana, []uint64, func([]uint64, ...uint64) []uint64) []uint64
+	cachedBitMap    *ssdhelpers.BitSet
+	visitedSet      *ssdhelpers.NaiveSet
+	edges           [][]uint64 // edges on the graph
+	set             ssdhelpers.SortedSet
+	graphFile       *os.File
+	pq              *ssdhelpers.ProductQuantizer
+	getOutNeighbors func(uint64) ([]uint64, []float32)
+	setOutNeighbors func(uint64, []uint64, []float32)
+	addRange        func([]uint64)
 }
 
 const (
@@ -91,11 +90,10 @@ func New(config Config, userConfig UserConfig) (*Vamana, error) {
 	return index, nil
 }
 
-func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, capacity uint64, distance ssdhelpers.DistanceFunction, completePath string, dimensions int, toDisk bool, segments int, centroids int) *Vamana {
+func buildVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, capacity uint64, distance ssdhelpers.DistanceFunction, completePath string, dimensions int, toDisk bool, segments int, centroids int) *Vamana {
 	if _, err := os.Stat(completePath); err == nil {
 		index := VamanaFromDisk(completePath, VectorForIDThunk, distance)
 		index.SetCacheSize(C)
-		index.SetBeamSize(beamSize)
 		return index
 	}
 	err := os.Mkdir(completePath, os.ModePerm)
@@ -116,7 +114,6 @@ func buildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDTh
 			ClusterOverlapping: 2,
 			Dimensions:         dimensions,
 			C:                  0,
-			BeamSize:           beamSize,
 			Path:               completePath,
 			Segments:           segments,
 			Centroids:          centroids,
@@ -147,12 +144,12 @@ func (v *Vamana) SetCacheSize(size int) {
 	v.userConfig.C = minInt(size, int(v.userConfig.VectorsSize))
 }
 
-func BuildVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, capacity uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int) *Vamana {
+func BuildVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, capacity uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int) *Vamana {
 	completePath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
-	return buildVamana(R, L, C, alpha, beamSize, VectorForIDThunk, vectorsSize, capacity, distance, completePath, dimensions, false, segments, centroids)
+	return buildVamana(R, L, C, alpha, VectorForIDThunk, vectorsSize, capacity, distance, completePath, dimensions, false, segments, centroids)
 }
 
-func BuildDiskVamana(R int, L int, C int, alpha float32, beamSize int, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, capacity uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int) *Vamana {
+func BuildDiskVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, capacity uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int) *Vamana {
 	noDiskPath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	completePath := fmt.Sprintf("%s/Disk.%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	if _, err := os.Stat(completePath); err == nil {
@@ -166,11 +163,7 @@ func BuildDiskVamana(R int, L int, C int, alpha float32, beamSize int, VectorFor
 		index.ToDisk(completePath)
 		return index
 	}
-	return buildVamana(R, L, C, alpha, beamSize, VectorForIDThunk, vectorsSize, capacity, distance, completePath, dimensions, true, segments, centroids)
-}
-
-func (v *Vamana) SetBeamSize(size int) {
-	v.userConfig.BeamSize = size
+	return buildVamana(R, L, C, alpha, VectorForIDThunk, vectorsSize, capacity, distance, completePath, dimensions, true, segments, centroids)
 }
 
 func (v *Vamana) BuildIndex() {
@@ -315,11 +308,6 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 	}
 	index.config.VectorForIDThunk = VectorForIDThunk
 	index.config.Distance = distance
-	if index.data.OnDisk && index.userConfig.BeamSize > 1 {
-		index.beamSearchHolder = initBeamSearch
-	} else {
-		index.beamSearchHolder = secuentialBeamSearch
-	}
 	index.pq = ssdhelpers.PQFromDisk(path, VectorForIDThunk, distance)
 	index.cachedBitMap = ssdhelpers.BitSetFromDisk(path)
 	if index.data.OnDisk {
@@ -364,7 +352,6 @@ func minInt(x int, y int) int {
 	return y
 }
 
-//Deprecated
 func (v *Vamana) makeRandomGraph() [][]uint64 {
 	edges := make([][]uint64, v.userConfig.VectorsSize)
 	testinghelpers.Concurrently(v.userConfig.VectorsSize, func(_ uint64, i uint64, _ *sync.Mutex) {
@@ -379,7 +366,6 @@ func (v *Vamana) makeRandomGraph() [][]uint64 {
 	return edges
 }
 
-//Deprecated
 func (v *Vamana) medoid() uint64 {
 	var min_dist float32 = math.MaxFloat32
 	min_index := uint64(0)
@@ -436,10 +422,7 @@ func (v *Vamana) greedySearch(x []float32, k int, allVisited []uint64, updateVis
 
 	// allVisited := []uint64{v.data.SIndex}
 	for v.set.NotVisited() {
-		allVisited = v.beamSearchHolder(v, allVisited, updateVisited)
-	}
-	if v.data.OnDisk && v.userConfig.BeamSize > 1 {
-		v.beamSearchHolder = initBeamSearch
+		allVisited = v.secuentialBeamSearch(allVisited, updateVisited)
 	}
 	indices, distances := v.set.Elements(k)
 	return indices, allVisited, distances
@@ -466,31 +449,7 @@ func (v *Vamana) addRangePQ(elements []uint64) {
 	v.set.AddRangePQ(elements, v.data.CachedEdges, v.cachedBitMap)
 }
 
-func initBeamSearch(v *Vamana, visited []uint64, updateVisited func([]uint64, ...uint64) []uint64) []uint64 {
-	newVisited := secuentialBeamSearch(v, visited, updateVisited)
-	v.beamSearchHolder = beamSearch
-	return newVisited
-}
-
-// ToDo: Remove this...
-func beamSearch(v *Vamana, visited []uint64, updateVisited func([]uint64, ...uint64) []uint64) []uint64 {
-	tops, indexes := v.set.TopN(v.userConfig.BeamSize)
-	neighbours := make([][]uint64, v.userConfig.BeamSize)
-	vectors := make([][]float32, v.userConfig.BeamSize)
-	testinghelpers.Concurrently(uint64(len(tops)), func(_, i uint64, _ *sync.Mutex) {
-		neighbours[i], vectors[i] = v.getOutNeighbors(tops[i])
-	})
-	for i := range indexes {
-		if vectors[i] != nil {
-			v.set.ReSort(indexes[i], vectors[i])
-		}
-		v.addRange(neighbours[i])
-		visited = updateVisited(visited, neighbours[i]...)
-	}
-	return visited
-}
-
-func secuentialBeamSearch(v *Vamana, visited []uint64, updateVisited func([]uint64, ...uint64) []uint64) []uint64 {
+func (v *Vamana) secuentialBeamSearch(visited []uint64, updateVisited func([]uint64, ...uint64) []uint64) []uint64 {
 	top, index := v.set.Top()
 	neighbours, vector := v.getOutNeighbors(top)
 	if vector != nil {
@@ -581,9 +540,6 @@ func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int) {
 	v.set.SetPQ(v.data.EncondedVectors, v.pq)
 	v.addRange = v.addRangePQ
 	v.data.OnDisk = true
-	if v.userConfig.BeamSize > 1 {
-		v.beamSearchHolder = initBeamSearch
-	}
 	v.config.VectorForIDThunk = func(_ context.Context, id uint64) ([]float32, error) {
 		if id == v.data.tempId {
 			return v.data.tempVec, nil
