@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"math"
 	"os"
+	"runtime"
+	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -99,10 +102,30 @@ func (pq *ProductQuantizer) extractSegment(i int, v []float32) []float32 {
 	return v[i*pq.ds : (i+1)*pq.ds]
 }
 
+type Action func(workerId uint64, taskIndex uint64, mutex *sync.Mutex)
+
+func concurrently(n uint64, action Action) {
+	n64 := float64(n)
+	workerCount := runtime.GOMAXPROCS(0)
+	mutex := &sync.Mutex{}
+	wg := &sync.WaitGroup{}
+	split := uint64(math.Ceil(n64 / float64(workerCount)))
+	for worker := uint64(0); worker < uint64(workerCount); worker++ {
+		wg.Add(1)
+		go func(workerID uint64) {
+			defer wg.Done()
+			for i := workerID * split; i < uint64(math.Min(float64((workerID+1)*split), n64)); i++ {
+				action(workerID, i, mutex)
+			}
+		}(worker)
+	}
+	wg.Wait()
+}
+
 func (pq *ProductQuantizer) Fit() {
 	pq.kms = make([]*KMeans, pq.m)
-	for i := 0; i < pq.m; i++ {
-		pq.kms[i] = New(
+	concurrently(uint64(pq.m), func(_ uint64, i uint64, _ *sync.Mutex) {
+		pq.kms[i] = NewKMeans(
 			pq.ks,
 			pq.distance,
 			func(ctx context.Context, id uint64) ([]float32, error) {
@@ -115,7 +138,7 @@ func (pq *ProductQuantizer) Fit() {
 		if err != nil {
 			panic(err)
 		}
-	}
+	})
 }
 
 func (pq *ProductQuantizer) Encode(vec []float32) []byte {

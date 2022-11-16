@@ -26,7 +26,7 @@ func TestPQ(t *testing.T) {
 	vectors_size := 100000
 	queries_size := 100
 	k := 100
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, "../diskAnn")
+	vectors, queries := testinghelpers.RandomVecs(vectors_size, queries_size, dimensions)
 	pq := ssdhelpers.NewProductQunatizer(
 		32,
 		256,
