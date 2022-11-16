@@ -56,7 +56,7 @@ func TestRecall(t *testing.T) {
 	for id := 0; id < vectors_size; id++ {
 		index.Add(uint64(id), vectors[id])
 	}
-	index.SwitchGraphToDisk("data/test.praph", 64, 255)
+	index.SwitchGraphToDisk("testdata/test.praph", 64, 255)
 
 	k := 10
 	L := []int{4, 5, 10}
