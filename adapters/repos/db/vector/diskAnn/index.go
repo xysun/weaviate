@@ -77,6 +77,12 @@ func New(config Config, userConfig UserConfig) (*Vamana, error) {
 		config:     config,
 		userConfig: userConfig,
 	}
+	index.config.VectorForIDThunk = func(_ context.Context, id uint64) ([]float32, error) {
+		if id == index.data.tempId {
+			return index.data.tempVec, nil
+		}
+		return index.data.Vectors[id], nil
+	}
 	index.set = *ssdhelpers.NewSortedSet(userConfig.L, config.VectorForIDThunk, config.Distance, nil, int(userConfig.VectorsSize))
 	index.getOutNeighbors = index.outNeighborsFromMemory
 	index.setOutNeighbors = index.outNeighborsToMemory
