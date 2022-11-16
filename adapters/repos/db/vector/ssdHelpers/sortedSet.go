@@ -245,7 +245,7 @@ func (s *SortedSet) insert(data IndexAndDistance) int {
 		if !s.items[s.last].visited {
 			s.addRemainingHolder(s, s.items[s.last].index, s.items[s.last].pqDistance)
 		}
-		copy(s.items[1:], s.items[:s.last-1])
+		copy(s.items[1:], s.items[:s.last])
 		s.items[left] = data
 		return left
 	}
@@ -300,11 +300,11 @@ func (s *SortedSet) SetPQ(encondedVectors [][]byte, pq *ProductQuantizer) {
 }
 
 func (s *SortedSet) NotVisited() bool {
-	return s.firstIndex < s.capacity-1 || s.hasNextRemainingHolder(s)
+	return s.firstIndex < s.capacity || s.hasNextRemainingHolder(s)
 }
 
 func (s *SortedSet) Top() (uint64, int) {
-	if s.firstIndex < s.capacity-1 {
+	if s.firstIndex < s.capacity {
 		s.items[s.firstIndex].visited = true
 		lastFirst := s.firstIndex
 		x := s.items[s.firstIndex].index
