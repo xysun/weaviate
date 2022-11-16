@@ -86,7 +86,6 @@ func New(config Config, userConfig UserConfig) (*Vamana, error) {
 	index.getOutNeighbors = index.outNeighborsFromMemory
 	index.setOutNeighbors = index.outNeighborsToMemory
 	index.addRange = index.addRangeVectors
-	index.beamSearchHolder = secuentialBeamSearch
 	return index, nil
 }
 
@@ -420,7 +419,6 @@ func (v *Vamana) greedySearch(x []float32, k int, allVisited []uint64, updateVis
 		v.set.Add(v.data.SIndex)
 	}
 
-	// allVisited := []uint64{v.data.SIndex}
 	for v.set.NotVisited() {
 		allVisited = v.secuentialBeamSearch(allVisited, updateVisited)
 	}
