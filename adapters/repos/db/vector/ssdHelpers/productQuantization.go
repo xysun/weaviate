@@ -34,7 +34,7 @@ type PQData struct {
 
 const PQDataFileName = "pq.gob"
 
-func NewProductQunatizer(segments int, centroids int, distance DistanceFunction, vectorForIDThunk VectorForID, dimensions int, dataSize int) *ProductQuantizer {
+func NewProductQuantizer(segments int, centroids int, distance DistanceFunction, vectorForIDThunk VectorForID, dimensions int, dataSize int) *ProductQuantizer {
 	if dataSize == 0 {
 		panic("data must not be empty")
 	}
@@ -90,7 +90,7 @@ func PQFromDisk(path string, VectorForIDThunk VectorForID, distance DistanceFunc
 	if err != nil {
 		panic(errors.Wrap(err, "Could not decode data"))
 	}
-	pq := NewProductQunatizer(data.M, data.Ks, distance, VectorForIDThunk, data.Dimensions, data.DataSize)
+	pq := NewProductQuantizer(data.M, data.Ks, distance, VectorForIDThunk, data.Dimensions, data.DataSize)
 	pq.kms = make([]*KMeans, pq.m)
 	for id := range pq.kms {
 		pq.kms[id] = KMeansFromDisk(path, id, VectorForIDThunk, distance)

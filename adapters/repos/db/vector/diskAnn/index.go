@@ -552,7 +552,7 @@ func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int) {
 }
 
 func (v *Vamana) encondeVectors(segments int, centroids int) [][]byte {
-	v.pq = ssdhelpers.NewProductQunatizer(segments, centroids, v.config.Distance, v.config.VectorForIDThunk, v.userConfig.Dimensions, int(v.userConfig.VectorsSize))
+	v.pq = ssdhelpers.NewProductQuantizer(segments, centroids, v.config.Distance, v.config.VectorForIDThunk, v.userConfig.Dimensions, int(v.userConfig.VectorsSize))
 	v.pq.Fit()
 	enconded := make([][]byte, v.userConfig.VectorsSize)
 	for vIndex := uint64(0); vIndex < v.userConfig.VectorsSize; vIndex++ {

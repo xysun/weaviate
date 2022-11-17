@@ -27,7 +27,7 @@ func TestPQ(t *testing.T) {
 	queries_size := 100
 	k := 100
 	vectors, queries := testinghelpers.RandomVecs(vectors_size, queries_size, dimensions)
-	pq := ssdhelpers.NewProductQunatizer(
+	pq := ssdhelpers.NewProductQuantizer(
 		32,
 		256,
 		ssdhelpers.L2,
