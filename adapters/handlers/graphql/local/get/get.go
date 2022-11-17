@@ -18,6 +18,7 @@ import (
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/semi-technologies/weaviate/adapters/handlers/graphql/descriptions"
 	"github.com/semi-technologies/weaviate/entities/models"
+	"github.com/semi-technologies/weaviate/entities/modulecapabilities"
 	"github.com/semi-technologies/weaviate/entities/schema"
 	"github.com/sirupsen/logrus"
 )
@@ -28,6 +29,7 @@ type ModulesProvider interface {
 	GetAdditionalFields(class *models.Class) map[string]*graphql.Field
 	ExtractAdditionalField(className, name string, params []*ast.Argument) interface{}
 	GraphQLAdditionalFieldNames() []string
+	GetAll() []modulecapabilities.Module
 }
 
 // Build the Local.Get part of the graphql tree
