@@ -95,6 +95,7 @@ type explorer interface {
 	SetSchemaGetter(schemaUC.SchemaGetter)
 }
 
+
 func configureAPI(api *operations.WeaviateAPI) http.Handler {
 	ctx := context.Background()
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
