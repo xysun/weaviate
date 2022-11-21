@@ -756,8 +756,8 @@ func (i *Index) objectSearch(ctx context.Context, limit int, filters *filters.Lo
 						propHash := class.Properties
 						// Get keys of hash
 						for _, v := range propHash {
-							if v.DataType[0] == "text" {  //FIXME other types?
-							keywordRanking.Properties = append(keywordRanking.Properties, v.Name)
+							if v.DataType[0] == "text" { //FIXME other types?
+								keywordRanking.Properties = append(keywordRanking.Properties, v.Name)
 							}
 						}
 					}
