@@ -74,7 +74,6 @@ import (
 
 const MinimumRequiredContextionaryVersion = "1.0.2"
 
-
 func makeConfigureServer(appState *state.State) func(*http.Server, string, string) {
 	return func(s *http.Server, scheme, addr string) {
 		// Add properties to the config
@@ -98,7 +97,6 @@ type explorer interface {
 	CrossClassVectorSearch(ctx context.Context, params traverser.ExploreParams) ([]search.Result, error)
 	SetSchemaGetter(schemaUC.SchemaGetter)
 }
-
 
 func configureAPI(api *operations.WeaviateAPI) http.Handler {
 	ctx := context.Background()
