@@ -49,7 +49,7 @@ func TestGraphCentroids(t *testing.T) {
 		{6.7333336, 3.7},
 	}
 	cc := []int{1, 0, 1, 2, 2, 2}
-	drawClusters(100, 11, 11, vectors, centroids, cc, "../testdata/kmeans.png")
+	drawClusters(100, 11, 11, vectors, centroids, cc, "../../diskAnn/testdata/kmeans.png")
 }
 
 func TestDistances(t *testing.T) {
@@ -170,7 +170,7 @@ func TestKMeansNNearest(t *testing.T) {
 func TestWithSift1M(t *testing.T) {
 	vectors_size := 100000
 	k := 40
-	vectors := testinghelpers.ReadSiftVecsFrom("../testdata/sift/sift_learn.fvecs", vectors_size)
+	vectors := testinghelpers.ReadSiftVecsFrom("../../diskAnn/testdata/sift/sift_learn.fvecs", vectors_size)
 	kmeans := ssdhelpers.New(
 		k,
 		ssdhelpers.L2,

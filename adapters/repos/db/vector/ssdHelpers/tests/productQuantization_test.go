@@ -26,7 +26,7 @@ func TestPQ(t *testing.T) {
 	vectors_size := 100000
 	queries_size := 100
 	k := 100
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, "../testdata")
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, "../../diskAnn/testdata")
 	/*
 		Tiles
 			100K ->
