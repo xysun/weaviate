@@ -8,6 +8,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const capacity = 1000
+
 type BitSet struct {
 	keys []byte
 	nils []byte
@@ -15,7 +17,7 @@ type BitSet struct {
 
 const BitSetDataFileName = "bitset.gob"
 
-func NewBitSet(capacity int) *BitSet {
+func NewBitSet() *BitSet {
 	return &BitSet{
 		keys: make([]byte, capacity/8+1),
 		nils: make([]byte, capacity/8+1),
@@ -52,8 +54,9 @@ func BitSetFromDisk(path string) *BitSet {
 	if err != nil {
 		panic(errors.Wrap(err, "Could not decode data"))
 	}
-	s := NewBitSet((len(data) - 1) * 8)
+	s := NewBitSet()
 	s.keys = data
+	s.nils = make([]byte, len(data))
 	return s
 }
 
@@ -66,7 +69,17 @@ func (s *BitSet) maskFor(x uint64) byte {
 	return mask
 }
 
+func (s *BitSet) expand(size uint64) {
+	keys := make([]byte, size/8+1)
+	copy(keys, s.keys)
+	s.keys = keys
+	s.nils = make([]byte, size/8+1)
+}
+
 func (s *BitSet) contains(x uint64) (bool, byte, byte) {
+	if len(s.keys)*8 <= int(x) {
+		s.expand(x)
+	}
 	b := s.keys[x/8]
 	mask := s.maskFor(x)
 	return b&mask != 0, b, mask
@@ -108,7 +121,7 @@ type FullBitSet struct {
 
 func NewFullBitSet(capacity int) *FullBitSet {
 	return &FullBitSet{
-		bitSet: NewBitSet(capacity),
+		bitSet: NewBitSet(),
 		items:  make([]uint64, 0),
 	}
 }

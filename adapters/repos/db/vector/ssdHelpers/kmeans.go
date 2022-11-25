@@ -42,8 +42,8 @@ const DataFileName = "kmeans.gob"
 func NewKMeans(k int, distance DistanceFunction, vectorForIdThunk VectorForID, dataSize int, dimensions int) *KMeans {
 	kMeans := &KMeans{
 		K:                  k,
-		DeltaThreshold:     0.0001,
-		IterationThreshold: 10000,
+		DeltaThreshold:     0.01,
+		IterationThreshold: 20,
 		Distance:           distance,
 		VectorForIDThunk:   vectorForIdThunk,
 		dimensions:         dimensions,
@@ -98,6 +98,18 @@ func KMeansFromDisk(path string, id int, VectorForIDThunk VectorForID, distance 
 	return kmeans
 }
 
+func (m *KMeans) Add(x float32) {
+	//Not supported currently
+}
+
+func (m *KMeans) Centers() [][]float32 {
+	return m.centers
+}
+
+func (m *KMeans) Encode(point []float32) byte {
+	return byte(m.Nearest(point))
+}
+
 func (m *KMeans) Nearest(point []float32) uint64 {
 	return m.NNearest(point, 1)[0]
 }
@@ -138,12 +150,13 @@ func (m *KMeans) setCenters(centers [][]float32) {
 }
 
 func (m *KMeans) initCenters() {
+	if m.centers != nil {
+		return
+	}
+	m.centers = make([][]float32, 0, m.K)
 	for i := 0; i < m.K; i++ {
-		var p []float32
-		for j := 0; j < m.dimensions; j++ {
-			p = append(p, rand.Float32())
-		}
-		m.centers = append(m.centers, p)
+		v, _ := m.VectorForIDThunk(context.Background(), uint64(rand.Intn(m.dataSize)))
+		m.centers = append(m.centers, v)
 	}
 }
 
@@ -229,7 +242,7 @@ func (m *KMeans) spreadCenters() {
 	}
 }
 
-func (m *KMeans) Partition() (*KMeans, error) { // init centers using min/max per dimension
+func (m *KMeans) Fit() error { // init centers using min/max per dimension
 	m.data.points = make([]uint64, m.dataSize)
 	m.data.changes = 1
 
@@ -258,14 +271,14 @@ func (m *KMeans) Partition() (*KMeans, error) { // init centers using min/max pe
 
 	}
 
-	return m, nil
+	return nil
 }
 
 func (m *KMeans) Center(point []float32) []float32 {
 	return m.centers[m.Nearest(point)]
 }
 
-func (m *KMeans) Centroid(i uint64) []float32 {
+func (m *KMeans) Centroid(i byte) []float32 {
 	return m.centers[i]
 }
 

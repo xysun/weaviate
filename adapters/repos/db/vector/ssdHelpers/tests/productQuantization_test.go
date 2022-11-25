@@ -1,6 +1,3 @@
-//go:build pqSiftTest
-// +build pqSiftTest
-
 package ssdhelpers_test
 
 import (
@@ -30,6 +27,40 @@ func TestPQ(t *testing.T) {
 	queries_size := 100
 	k := 100
 	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, "../testdata")
+	/*
+		Tiles
+			100K ->
+				time elapse: 156.957375ms
+				time elapse: 1.418848333s
+				=============
+				0.9749
+			1M
+				time elapse: 1.561379542s
+				time elapse: 14.285373917s
+				=============
+				0.97
+
+		KMeans
+			100K
+				64 ->
+				time elapse: 52.578619209s
+				time elapse: 26.147346166s
+				============
+				0.9297
+
+				128 ->
+				time elapse: 1m40.145045833s
+				time elapse: 36.7864395s
+				=============
+				0.9987
+
+			1M
+				64 ->
+				time elapse: 8m27.160292875s
+				time elapse: 4m19.166638083s
+				=============
+				0.9089
+	*/
 	pq := ssdhelpers.NewProductQuantizer(
 		32,
 		256,
@@ -39,6 +70,7 @@ func TestPQ(t *testing.T) {
 		},
 		dimensions,
 		vectors_size,
+		ssdhelpers.UseTileEncoder,
 	)
 	before := time.Now()
 	pq.Fit()
@@ -67,7 +99,6 @@ func TestPQ(t *testing.T) {
 		},
 		ssdhelpers.L2,
 		nil,
-		vectors_size,
 	)
 	s.SetPQ(encoded, pq)
 	var relevant uint64

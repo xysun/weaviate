@@ -47,7 +47,7 @@ func (r *IndexAndDistance) GetVector() []float32 {
 	return r.vector
 }
 
-func NewSortedSet(capacity int, vectorForID VectorForID, distance DistanceFunction, center []float32, vectorSize int) *SortedSet {
+func NewSortedSet(capacity int, vectorForID VectorForID, distance DistanceFunction, center []float32) *SortedSet {
 	s := SortedSet{
 		items:       make([]IndexAndDistance, capacity),
 		vectorForID: vectorForID,
@@ -56,7 +56,7 @@ func NewSortedSet(capacity int, vectorForID VectorForID, distance DistanceFuncti
 		capacity:    capacity,
 		firstIndex:  0,
 		last:        capacity - 1,
-		bitSet:      NewBitSet(vectorSize),
+		bitSet:      NewBitSet(),
 	}
 	for i := range s.items {
 		s.items[i].distance = math.MaxFloat32

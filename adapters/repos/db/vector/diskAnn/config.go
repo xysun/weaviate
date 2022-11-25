@@ -35,11 +35,11 @@ type UserConfig struct {
 	OriginalCacheSize  int
 	Dimensions         int    `json:"dimensions"`
 	VectorsSize        uint64 `json:"size"`
-	Capacity           uint64 `json:"capacity"`
 	Segments           int    `json:"segments"`
 	Centroids          int    `json:"centroids"`
 	Path               string `json:"path"`
 	OnDisk             bool   `json:"disk"`
+	PQ                 int    `json:"pqencoder" 0: Tiles, 1: KMeans`
 }
 
 func (config UserConfig) IndexType() string {
@@ -60,6 +60,7 @@ func NewUserConfig() UserConfig {
 		Segments:           4,
 		Path:               "",
 		OnDisk:             false,
+		PQ:                 0,
 	}
 }
 
@@ -107,12 +108,6 @@ func ParseUserConfig(input interface{}) (schema.VectorIndexConfig, error) {
 		return uc, err
 	}
 
-	if err := optionalIntFromMap(asMap, "capacity", func(v int) {
-		uc.Capacity = uint64(v)
-	}); err != nil {
-		return uc, err
-	}
-
 	if err := optionalIntFromMap(asMap, "segments", func(v int) {
 		uc.Segments = v
 	}); err != nil {
@@ -133,6 +128,12 @@ func ParseUserConfig(input interface{}) (schema.VectorIndexConfig, error) {
 
 	if err := optionalBoolFromMap(asMap, "disk", func(v bool) {
 		uc.OnDisk = v
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalIntFromMap(asMap, "pqencoder", func(v int) {
+		uc.PQ = v
 	}); err != nil {
 		return uc, err
 	}

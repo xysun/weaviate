@@ -3,7 +3,7 @@ package ssdhelpers_test
 import (
 	"context"
 	"fmt"
-	"sync"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -22,13 +22,15 @@ func compare(x []byte, y []byte) bool {
 }
 
 func TestPQ(t *testing.T) {
+	rand.Seed(0)
 	dimensions := 128
-	vectors_size := 10000
+	vectors_size := 1000000
 	queries_size := 100
 	k := 100
 	vectors, queries := testinghelpers.RandomVecs(vectors_size, queries_size, dimensions)
+
 	pq := ssdhelpers.NewProductQuantizer(
-		32,
+		128,
 		256,
 		ssdhelpers.L2,
 		func(ctx context.Context, id uint64) ([]float32, error) {
@@ -36,26 +38,17 @@ func TestPQ(t *testing.T) {
 		},
 		dimensions,
 		vectors_size,
+		ssdhelpers.UseTileEncoder,
 	)
 	before := time.Now()
 	pq.Fit()
 	fmt.Println("time elapse:", time.Since(before))
 	before = time.Now()
 	encoded := make([][]byte, vectors_size)
-	testinghelpers.Concurrently(uint64(vectors_size), func(_ uint64, i uint64, _ *sync.Mutex) {
+	for i := 0; i < vectors_size; i++ {
 		encoded[i] = pq.Encode(vectors[i])
-	})
+	}
 	fmt.Println("time elapse:", time.Since(before))
-	collisions := 0
-	testinghelpers.Concurrently(uint64(len(encoded)-1), func(_ uint64, i uint64, _ *sync.Mutex) {
-		for j := int(i) + 1; j < len(encoded); j++ {
-			if compare(encoded[i], encoded[j]) {
-				collisions++
-				fmt.Println(collisions)
-			}
-		}
-	})
-	fmt.Println(collisions)
 	fmt.Println("=============")
 	s := ssdhelpers.NewSortedSet(
 		k,
@@ -64,7 +57,6 @@ func TestPQ(t *testing.T) {
 		},
 		ssdhelpers.L2,
 		nil,
-		vectors_size,
 	)
 	s.SetPQ(encoded, pq)
 	var relevant uint64
@@ -82,3 +74,41 @@ func TestPQ(t *testing.T) {
 	fmt.Println(recall)
 	assert.True(t, recall > 0.65)
 }
+
+/*
+func TestPQDistance(t *testing.T) {
+	rand.Seed(0)
+	dimensions := 128
+	vectors_size := 1000
+	queries_size := 100
+
+	vectors, queries := testinghelpers.RandomVecs(vectors_size, queries_size, dimensions)
+	pq := ssdhelpers.NewProductQuantizer(
+		32,
+		256,
+		ssdhelpers.L2,
+		func(ctx context.Context, id uint64) ([]float32, error) {
+			return vectors[int(id)], nil
+		},
+		dimensions,
+		vectors_size,
+	)
+	before := time.Now()
+	pq.Fit()
+	fmt.Println("time elapse:", time.Since(before))
+
+	encoded := make([][]byte, vectors_size)
+	for i := 0; i < vectors_size; i++ {
+		encoded[i] = pq.Encode(vectors[i])
+	}
+
+	for _, q := range queries {
+		pq.CenterAt(q)
+		for _, e2 := range encoded {
+			assert.Equal(t, ssdhelpers.L2(q, pq.Decode(e2)), pq.Distance(e2))
+			break
+		}
+
+	}
+}
+*/

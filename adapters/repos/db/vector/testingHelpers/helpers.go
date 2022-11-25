@@ -163,8 +163,12 @@ func BruteForce(vectors [][]float32, query []float32, k int, distance DistanceFu
 	return out
 }
 
-func BuildTruths(queries_size int, vectors_size int, queries [][]float32, vectors [][]float32, k int, distance DistanceFunction) [][]uint64 {
-	fileName := fmt.Sprintf("./sift/sift_truths%d.%d.gob", k, vectors_size)
+func BuildTruths(queries_size int, vectors_size int, queries [][]float32, vectors [][]float32, k int, distance DistanceFunction, path ...string) [][]uint64 {
+	uri := "sift/sift_truths%d.%d.gob"
+	if len(path) > 0 {
+		uri = fmt.Sprintf("%s/%s", path[0], uri)
+	}
+	fileName := fmt.Sprintf(uri, k, vectors_size)
 	truths := make([][]uint64, queries_size)
 
 	if _, err := os.Stat(fileName); err == nil {

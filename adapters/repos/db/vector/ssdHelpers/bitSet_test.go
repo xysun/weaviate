@@ -8,7 +8,7 @@ import (
 )
 
 func TestBitSetClean(t *testing.T) {
-	bs := ssdhelpers.NewBitSet(5)
+	bs := ssdhelpers.NewBitSet()
 	x := uint64(2)
 	bs.Add(x)
 	assert.True(t, bs.Contains(x))
@@ -17,7 +17,7 @@ func TestBitSetClean(t *testing.T) {
 }
 
 func TestBitSetAddAndContains(t *testing.T) {
-	bs := ssdhelpers.NewBitSet(5)
+	bs := ssdhelpers.NewBitSet()
 	x := uint64(2)
 	assert.False(t, bs.Contains(x))
 	bs.Add(x)
@@ -25,7 +25,7 @@ func TestBitSetAddAndContains(t *testing.T) {
 }
 
 func TestBitSetContainsAndAdd(t *testing.T) {
-	bs := ssdhelpers.NewBitSet(5)
+	bs := ssdhelpers.NewBitSet()
 	x := uint64(2)
 	assert.False(t, bs.Contains(x))
 	assert.False(t, bs.ContainsAndAdd(x))
@@ -34,7 +34,7 @@ func TestBitSetContainsAndAdd(t *testing.T) {
 }
 
 func TestBitSetContainsAndRemove(t *testing.T) {
-	bs := ssdhelpers.NewBitSet(5)
+	bs := ssdhelpers.NewBitSet()
 	x := uint64(2)
 	assert.False(t, bs.Contains(x))
 	bs.Add(x)

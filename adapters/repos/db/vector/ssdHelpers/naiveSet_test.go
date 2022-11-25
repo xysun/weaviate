@@ -22,7 +22,6 @@ func TestNaiveSetDoesNotAddCenter(t *testing.T) {
 			return vectors[id], nil
 		},
 		ssdhelpers.L2,
-		5,
 	)
 	visitedSet.ReCenter(p)
 
@@ -50,7 +49,6 @@ func TestNaiveSetDoesSortTheData(t *testing.T) {
 			return vectors[id], nil
 		},
 		ssdhelpers.L2,
-		5,
 	)
 	visitedSet.ReCenter(p)
 
@@ -77,7 +75,6 @@ func TestNaiveSetPopJumpsOverRemoved(t *testing.T) {
 			return vectors[id], nil
 		},
 		ssdhelpers.L2,
-		5,
 	)
 	visitedSet.ReCenter(p)
 
@@ -105,7 +102,6 @@ func TestNaiveSetIteratorJumpsOverRemoved(t *testing.T) {
 			return vectors[id], nil
 		},
 		ssdhelpers.L2,
-		5,
 	)
 	visitedSet.ReCenter(p)
 
@@ -138,7 +134,6 @@ func TestNaiveSetIteratorJumpsOverRemovedOnLoop(t *testing.T) {
 			return vectors[id], nil
 		},
 		ssdhelpers.L2,
-		5,
 	)
 	visitedSet.ReCenter(p)
 
@@ -171,7 +166,6 @@ func TestNaiveSetIgnoresWhenRemovingAlreadyPoped(t *testing.T) {
 			return vectors[id], nil
 		},
 		ssdhelpers.L2,
-		5,
 	)
 	visitedSet.ReCenter(p)
 

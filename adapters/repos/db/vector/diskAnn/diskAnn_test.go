@@ -42,21 +42,19 @@ func TestRecall(t *testing.T) {
 			L:                  50,
 			Alpha:              1.2,
 			VectorsSize:        uint64(0),
-			Capacity:           uint64(vectors_size),
 			ClustersSize:       40,
 			ClusterOverlapping: 2,
 			Dimensions:         dimensions,
 			C:                  0,
-			BeamSize:           0,
 			Path:               "",
-			Segments:           64,
+			Segments:           128,
 			Centroids:          255,
 		})
 	index.BuildIndex()
 	for id := 0; id < vectors_size; id++ {
 		index.Add(uint64(id), vectors[id])
 	}
-	index.SwitchGraphToDisk("testdata/test.praph", 64, 255)
+	index.SwitchGraphToDisk("testdata/test.praph", 64, 255, 0)
 
 	k := 10
 	L := []int{4, 5, 10}

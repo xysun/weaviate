@@ -13,11 +13,11 @@ type NaiveSet struct {
 	size        int
 }
 
-func NewNaiveSet(vectorForID VectorForID, distance DistanceFunction, capacity int) *NaiveSet {
+func NewNaiveSet(vectorForID VectorForID, distance DistanceFunction) *NaiveSet {
 	set := &NaiveSet{
 		vectorForID: vectorForID,
 		distance:    distance,
-		bitSet:      NewBitSet(capacity),
+		bitSet:      NewBitSet(),
 	}
 	return set
 }

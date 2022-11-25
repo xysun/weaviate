@@ -26,15 +26,15 @@ func TestKMeansNNearest(t *testing.T) {
 		6,
 		2,
 	)
-	kmeans.Partition()
+	kmeans.Fit()
 	centers := make([]uint64, 6)
 	for i := range centers {
 		centers[i] = kmeans.Nearest(vectors[i])
 	}
 	for v := range vectors {
-		min := ssdhelpers.L2(vectors[v], kmeans.Centroid(centers[v]))
+		min := ssdhelpers.L2(vectors[v], kmeans.Centroid(byte(centers[v])))
 		for c := range centers {
-			assert.True(t, ssdhelpers.L2(vectors[v], kmeans.Centroid(centers[c])) >= min)
+			assert.True(t, ssdhelpers.L2(vectors[v], kmeans.Centroid(byte(centers[c]))) >= min)
 		}
 	}
 }
