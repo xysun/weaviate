@@ -80,3 +80,37 @@ func TestRecall(t *testing.T) {
 		assert.True(t, latency < 700)
 	}
 }
+
+func TestVamanaRespectsDeletedList(t *testing.T) {
+	dimensions := 12
+	vectors_size := 1000
+	queries_size := 100
+	toDelete := uint64(rand.Intn(vectors_size))
+	vectors, queries := testinghelpers.RandomVecs(vectors_size, queries_size, dimensions)
+	index, _ := diskAnn.New(diskAnn.Config{
+		VectorForIDThunk: nil,
+		Distance:         ssdhelpers.L2,
+	},
+		diskAnn.UserConfig{
+			R:                  32,
+			L:                  50,
+			Alpha:              1.2,
+			VectorsSize:        uint64(0),
+			ClustersSize:       40,
+			ClusterOverlapping: 2,
+			Dimensions:         dimensions,
+			C:                  0,
+			Path:               "",
+			Segments:           128,
+			Centroids:          255,
+		})
+	index.BuildIndex()
+	for i, v := range vectors {
+		index.Add(uint64(i), v)
+	}
+	index.Delete(toDelete)
+	for _, q := range queries {
+		list, _, _ := index.SearchByVector(q, 10, nil)
+		assert.NotContains(t, list, toDelete)
+	}
+}

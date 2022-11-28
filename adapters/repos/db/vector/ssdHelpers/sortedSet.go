@@ -186,7 +186,7 @@ func (s *SortedSet) NotVisited() bool {
 	return s.firstIndex < s.capacity
 }
 
-func (s *SortedSet) Top() (uint64, int) {
+func (s *SortedSet) TopAndRemoveIf(shouldRemove func(x uint64) bool) (uint64, int) {
 	if s.firstIndex < s.capacity {
 		s.items[s.firstIndex].visited = true
 		lastFirst := s.firstIndex
@@ -194,9 +194,20 @@ func (s *SortedSet) Top() (uint64, int) {
 		for s.firstIndex < s.capacity && s.items[s.firstIndex].visited {
 			s.firstIndex++
 		}
+		if shouldRemove(x) {
+			copy(s.items[lastFirst:], s.items[lastFirst+1:])
+		}
 		return x, lastFirst
 	}
 	return math.MaxUint64, -1
+}
+
+func neverRemove(x uint64) bool {
+	return false
+}
+
+func (s *SortedSet) Top() (uint64, int) {
+	return s.TopAndRemoveIf(neverRemove)
 }
 
 func (s *SortedSet) TopN(n int) ([]uint64, []int) {

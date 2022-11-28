@@ -43,6 +43,7 @@ type VamanaData struct {
 	Ids             []uint64
 	Vectors         [][]float32
 	Mean            []float32
+	ExcludedList    map[uint64]struct{}
 
 	// ToDo: Remove this fast please...
 	tempId  uint64
@@ -82,6 +83,7 @@ func New(config Config, userConfig UserConfig) (*Vamana, error) {
 		}
 		return index.data.Vectors[id], nil
 	}
+	index.data.ExcludedList = make(map[uint64]struct{}, 0)
 	index.set = *ssdhelpers.NewSortedSet(userConfig.L, config.VectorForIDThunk, config.Distance, nil)
 	index.funcHoldersFromMemory()
 	return index, nil
@@ -452,8 +454,13 @@ func (v *Vamana) addRangePQ(elements []uint64) {
 	v.set.AddRangePQ(elements, v.data.CachedEdges, v.cachedBitMap)
 }
 
+func (v *Vamana) removeIfExcluded(x uint64) bool {
+	_, found := v.data.ExcludedList[x]
+	return found
+}
+
 func (v *Vamana) secuentialBeamSearch(visited []uint64, updateVisited func([]uint64, ...uint64) []uint64) []uint64 {
-	top, index := v.set.Top()
+	top, index := v.set.TopAndRemoveIf(v.removeIfExcluded)
 	neighbours, vector := v.getOutNeighbors(top)
 	if vector != nil {
 		v.set.ReSort(index, vector)
@@ -651,7 +658,7 @@ func (v *Vamana) Add(id uint64, vector []float32) error {
 }
 
 func (i *Vamana) Delete(id uint64) error {
-	// silently ignore
+	i.data.ExcludedList[id] = struct{}{}
 	return nil
 }
 

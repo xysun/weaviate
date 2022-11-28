@@ -92,7 +92,7 @@ func ReadSiftVecsFrom(path string, size int) [][]float32 {
 }
 
 func RandomVecs(size int, queriesSize int, dimensions int) ([][]float32, [][]float32) {
-	fmt.Printf("generating %d vectors...", size+queriesSize)
+	fmt.Printf("generating %d vectors...\n", size+queriesSize)
 	vectors := make([][]float32, 0, size)
 	queries := make([][]float32, 0, queriesSize)
 	for i := 0; i < size; i++ {
