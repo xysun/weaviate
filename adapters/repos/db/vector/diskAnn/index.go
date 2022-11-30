@@ -30,6 +30,8 @@ import (
 	"github.com/semi-technologies/weaviate/entities/schema"
 )
 
+const SyncDeletesThreshold = 10000
+
 type Stats struct {
 	Hops int
 }
@@ -43,7 +45,7 @@ type VamanaData struct {
 	Ids             []uint64
 	Vectors         [][]float32
 	Mean            []float32
-	ExcludedList    map[uint64]struct{}
+	ExcludedList    *ssdhelpers.MapSet
 
 	// ToDo: Remove this fast please...
 	tempId  uint64
@@ -83,7 +85,7 @@ func New(config Config, userConfig UserConfig) (*Vamana, error) {
 		}
 		return index.data.Vectors[id], nil
 	}
-	index.data.ExcludedList = make(map[uint64]struct{}, 0)
+	index.data.ExcludedList = ssdhelpers.NewMapSet()
 	index.set = *ssdhelpers.NewSortedSet(userConfig.L, config.VectorForIDThunk, config.Distance, nil)
 	index.funcHoldersFromMemory()
 	return index, nil
@@ -326,6 +328,8 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 	} else {
 		index.funcHoldersFromMemory()
 	}
+	index.visitedSet = ssdhelpers.NewNaiveSet(index.config.VectorForIDThunk, index.config.Distance)
+	index.SetL(index.userConfig.L)
 	return index
 }
 
@@ -454,13 +458,8 @@ func (v *Vamana) addRangePQ(elements []uint64) {
 	v.set.AddRangePQ(elements, v.data.CachedEdges, v.cachedBitMap)
 }
 
-func (v *Vamana) removeIfExcluded(x uint64) bool {
-	_, found := v.data.ExcludedList[x]
-	return found
-}
-
 func (v *Vamana) secuentialBeamSearch(visited []uint64, updateVisited func([]uint64, ...uint64) []uint64) []uint64 {
-	top, index := v.set.TopAndRemoveIf(v.removeIfExcluded)
+	top, index := v.set.TopAndRemoveIf(v.data.ExcludedList.Contains)
 	neighbours, vector := v.getOutNeighbors(top)
 	if vector != nil {
 		v.set.ReSort(index, vector)
@@ -657,8 +656,37 @@ func (v *Vamana) Add(id uint64, vector []float32) error {
 	return nil
 }
 
+func (i *Vamana) syncDeletes() {
+	//ToDo: remove from list...
+	for id := uint64(0); id < i.userConfig.VectorsSize; id++ {
+		if i.GetEntry() == id {
+			continue
+		}
+		if i.data.ExcludedList.Contains(id) {
+			continue
+		}
+		outneighbors, vector := i.getOutNeighbors(id)
+		D := i.data.ExcludedList.Intersect(outneighbors)
+		C := D.DiffFrom(outneighbors)
+		d := D.Elements()
+		for _, x := range d {
+			v, _ := i.getOutNeighbors(x)
+			for _, o := range v {
+				C.Add(o)
+			}
+		}
+		c := D.DiffFrom(C.Elements()).Elements()
+		newOutneighbors := i.robustPrune(id, c)
+		i.setOutNeighbors(id, newOutneighbors, vector)
+	}
+	i.data.ExcludedList = ssdhelpers.NewMapSet()
+}
+
 func (i *Vamana) Delete(id uint64) error {
-	i.data.ExcludedList[id] = struct{}{}
+	i.data.ExcludedList.Add(id)
+	if i.data.ExcludedList.Size() >= SyncDeletesThreshold {
+		i.syncDeletes()
+	}
 	return nil
 }
 

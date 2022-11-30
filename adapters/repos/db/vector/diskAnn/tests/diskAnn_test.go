@@ -92,7 +92,6 @@ func TestLoadAndTest(t *testing.T) {
 }
 
 func TestRecall(t *testing.T) {
-	rand.Seed(0)
 	dimensions := 128
 	vectors_size := 1000000
 	queries_size := 1000
@@ -154,6 +153,80 @@ func TestRecall(t *testing.T) {
 		assert.True(t, latency < 22700)
 		fmt.Println(recall, latency)
 	}
+}
+
+func TestDeletes(t *testing.T) {
+	vectors_size := 1000000
+	queries_size := 1000
+	before := time.Now()
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, "../testdata")
+	fmt.Printf("generating data took %s\n", time.Since(before))
+
+	before = time.Now()
+	index := diskAnn.VamanaFromDisk(
+		"../testdata/data/1000000.vamana-r32-l50-a1.2",
+		func(ctx context.Context, id uint64) ([]float32, error) {
+			return vectors[int(id)], nil
+		},
+		ssdhelpers.L2,
+	)
+	fmt.Printf("Building the index took %s\n", time.Since(before))
+
+	k := 10
+	L := []int{4, 5, 10}
+
+	sliceSize := 1000
+	for batch := 0; batch < 200; batch++ {
+		random_order := permutation(int(vectors_size))
+		before = time.Now()
+		for _, x := range random_order[:sliceSize] {
+			index.Delete(uint64(x))
+		}
+		fmt.Printf("Removing...  %s\n", time.Since(before))
+		before = time.Now()
+		for _, x := range random_order[:sliceSize] {
+			vectors = append(vectors, vectors[x])
+			index.Add(uint64(x), vectors[x])
+		}
+		fmt.Printf("Adding...  %s\n", time.Since(before))
+		truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.L2, "../testdata")
+		for _, l := range L {
+			l = l * k
+			index.SetL(l)
+			var relevant uint64
+			var retrieved int
+
+			var querying time.Duration = 0
+			for i := 0; i < len(queries); i++ {
+				before = time.Now()
+				results, _, _ := index.SearchByVector(queries[i], k, nil)
+				querying += time.Since(before)
+				retrieved += k
+				relevant += testinghelpers.MatchesInLists(truths[i], results)
+			}
+
+			recall := float32(relevant) / float32(retrieved)
+			latency := float32(querying.Microseconds()) / float32(queries_size)
+			assert.True(t, recall > 0.099)
+			assert.True(t, latency < 22700)
+			fmt.Println(recall, latency)
+		}
+	}
+}
+
+func permutation(n int) []int {
+	permutation := make([]int, n)
+	for i := range permutation {
+		permutation[i] = i
+	}
+	for i := 0; i < 2*n; i++ {
+		x := rand.Intn(n)
+		y := rand.Intn(n)
+		z := permutation[x]
+		permutation[x] = permutation[y]
+		permutation[y] = z
+	}
+	return permutation
 }
 
 /*
