@@ -82,6 +82,62 @@ func TestPQ(t *testing.T) {
 	assert.True(t, recall > 0.65)
 }
 
+func TestPQSift(t *testing.T) {
+	rand.Seed(0)
+	dimensions := 128
+	vectors_size := 99500
+	queries_size := 500
+	k := 10
+	sift_vectors := testinghelpers.ReadSiftVecsFrom("../../../../../test/benchmark/sift/sift_base.fvecs", vectors_size+queries_size)
+	vectors := sift_vectors[:vectors_size]
+	queries := sift_vectors[vectors_size : vectors_size+queries_size]
+	fmt.Printf("len vectors: %d\n", len(vectors))
+	fmt.Printf("len queries: %d\n", len(queries))
+
+	before := time.Now()
+	pq := ssdhelpers.NewProductQuantizer(
+		128,
+		256,
+		ssdhelpers.L2,
+		func(ctx context.Context, id uint64) ([]float32, error) {
+			return vectors[int(id)], nil
+		},
+		dimensions,
+		vectors_size,
+		ssdhelpers.UseTileEncoder,
+	)
+	pq.Fit()
+	encoded := make([][]byte, vectors_size)
+	for i := 0; i < vectors_size; i++ {
+		encoded[i] = pq.Encode(vectors[i])
+	}
+	fmt.Println("time elapse (fit and encode):", time.Since(before))
+	fmt.Println("=============")
+	s := ssdhelpers.NewSortedSet(
+		k,
+		func(ctx context.Context, id uint64) ([]float32, error) {
+			return vectors[int(id)], nil
+		},
+		ssdhelpers.L2,
+		nil,
+	)
+	s.SetPQ(encoded, pq)
+	var relevant uint64
+	for _, query := range queries {
+		pq.CenterAt(query)
+		truth := testinghelpers.BruteForce(vectors, query, k, ssdhelpers.L2)
+		s.ReCenter(query, false)
+		for v := range vectors {
+			s.AddPQVector(uint64(v), nil, nil)
+		}
+		results, _ := s.Elements(k)
+		relevant += testinghelpers.MatchesInLists(truth, results)
+	}
+	recall := float32(relevant) / float32(k*queries_size)
+	fmt.Println(recall)
+	assert.True(t, recall > 0.65)
+}
+
 /*
 func TestPQDistance(t *testing.T) {
 	rand.Seed(0)
