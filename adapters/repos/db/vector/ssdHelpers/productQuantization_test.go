@@ -23,16 +23,19 @@ func compare(x []byte, y []byte) bool {
 
 func TestPQ(t *testing.T) {
 	rand.Seed(0)
-	dimensions := 128
+	dimensions := 960
 	vectors_size := 1000000
 	queries_size := 100
 	k := 100
-	vectors, queries := testinghelpers.RandomVecs(vectors_size, queries_size, dimensions)
+	//vectors, queries := testinghelpers.RandomVecs(vectors_size, queries_size, dimensions)
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, dimensions, "gist", "../diskAnn/testdata")
+	testinghelpers.Normalize(vectors)
+	testinghelpers.Normalize(queries)
 
 	pq := ssdhelpers.NewProductQuantizer(
-		128,
+		dimensions,
 		256,
-		ssdhelpers.L2,
+		ssdhelpers.NewCosineDistanceProvider().Distance,
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[int(id)], nil
 		},
@@ -55,20 +58,24 @@ func TestPQ(t *testing.T) {
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[int(id)], nil
 		},
-		ssdhelpers.L2,
+		ssdhelpers.NewCosineDistanceProvider(),
 		nil,
 	)
 	s.SetPQ(encoded, pq)
 	var relevant uint64
-	for _, query := range queries {
+	truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.NewCosineDistanceProvider().Distance, "../diskAnn/testdata/gist/cosine")
+	queries_size = 100
+	for i, query := range queries {
+		if i == queries_size {
+			break
+		}
 		pq.CenterAt(query)
-		truth := testinghelpers.BruteForce(vectors, query, k, ssdhelpers.L2)
 		s.ReCenter(query, false)
 		for v := range vectors {
 			s.AddPQVector(uint64(v), nil, nil)
 		}
 		results, _ := s.Elements(k)
-		relevant += testinghelpers.MatchesInLists(truth, results)
+		relevant += testinghelpers.MatchesInLists(truths[i], results)
 	}
 	recall := float32(relevant) / float32(k*queries_size)
 	fmt.Println(recall)
