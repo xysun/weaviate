@@ -22,12 +22,49 @@ func compare(x []byte, y []byte) bool {
 }
 
 func TestPQ(t *testing.T) {
-	dimensions := 128
+	dimensions := 960
 	vectors_size := 100000
 	queries_size := 100
 	k := 100
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, "../../diskAnn/testdata")
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, dimensions, "gist", "../../diskAnn/testdata")
 	/*
+		GIST
+		Tiles
+			100K ->
+				time elapse: 2.261131583s
+				time elapse: 12.721803958s
+				=============
+				8b -> 0.9881
+				6b -> 0.9579
+				4b -> 0.8532
+		KMeans
+			100K
+				60 ->
+					time elapse: 3m31.137677125s
+					time elapse: 1m20.983001584s
+					=============
+					0.5224
+				120 ->
+					time elapse: 4m3.915850625s
+					time elapse: 1m31.835826791s
+					=============
+					0.6817
+				240 ->
+					time elapse: 6m40.595989708s
+					time elapse: 2m33.470047459s
+					=============
+					0.845
+				480 ->
+					time elapse: 8m47.254897s
+					time elapse: 3m15.953190708s
+					=============
+					0.9514
+				960 ->
+					time elapse: 5m37.086638208s
+					time elapse: 4m30.193578834s
+					=============
+					0.9893
+		SIFT
 		Tiles
 			100K ->
 				time elapse: 156.957375ms
@@ -64,7 +101,7 @@ func TestPQ(t *testing.T) {
 	pq := ssdhelpers.NewProductQuantizer(
 		32,
 		256,
-		ssdhelpers.L2,
+		ssdhelpers.NewL2DistanceProvider().Distance,
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[int(id)], nil
 		},
@@ -81,30 +118,20 @@ func TestPQ(t *testing.T) {
 		encoded[i] = pq.Encode(vectors[i])
 	})
 	fmt.Println("time elapse:", time.Since(before))
-	collisions := 0
-	testinghelpers.Concurrently(uint64(len(encoded)-1), func(_ uint64, i uint64, _ *sync.Mutex) {
-		for j := int(i) + 1; j < len(encoded); j++ {
-			if compare(encoded[i], encoded[j]) {
-				collisions++
-				fmt.Println(collisions)
-			}
-		}
-	})
-	fmt.Println(collisions)
 	fmt.Println("=============")
 	s := ssdhelpers.NewSortedSet(
 		k,
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[int(id)], nil
 		},
-		ssdhelpers.L2,
+		ssdhelpers.NewL2DistanceProvider(),
 		nil,
 	)
 	s.SetPQ(encoded, pq)
 	var relevant uint64
 	for _, query := range queries {
 		pq.CenterAt(query)
-		truth := testinghelpers.BruteForce(vectors, query, k, ssdhelpers.L2)
+		truth := testinghelpers.BruteForce(vectors, query, k, ssdhelpers.NewL2DistanceProvider().Distance)
 		s.ReCenter(query, false)
 		for v := range vectors {
 			s.AddPQVector(uint64(v), nil, nil)

@@ -47,11 +47,11 @@ func (r *IndexAndDistance) GetVector() []float32 {
 	return r.vector
 }
 
-func NewSortedSet(capacity int, vectorForID VectorForID, distance DistanceFunction, center []float32) *SortedSet {
+func NewSortedSet(capacity int, vectorForID VectorForID, distance DistanceProvider, center []float32) *SortedSet {
 	s := SortedSet{
 		items:       make([]IndexAndDistance, capacity),
 		vectorForID: vectorForID,
-		distance:    distance,
+		distance:    distance.Distance,
 		center:      center,
 		capacity:    capacity,
 		firstIndex:  0,

@@ -19,6 +19,9 @@ func Normalize(v []float32) []float32 {
 	for i := range v {
 		norm += v[i] * v[i]
 	}
+	if norm == 0 {
+		norm = 1
+	}
 
 	norm = float32(math.Sqrt(float64(norm)))
 	for i := range v {

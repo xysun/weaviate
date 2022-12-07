@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/helpers"
@@ -91,7 +92,7 @@ func New(config Config, userConfig UserConfig) (*Vamana, error) {
 	return index, nil
 }
 
-func buildVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, completePath string, dimensions int, toDisk bool, segments int, centroids int, encoderType int) *Vamana {
+func buildVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceProvider, completePath string, dimensions int, toDisk bool, segments int, centroids int, encoderType int) *Vamana {
 	if _, err := os.Stat(completePath); err == nil {
 		index := VamanaFromDisk(completePath, VectorForIDThunk, distance)
 		index.SetCacheSize(C)
@@ -156,12 +157,12 @@ func (v *Vamana) SetCacheSize(size int) {
 	v.userConfig.C = minInt(size, int(v.userConfig.VectorsSize))
 }
 
-func BuildVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int, encoderType int) *Vamana {
+func BuildVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceProvider, path string, dimensions int, segments int, centroids int, encoderType int) *Vamana {
 	completePath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	return buildVamana(R, L, C, alpha, VectorForIDThunk, vectorsSize, distance, completePath, dimensions, false, segments, centroids, encoderType)
 }
 
-func BuildDiskVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceFunction, path string, dimensions int, segments int, centroids int, encoderType int) *Vamana {
+func BuildDiskVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhelpers.VectorForID, vectorsSize uint64, distance ssdhelpers.DistanceProvider, path string, dimensions int, segments int, centroids int, encoderType int) *Vamana {
 	noDiskPath := fmt.Sprintf("%s/%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	completePath := fmt.Sprintf("%s/Disk.%d.vamana-r%d-l%d-a%.1f", path, vectorsSize, R, L, alpha)
 	if _, err := os.Stat(completePath); err == nil {
@@ -181,7 +182,7 @@ func BuildDiskVamana(R int, L int, C int, alpha float32, VectorForIDThunk ssdhel
 func (v *Vamana) BuildIndex() {
 	v.data.Mean = make([]float32, v.userConfig.Dimensions)
 	v.SetL(v.userConfig.L)
-	v.visitedSet = ssdhelpers.NewNaiveSet(v.config.VectorForIDThunk, v.config.Distance)
+	v.visitedSet = ssdhelpers.NewNaiveSet(v.config.VectorForIDThunk, v.config.Distance.Distance)
 	v.edges = v.makeRandomGraph()
 	v.data.SIndex = v.medoid()
 	v.pass()
@@ -281,7 +282,7 @@ func str2uint64(str string) uint64 {
 	return uint64(i)
 }
 
-func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distance ssdhelpers.DistanceFunction) *Vamana {
+func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distance ssdhelpers.DistanceProvider) *Vamana {
 	fConfig, err := os.Open(fmt.Sprintf("%s/%s", path, ConfigFileName))
 	if err != nil {
 		panic(errors.Wrap(err, "Could not open config file"))
@@ -305,7 +306,10 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 		panic(errors.Wrap(err, "Could not decode config"))
 	}
 
-	index, _ := New(Config{}, userConfig)
+	config := Config{}
+	config.Distance = distance
+	config.VectorForIDThunk = VectorForIDThunk
+	index, _ := New(config, userConfig)
 
 	dDec := gob.NewDecoder(fData)
 	err = dDec.Decode(&index.data)
@@ -318,8 +322,6 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 	if err != nil {
 		panic(errors.Wrap(err, "Could not decode edges"))
 	}
-	index.config.VectorForIDThunk = VectorForIDThunk
-	index.config.Distance = distance
 	index.pq = ssdhelpers.PQFromDisk(path, VectorForIDThunk, distance)
 	index.cachedBitMap = ssdhelpers.BitSetFromDisk(path)
 	if index.data.OnDisk {
@@ -328,7 +330,7 @@ func VamanaFromDisk(path string, VectorForIDThunk ssdhelpers.VectorForID, distan
 	} else {
 		index.funcHoldersFromMemory()
 	}
-	index.visitedSet = ssdhelpers.NewNaiveSet(index.config.VectorForIDThunk, index.config.Distance)
+	index.visitedSet = ssdhelpers.NewNaiveSet(index.config.VectorForIDThunk, index.config.Distance.Distance)
 	index.SetL(index.userConfig.L)
 	return index
 }
@@ -393,7 +395,7 @@ func (v *Vamana) medoid() uint64 {
 
 	testinghelpers.Concurrently(v.userConfig.VectorsSize, func(_ uint64, i uint64, mutex *sync.Mutex) {
 		x := v.getVector(i)
-		dist := v.config.Distance(x, mean)
+		dist := v.config.Distance.Distance(x, mean)
 		mutex.Lock()
 		if dist < min_dist {
 			min_dist = dist
@@ -558,7 +560,11 @@ func (v *Vamana) SwitchGraphToDisk(path string, segments int, centroids int, enc
 
 func (v *Vamana) encondeVectors(segments int, centroids int, encoderType ssdhelpers.Encoder) [][]byte {
 	v.pq = ssdhelpers.NewProductQuantizer(segments, centroids, v.config.Distance, v.config.VectorForIDThunk, v.userConfig.Dimensions, int(v.userConfig.VectorsSize), encoderType)
+	fmt.Println("Fitting")
+	before := time.Now()
 	v.pq.Fit()
+	fmt.Printf("Time to fit: %s\n", time.Since(before))
+	before = time.Now()
 	enconded := make([][]byte, v.userConfig.VectorsSize)
 	for vIndex := uint64(0); vIndex < v.userConfig.VectorsSize; vIndex++ {
 		found := v.cachedBitMap.Contains(vIndex)
@@ -569,6 +575,7 @@ func (v *Vamana) encondeVectors(segments int, centroids int, encoderType ssdhelp
 		x := v.getVector(vIndex)
 		enconded[vIndex] = v.pq.Encode(x)
 	}
+	fmt.Printf("Time to encode: %s\n", time.Since(before))
 	return enconded
 }
 
@@ -595,7 +602,7 @@ func (v *Vamana) robustPrune(p uint64, visited []uint64) []uint64 {
 		}
 
 		v.visitedSet.RemoveIf(func(x *ssdhelpers.IndexAndDistance) bool {
-			return (v.userConfig.Alpha * v.config.Distance(pMin.GetVector(), x.GetVector())) <= x.GetDistance()
+			return (v.userConfig.Alpha * v.config.Distance.Distance(pMin.GetVector(), x.GetVector())) <= x.GetDistance()
 		})
 	}
 

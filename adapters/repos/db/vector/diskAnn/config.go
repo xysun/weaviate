@@ -22,7 +22,7 @@ import (
 
 type Config struct {
 	VectorForIDThunk ssdhelpers.VectorForID // to retrieve vectors
-	Distance         ssdhelpers.DistanceFunction
+	Distance         ssdhelpers.DistanceProvider
 }
 
 type UserConfig struct {

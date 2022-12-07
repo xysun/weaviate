@@ -21,7 +21,7 @@ func TestNaiveSetDoesNotAddCenter(t *testing.T) {
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[id], nil
 		},
-		ssdhelpers.L2,
+		ssdhelpers.NewL2DistanceProvider().Distance,
 	)
 	visitedSet.ReCenter(p)
 
@@ -48,7 +48,7 @@ func TestNaiveSetDoesSortTheData(t *testing.T) {
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[id], nil
 		},
-		ssdhelpers.L2,
+		ssdhelpers.NewL2DistanceProvider().Distance,
 	)
 	visitedSet.ReCenter(p)
 
@@ -74,7 +74,7 @@ func TestNaiveSetPopJumpsOverRemoved(t *testing.T) {
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[id], nil
 		},
-		ssdhelpers.L2,
+		ssdhelpers.NewL2DistanceProvider().Distance,
 	)
 	visitedSet.ReCenter(p)
 
@@ -101,7 +101,7 @@ func TestNaiveSetIteratorJumpsOverRemoved(t *testing.T) {
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[id], nil
 		},
-		ssdhelpers.L2,
+		ssdhelpers.NewL2DistanceProvider().Distance,
 	)
 	visitedSet.ReCenter(p)
 
@@ -133,7 +133,7 @@ func TestNaiveSetIteratorJumpsOverRemovedOnLoop(t *testing.T) {
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[id], nil
 		},
-		ssdhelpers.L2,
+		ssdhelpers.NewL2DistanceProvider().Distance,
 	)
 	visitedSet.ReCenter(p)
 
@@ -165,7 +165,7 @@ func TestNaiveSetIgnoresWhenRemovingAlreadyPoped(t *testing.T) {
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[id], nil
 		},
-		ssdhelpers.L2,
+		ssdhelpers.NewL2DistanceProvider().Distance,
 	)
 	visitedSet.ReCenter(p)
 

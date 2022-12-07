@@ -15,30 +15,38 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/diskAnn"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	testinghelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/testingHelpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoadAndTest(t *testing.T) {
 	rand.Seed(0)
-	vectors_size := 1000000
-	queries_size := 1000
+	vectors_size := 100000
+	queries_size := 100
+	dimensions := 960
 	before := time.Now()
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, "../testdata")
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, dimensions, "gist", "../testdata")
+	testinghelpers.Normalize(vectors)
+	testinghelpers.Normalize(queries)
 	fmt.Printf("generating data took %s\n", time.Since(before))
 
 	before = time.Now()
 	index := diskAnn.VamanaFromDisk(
-		"../testdata/data/1000000.vamana-r32-l50-a1.2",
+		"../testdata/data/1000000.gist.vamana-r20-l42-a1.2_cos",
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[int(id)], nil
 		},
-		ssdhelpers.L2,
+		ssdhelpers.NewCosineDistanceProvider(),
 	)
 	/*
 		mem->
@@ -61,13 +69,13 @@ func TestLoadAndTest(t *testing.T) {
 			0.9761 3233.123
 
 	*/
-	index.SwitchGraphToDisk("../testdata/data/test.praph", 128, 256, 0)
-	index.ToDisk("../testdata/data/1000000.disk.vamana-r32-l50-a1.2-PQ128")
+	//index.SwitchGraphToDisk("../testdata/data/test.praph", 960, 256, 0)
+	//index.ToDisk("../testdata/data/1000000.disk.vamana-r32-l50-a1.2-PQ128")
 	fmt.Printf("Building the index took %s\n", time.Since(before))
 
-	k := 10
-	L := []int{4, 5, 10}
-	truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.L2, "../testdata")
+	k := 100
+	L := []int{4, 5, 10, 20}
+	truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.NewCosineDistanceProvider().Distance, "../testdata/gist/cosine")
 	for _, l := range L {
 		l = l * k
 		index.SetL(l)
@@ -81,6 +89,7 @@ func TestLoadAndTest(t *testing.T) {
 			querying += time.Since(before)
 			retrieved += k
 			relevant += testinghelpers.MatchesInLists(truths[i], results)
+
 		}
 
 		recall := float32(relevant) / float32(retrieved)
@@ -92,24 +101,27 @@ func TestLoadAndTest(t *testing.T) {
 }
 
 func TestRecall(t *testing.T) {
-	dimensions := 128
-	vectors_size := 1000000
-	queries_size := 1000
+	fmt.Println("Cosine")
+	dimensions := 960
+	vectors_size := 100000
+	queries_size := 100
 	before := time.Now()
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, "../testdata")
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, dimensions, "gist", "../testdata")
+	testinghelpers.Normalize(vectors)
+	testinghelpers.Normalize(queries)
 	fmt.Printf("generating data took %s\n", time.Since(before))
 
 	before = time.Now()
 	index := diskAnn.BuildVamana(
-		32,
-		50,
+		20,
+		42,
 		10,
 		1.2,
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[int(id)], nil
 		},
 		0,
-		ssdhelpers.L2,
+		ssdhelpers.NewCosineDistanceProvider(),
 		"../testdata/data",
 		dimensions,
 		64,
@@ -123,15 +135,15 @@ func TestRecall(t *testing.T) {
 			fmt.Println(id, time.Since(before))
 		}
 	}
-	index.ToDisk("../testdata/data/1000000.vamana-r32-l50-a1.2")
-	index.SwitchGraphToDisk("../testdata/data/test.praph", 64, 255, 0)
+	index.ToDisk("../testdata/data/1000000.gist.vamana-r20-l42-a1.2_cos")
+	/*index.SwitchGraphToDisk("../testdata/data/test.praph", 64, 255, 0)
 	index.ToDisk("../testdata/data/1000000.disk.vamana-r32-l50-a1.2")
-
+	*/
 	fmt.Printf("Building the index took %s\n", time.Since(before))
 
-	k := 10
-	L := []int{4, 5, 10}
-	truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.L2, "../testdata")
+	k := 100
+	L := []int{4, 5, 10, 20}
+	truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.NewCosineDistanceProvider().Distance, "../testdata/gist/cosine")
 	for _, l := range L {
 		l = l * k
 		index.SetL(l)
@@ -158,8 +170,9 @@ func TestRecall(t *testing.T) {
 func TestDeletes(t *testing.T) {
 	vectors_size := 1000000
 	queries_size := 1000
+	dimensions := 128
 	before := time.Now()
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, "../testdata")
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, dimensions, "../testdata")
 	fmt.Printf("generating data took %s\n", time.Since(before))
 
 	before = time.Now()
@@ -168,7 +181,7 @@ func TestDeletes(t *testing.T) {
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[int(id)], nil
 		},
-		ssdhelpers.L2,
+		ssdhelpers.NewL2DistanceProvider(),
 	)
 	fmt.Printf("Building the index took %s\n", time.Since(before))
 
@@ -189,7 +202,7 @@ func TestDeletes(t *testing.T) {
 			index.Add(uint64(x), vectors[x])
 		}
 		fmt.Printf("Adding...  %s\n", time.Since(before))
-		truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.L2, "../testdata")
+		truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.NewL2DistanceProvider().Distance, "../testdata")
 		for _, l := range L {
 			l = l * k
 			index.SetL(l)
@@ -421,6 +434,50 @@ func TestVamanaAdd(t *testing.T) {
 	}
 	testinghelpers.ChartData("Recall Vs Latency", "", results, "index.html")
 }*/
+
+func TestChartsLoadTime(t *testing.T) {
+	results := make(map[string][][]float32, 0)
+	results["GIST-L2"] = [][]float32{
+		{0, 19.357818667},
+		{1000, 41.1795935},
+		{2000, 81.304361},
+		{3000, 126.374172042},
+		{4000, 171.34146225},
+		{5000, 222.666703125},
+		{6000, 274.03992475},
+		{7000, 322.547611417},
+		{8000, 371.441551542},
+		{9000, 425.16007375},
+		{10000, 476.692798709},
+		{20000, 1017.949330125},
+		{30000, 1596.622805667},
+		{40000, 2183.46576525},
+		{50000, 2787.696645292},
+		{60000, 3410.2520945},
+		{70000, 4038.712212292},
+		{80000, 4668.624771625},
+		{90000, 5296.591393},
+		{100000, 5932.801479459},
+		{200000, 12517.278372417},
+		{300000, 19339.738441209},
+		{400000, 26234.32670025},
+		{500000, 33160.485570459},
+		{600000, 40230.851594792},
+		{700000, 47395.853374834},
+		{800000, 54531.856829084},
+		{900000, 61733.219886209},
+	}
+	results["GIST-Cos"] = [][]float32{
+		{0, 19.357818667},
+		{700000, 8400},
+		{900000, 10800},
+	}
+	results["Base"] = [][]float32{
+		{0, 19.357818667},
+		{900000, 61733.219886209},
+	}
+	testinghelpers.ChartData("Loading time (seconds) on data size (vectors)", "", results, "../testdata/load-time.html")
+}
 
 func TestChartsRestrictedMemory(t *testing.T) {
 	results := make(map[string][][]float32, 0)
@@ -737,15 +794,18 @@ func TestFixtures(t *testing.T) {
 	}
 	fmt.Printf("sending data (on disk) took %s\n", time.Since(before))
 }
-
+*/
 func TestBigDataHNSW(t *testing.T) {
 	rand.Seed(0)
 	vectors_size := 10000
 	queries_size := 1000
 	before := time.Now()
-	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size)
-	if vectors == nil {
-		panic("Error generating vectors")
+	vectors, queries := testinghelpers.ReadVecs(vectors_size, queries_size, int(960), "gist", "../testdata")
+	for i := range vectors {
+		vectors[i] = distancer.Normalize(vectors[i])
+	}
+	for i := range queries {
+		queries[i] = distancer.Normalize(queries[i])
 	}
 	fmt.Printf("generating data took %s\n", time.Since(before))
 
@@ -753,11 +813,21 @@ func TestBigDataHNSW(t *testing.T) {
 	ef := 256
 	maxN := 128
 
+	/*
+			Indexing done in: 2m32.343708s
+		ef	recall	querying
+		Index built in: 2m32.343753042s
+		{8970.379883,0.985380},
+		{8985.957031,0.985380},
+		{9047.223633,0.985380},
+		{8944.127930,0.985380},
+
+	*/
 	index, _ := hnsw.New(hnsw.Config{
 		RootPath:              "doesnt-matter-as-committlogger-is-mocked-out",
 		ID:                    "recallbenchmark",
 		MakeCommitLoggerThunk: hnsw.MakeNoopCommitLogger,
-		DistanceProvider:      distancer.NewL2SquaredProvider(),
+		DistanceProvider:      distancer.NewCosineDistanceProvider(),
 		VectorForIDThunk: func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[int(id)], nil
 		},
@@ -796,11 +866,11 @@ func TestBigDataHNSW(t *testing.T) {
 	fmt.Printf("Indexing done in: %s\n", indexing)
 	efs := []int{8, 16, 32, 64, 128, 256, 512}
 	fmt.Println("ef	recall	querying")
-	Ks := []int{10}
+	Ks := []int{100}
 
 	fmt.Printf("Index built in: %s\n", time.Since(before))
 	for _, k := range Ks {
-		truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.L2)
+		truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.NewCosineDistanceProvider().Distance, "../testdata/gist/cosine")
 		for _, efSearch := range efs {
 			index.UpdateUserConfig(hnsw.UserConfig{
 				MaxConnections: maxN,
@@ -827,7 +897,7 @@ func TestBigDataHNSW(t *testing.T) {
 		}
 	}
 }
-*/
+
 func TestChartsLocally(t *testing.T) {
 	results := make(map[string][][]float32, 0)
 	results["1M.Vamana-K10 (R: 32, L: 50, alpha:1.2)"] = [][]float32{

@@ -9,6 +9,7 @@ import (
 )
 
 func TestKMeansNNearest(t *testing.T) {
+	distanceProvider := ssdhelpers.NewL2DistanceProvider().Distance
 	vectors := [6][]float32{
 		{0, 5},
 		{0.1, 4.9},
@@ -19,7 +20,7 @@ func TestKMeansNNearest(t *testing.T) {
 	}
 	kmeans := ssdhelpers.NewKMeans(
 		3,
-		ssdhelpers.L2,
+		distanceProvider,
 		func(ctx context.Context, id uint64) ([]float32, error) {
 			return vectors[int(id)], nil
 		},
@@ -32,9 +33,9 @@ func TestKMeansNNearest(t *testing.T) {
 		centers[i] = kmeans.Nearest(vectors[i])
 	}
 	for v := range vectors {
-		min := ssdhelpers.L2(vectors[v], kmeans.Centroid(byte(centers[v])))
+		min := distanceProvider(vectors[v], kmeans.Centroid(byte(centers[v])))
 		for c := range centers {
-			assert.True(t, ssdhelpers.L2(vectors[v], kmeans.Centroid(byte(centers[c]))) >= min)
+			assert.True(t, distanceProvider(vectors[v], kmeans.Centroid(byte(centers[c]))) >= min)
 		}
 	}
 }

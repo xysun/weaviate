@@ -23,7 +23,7 @@ type ProductQuantizer struct {
 	ks               int
 	m                int
 	ds               int
-	distance         DistanceFunction
+	distance         DistanceProvider
 	vectorForIDThunk VectorForID
 	dimensions       int
 	dataSize         int
@@ -51,7 +51,7 @@ type NoopEncoder interface {
 
 const PQDataFileName = "pq.gob"
 
-func NewProductQuantizer(segments int, centroids int, distance DistanceFunction, vectorForIDThunk VectorForID, dimensions int, dataSize int, encoderType Encoder) *ProductQuantizer {
+func NewProductQuantizer(segments int, centroids int, distance DistanceProvider, vectorForIDThunk VectorForID, dimensions int, dataSize int, encoderType Encoder) *ProductQuantizer {
 	if dataSize == 0 {
 		panic("data must not be empty")
 	}
@@ -97,7 +97,7 @@ func (pq *ProductQuantizer) ToDisk(path string) {
 	}
 }
 
-func PQFromDisk(path string, VectorForIDThunk VectorForID, distance DistanceFunction) *ProductQuantizer {
+func PQFromDisk(path string, VectorForIDThunk VectorForID, distance DistanceProvider) *ProductQuantizer {
 	fData, err := os.Open(fmt.Sprintf("%s/%s", path, PQDataFileName))
 	if err != nil {
 		return nil
@@ -115,7 +115,7 @@ func PQFromDisk(path string, VectorForIDThunk VectorForID, distance DistanceFunc
 	case UseKMeansEncoder:
 		pq.kms = make([]NoopEncoder, pq.m)
 		for id := range pq.kms {
-			pq.kms[id] = KMeansFromDisk(path, id, VectorForIDThunk, distance)
+			pq.kms[id] = KMeansFromDisk(path, id, VectorForIDThunk, distance.Distance)
 		}
 	case UseTileEncoder:
 		pq.kms = make([]NoopEncoder, pq.m)
@@ -155,19 +155,18 @@ func (pq *ProductQuantizer) Fit() {
 	case UseTileEncoder:
 		pq.kms = make([]NoopEncoder, pq.m)
 		concurrently(uint64(pq.m), func(_ uint64, i uint64, _ *sync.Mutex) {
-			pq.kms[i] = NewTileEncoder(8)
+			pq.kms[i] = NewTileEncoder(int(math.Log2(float64(pq.ks))))
 			for j := 0; j < pq.dataSize; j++ {
 				vec, _ := pq.vectorForIDThunk(context.Background(), uint64(j))
 				pq.kms[i].Add(vec[i])
 			}
 		})
-		return
 	case UseKMeansEncoder:
 		pq.kms = make([]NoopEncoder, pq.m)
 		concurrently(uint64(pq.m), func(_ uint64, i uint64, _ *sync.Mutex) {
 			pq.kms[i] = NewKMeans(
 				pq.ks,
-				pq.distance,
+				pq.distance.Distance,
 				func(ctx context.Context, id uint64) ([]float32, error) {
 					v, e := pq.vectorForIDThunk(ctx, id)
 					return pq.extractSegment(int(i), v), e
@@ -186,7 +185,7 @@ func (pq *ProductQuantizer) Fit() {
 		for c := 0; c < pq.ks; c++ {
 			centers = append(centers, float64(pq.kms[i].Centroid(byte(c))[0]))
 		}
-		hist := histogram.Hist(20, centers)
+		hist := histogram.Hist(60, centers)
 		histogram.Fprint(os.Stdout, hist, histogram.Linear(5))
 	}*/
 }
@@ -217,63 +216,20 @@ func (pq *ProductQuantizer) CenterAt(vec []float32) {
 
 func (pq *ProductQuantizer) Distance(encoded []byte) float32 {
 	dist := float32(0.0)
-	for i, b := range encoded {
-		d := pq.distances[i][b]
+	d := pq.distances[0][encoded[0]]
+	if d == 0 {
+		d = pq.distance.Distance(pq.extractSegment(0, pq.center), pq.kms[0].Centroid(encoded[0]))
+		pq.distances[0][encoded[0]] = d
+	}
+	dist = d
+	for i := 1; i < len(encoded); i++ {
+		b := encoded[i]
+		d = pq.distances[i][b]
 		if d == 0 {
-			d = pq.distance(pq.extractSegment(i, pq.center), pq.kms[i].Centroid(b))
+			d = pq.distance.Distance(pq.extractSegment(i, pq.center), pq.kms[i].Centroid(b))
 			pq.distances[i][b] = d
 		}
-		dist += d
+		dist = pq.distance.Aggregate(dist, d)
 	}
 	return dist
 }
-
-/*
-func (pq *productQuantizer) search(vec []float32, quantizedVectors [][]float32) []float32 {
-
-	// Searches for the k nearest neighbors of a single vector.
-
-	distance_table := make([][]float32, pq.m)
-
-	D := len(vec) // TODO change to pull this from struct
-	Ds := D / pq.m
-
-	fmt.Printf("Creating distance table\n")
-
-	provider := distancer.L2SquaredProvider{}
-
-	// Build distance table
-	for i := 0; i < pq.m; i++ {
-		vec_sub := vec[i*Ds : (i+1)*Ds]
-		distance_table[i] = make([]float32, len(pq.codewords[i]))
-		for j := 0; j < pq.Ks; j++ {
-			di^st, _, err := provider.SingleDist(vec_sub, pq.codewords[i][j])
-			if err != nil {
-				panic(err)
-			}
-			distance_table[i][j] = dist
-		}
-	}
-
-	// Lookup partial distances
-	// This needs to be integrated with HNSW, and Vamana
-
-	distances := make([]float32, len(quantizedVectors))
-
-	for q := 0; q < len(quantizedVectors); q++ {
-		distances[q] = 0
-		for i := 0; i < pq.m; i++ {
-			// fmt.Println(distance_table[i])
-			// fmt.Println(int(quantizedVectors[q][i]))
-
-			// note int conversion here as I'm storing quantizedVectors  also as float32
-			// I'm doing this so we can use same distance functions
-			distances[q] += distance_table[i][int(quantizedVectors[q][i])]
-		}
-
-		fmt.Printf("Vector %d distance: %f\n", q, distances[q])
-	}
-
-	return distances
-
-}*/

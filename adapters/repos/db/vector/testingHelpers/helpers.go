@@ -17,6 +17,7 @@ import (
 	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/go-echarts/go-echarts/v2/types"
 	"github.com/pkg/errors"
+	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 )
 
@@ -32,7 +33,7 @@ func float32FromBytes(bytes []byte) float32 {
 	return float
 }
 
-func readSiftFloat(file string, maxObjects int) [][]float32 {
+func readSiftFloat(file string, maxObjects int, vectorLengthFloat int) [][]float32 {
 	f, err := os.Open(file)
 	if err != nil {
 		panic(errors.Wrap(err, "Could not open SIFT file"))
@@ -56,7 +57,6 @@ func readSiftFloat(file string, maxObjects int) [][]float32 {
 	// The vector data needs to be converted from bytes to float
 	// Note that the vector entries are of type float but are integer numbers eg 2.0
 	bytesPerF := 4
-	vectorLengthFloat := 128
 	objects := make([][]float32, maxObjects)
 	vectorBytes := make([]byte, bytesPerF+vectorLengthFloat*bytesPerF)
 	for i := 0; i >= 0; i++ {
@@ -84,9 +84,9 @@ func readSiftFloat(file string, maxObjects int) [][]float32 {
 	return objects
 }
 
-func ReadSiftVecsFrom(path string, size int) [][]float32 {
+func ReadSiftVecsFrom(path string, size int, dimensions int) [][]float32 {
 	fmt.Printf("generating %d vectors...", size)
-	vectors := readSiftFloat(path, size)
+	vectors := readSiftFloat(path, size, dimensions)
 	fmt.Printf(" done\n")
 	return vectors
 }
@@ -112,21 +112,27 @@ func genVector(dimensions int) []float32 {
 	return vector
 }
 
-func ReadVecs(size int, queriesSize int, path ...string) ([][]float32, [][]float32) {
+func Normalize(vectors [][]float32) {
+	for i := range vectors {
+		vectors[i] = distancer.Normalize(vectors[i])
+	}
+}
+
+func ReadVecs(size int, queriesSize int, dimensions int, db string, path ...string) ([][]float32, [][]float32) {
 	fmt.Printf("generating %d vectors...", size+queriesSize)
-	uri := "sift"
+	uri := db
 	if len(path) > 0 {
 		uri = fmt.Sprintf("%s/%s", path[0], uri)
 	}
-	vectors := readSiftFloat(fmt.Sprintf("%s/%s", uri, "sift_base.fvecs"), size)
-	queries := readSiftFloat(fmt.Sprintf("%s/%s", uri, "sift_query.fvecs"), queriesSize)
+	vectors := readSiftFloat(fmt.Sprintf("%s/%s_base.fvecs", uri, db), size, dimensions)
+	queries := readSiftFloat(fmt.Sprintf("%s/%s_query.fvecs", uri, db), queriesSize, dimensions)
 	fmt.Printf(" done\n")
 	return vectors, queries
 }
 
 func ReadQueries(queriesSize int) [][]float32 {
 	fmt.Printf("generating %d vectors...", queriesSize)
-	queries := readSiftFloat("sift/sift_query.fvecs", queriesSize)
+	queries := readSiftFloat("sift/sift_query.fvecs", queriesSize, 128)
 	fmt.Printf(" done\n")
 	return queries
 }
@@ -305,31 +311,6 @@ func PlotGraphHighLightedBold(name string, edges [][]uint64, vectors [][]float32
 		}
 	}
 	dc.SavePNG(name)
-}
-
-func Normalize(vectors [][]float32, w int) {
-	size := len(vectors[0])
-	min := make([]float32, size)
-	max := make([]float32, size)
-	for i := 0; i < size; i++ {
-		min[i] = math.MaxFloat32
-		max[i] = -math.MaxFloat32
-	}
-	for x := range vectors {
-		for i := 0; i < size; i++ {
-			if min[i] > vectors[x][i] {
-				min[i] = vectors[x][i]
-			}
-			if max[i] < vectors[x][i] {
-				max[i] = vectors[x][i]
-			}
-		}
-	}
-	for x := range vectors {
-		for i := 0; i < size; i++ {
-			vectors[x][i] = float32(w) * (vectors[x][i] - min[i]) / (max[i] - min[i])
-		}
-	}
 }
 
 func ChartData(title string, subTitle string, data map[string][][]float32, path string) {

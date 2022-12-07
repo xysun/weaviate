@@ -1,28 +1,28 @@
 package ssdhelpers
 
 type MapSet struct {
-	items map[uint64]struct{}
+	Items map[uint64]struct{}
 }
 
 func NewMapSet() *MapSet {
 	return &MapSet{
-		items: make(map[uint64]struct{}),
+		Items: make(map[uint64]struct{}),
 	}
 }
 
 func (ms *MapSet) Add(x uint64) {
-	ms.items[x] = struct{}{}
+	ms.Items[x] = struct{}{}
 }
 
 func (ms *MapSet) Contains(x uint64) bool {
-	_, found := ms.items[x]
+	_, found := ms.Items[x]
 	return found
 }
 
 func (ms *MapSet) Intersect(elements []uint64) *MapSet {
 	results := NewMapSet()
 	for _, x := range elements {
-		_, found := ms.items[x]
+		_, found := ms.Items[x]
 		if !found {
 			continue
 		}
@@ -32,12 +32,12 @@ func (ms *MapSet) Intersect(elements []uint64) *MapSet {
 }
 
 func (ms *MapSet) Size() int {
-	return len(ms.items)
+	return len(ms.Items)
 }
 
 func (ms *MapSet) Elements() []uint64 {
 	results := make([]uint64, 0, ms.Size())
-	for x := range ms.items {
+	for x := range ms.Items {
 		results = append(results, x)
 	}
 	return results

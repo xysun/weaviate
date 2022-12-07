@@ -35,7 +35,7 @@ func TestRecall(t *testing.T) {
 	before = time.Now()
 	index, _ := diskAnn.New(diskAnn.Config{
 		VectorForIDThunk: nil,
-		Distance:         ssdhelpers.L2,
+		Distance:         ssdhelpers.NewL2DistanceProvider(),
 	},
 		diskAnn.UserConfig{
 			R:                  32,
@@ -58,7 +58,7 @@ func TestRecall(t *testing.T) {
 
 	k := 10
 	L := []int{4, 5, 10}
-	truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.L2)
+	truths := testinghelpers.BuildTruths(queries_size, vectors_size, queries, vectors, k, ssdhelpers.NewL2DistanceProvider().Distance)
 	for _, l := range L {
 		l = l * k
 		index.SetL(l)
@@ -89,7 +89,7 @@ func TestVamanaRespectsDeletedList(t *testing.T) {
 	vectors, queries := testinghelpers.RandomVecs(vectors_size, queries_size, dimensions)
 	index, _ := diskAnn.New(diskAnn.Config{
 		VectorForIDThunk: nil,
-		Distance:         ssdhelpers.L2,
+		Distance:         ssdhelpers.NewL2DistanceProvider(),
 	},
 		diskAnn.UserConfig{
 			R:                  32,
