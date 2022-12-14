@@ -80,8 +80,15 @@ func (som *ScaleOutManager) SetSchemaManager(sm SchemaManager) {
 func (som *ScaleOutManager) Scale(ctx context.Context, className string,
 	updated sharding.Config, prevReplFactor, newReplFactor int64,
 ) (*sharding.State, error) {
-	if newReplFactor > prevReplFactor {
-		return som.scaleOut(ctx, className, updated, newReplFactor)
+	// First identify what the sharding state was before this change. This is
+	// mainly to be able to compare the diff later, so we know where we need to
+	// make changes
+	ssBefore := som.schemaManager.ShardingState(className)
+	if ssBefore == nil {
+		return nil, errors.Errorf("no sharding state for class %q", className)
+	}
+	if updated.Replicas > old.Replicas {
+		return som.scaleOut(ctx, className, ssBefore, updated)
 	}
 
 	if newReplFactor < prevReplFactor {
@@ -106,17 +113,9 @@ func (som *ScaleOutManager) Scale(ctx context.Context, className string,
 //
 // Follow the in-line comments to see how this implementation achieves scalign
 // out
-func (som *ScaleOutManager) scaleOut(ctx context.Context, className string,
-	updated sharding.Config, replFactor int64,
+func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBefore *sharding.State,
+	updated sharding.Config,
 ) (*sharding.State, error) {
-	// First identify what the sharding state was before this change. This is
-	// mainly to be able to compare the diff later, so we know where we need to
-	// make changes
-	ssBefore := som.schemaManager.ShardingState(className)
-	if ssBefore == nil {
-		return nil, errors.Errorf("no sharding state for class %q", className)
-	}
-
 	// Create a deep copy of the old sharding state, so we can start building the
 	// updated state. Because this is a deep copy we don't risk leaking our
 	// changes to anyone else. We can return the changes in the end where the
@@ -130,32 +129,46 @@ func (som *ScaleOutManager) scaleOut(ctx context.Context, className string,
 		shard.AdjustReplicas(int(replFactor), som.clusterState)
 		ssAfter.Physical[name] = shard
 	}
-	// However, so far we have only updated config, now we also need to actually
-	// copy files.
-	var g errgroup.Group
+	// resolve hosts beforehand
+	localShards := make([]string, 0, len(ssBefore.Physical))
+	remoteShards := make(map[string]string)
 	for name := range ssBefore.Physical {
-		if !ssBefore.IsShardLocal(name) {
+		if ssBefore.IsShardLocal(name) {
+			localShards = append(localShards, name)
+		} else {
 			belongsTo := ssBefore.Physical[name].BelongsToNode()
 			host, ok := som.clusterState.NodeHostname(belongsTo)
 			if !ok {
-				return nil, fmt.Errorf("find hostname for node %q", belongsTo)
+				return nil, fmt.Errorf("cannot resolve hostname for node %q", belongsTo)
 			}
-			g.Go(func() error {
-				err := som.nodes.IncreaseReplicationFactor(ctx, host, className, ssBefore, &ssAfter)
-				if err != nil {
-					return fmt.Errorf("increase replication factor for class %q on node %q: %w",
-						className, belongsTo, err)
-				}
-				return nil
-			})
-		} else {
-			if err := som.localScaleOut(ctx, className, name, ssBefore, &ssAfter); err != nil {
-				return nil, fmt.Errorf("increase local replication factor: %w", err)
-			}
+			remoteShards[name] = host
 		}
 	}
+	// However, so far we have only updated config, now we also need to actually
+	// copy files.
+	var g errgroup.Group
+	for shard, host := range remoteShards {
+		shard, host := shard, host
+		g.Go(func() error {
+			err := som.nodes.IncreaseReplicationFactor(ctx, host, className, ssBefore, &ssAfter)
+			if err != nil {
+				belongsTo := ssBefore.Physical[shard].BelongsToNode()
+				return fmt.Errorf("increase replication factor for class %q on node %q: %w", className, belongsTo, err)
+			}
+			return nil
+		})
+	}
+	for _, shard := range localShards {
+		shard := shard
+		g.Go(func() error {
+			if err := som.localScaleOut(ctx, className, shard, ssBefore, &ssAfter); err != nil {
+				return fmt.Errorf("increase local replication factor: %w", err)
+			}
+			return nil
+		})
+	}
 	if err := g.Wait(); err != nil {
-		return nil, fmt.Errorf("forward scaleout to remote node: %w", err)
+		return nil, err
 	}
 
 	// Finally, return sharding state back to schema manager. The schema manager
