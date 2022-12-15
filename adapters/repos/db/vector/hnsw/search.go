@@ -22,6 +22,7 @@ import (
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/priorityqueue"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/visited"
+	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	"github.com/semi-technologies/weaviate/entities/storobj"
 	"github.com/semi-technologies/weaviate/usecases/floatcomp"
 )
@@ -339,6 +340,10 @@ func (h *hnsw) currentWorstResultDistance(results *priorityqueue.Queue,
 func (h *hnsw) distanceToNode(distancer distancer.Distancer,
 	nodeID uint64,
 ) (float32, bool, error) {
+	if h.compressed {
+		vec := h.vectorBytes(nodeID)
+		return distancer.(*ssdhelpers.PQDistancer).DistanceToNode(vec)
+	}
 	candidateVec, err := h.vectorForID(context.Background(), nodeID)
 	if err != nil {
 		var e storobj.ErrNotFound

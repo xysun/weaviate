@@ -23,6 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/distancer"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/priorityqueue"
+	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 	"github.com/semi-technologies/weaviate/entities/cyclemanager"
 	"github.com/semi-technologies/weaviate/entities/storobj"
 	"github.com/sirupsen/logrus"
@@ -120,6 +121,9 @@ type hnsw struct {
 	insertMetrics *insertMetrics
 
 	randFunc func() float64 // added to temporarily get rid on flakiness in tombstones related tests. to be removed after fixing WEAVIATE-179
+
+	compressed  bool
+	vectorBytes func(id uint64) []byte
 }
 
 type CommitLogger interface {
@@ -195,6 +199,7 @@ func New(cfg Config, uc UserConfig) (*hnsw, error) {
 		nodes:             make([]*vertex, initialSize),
 		cache:             vectorCache,
 		vectorForID:       vectorCache.get,
+		vectorBytes:       cfg.VectorBytes,
 		multiVectorForID:  vectorCache.multiGet,
 		id:                cfg.ID,
 		rootPath:          cfg.RootPath,
@@ -216,7 +221,8 @@ func New(cfg Config, uc UserConfig) (*hnsw, error) {
 
 		metrics: NewMetrics(cfg.PrometheusMetrics, cfg.ClassName, cfg.ShardName),
 
-		randFunc: rand.Float64,
+		randFunc:   rand.Float64,
+		compressed: uc.Compressed,
 	}
 
 	index.tombstoneCleanupCycle = cyclemanager.New(index.cleanupInterval, index.tombstoneCleanup)
@@ -427,6 +433,12 @@ func min(a, b int) int {
 }
 
 func (h *hnsw) distBetweenNodes(a, b uint64) (float32, bool, error) {
+	if h.compressed {
+		distancer := h.distancerProvider.(ssdhelpers.PQDistanceProvider)
+		v1 := h.vectorBytes(a)
+		v2 := h.vectorBytes(b)
+		return distancer.DistanceBetweenNodes(v1, v2)
+	}
 	// TODO: introduce single search/transaction context instead of spawning new
 	// ones
 	vecA, err := h.vectorForID(context.Background(), a)
@@ -467,6 +479,11 @@ func (h *hnsw) distBetweenNodes(a, b uint64) (float32, bool, error) {
 }
 
 func (h *hnsw) distBetweenNodeAndVec(node uint64, vecB []float32) (float32, bool, error) {
+	if h.compressed {
+		distancer := h.distancerProvider.(ssdhelpers.PQDistanceProvider)
+		v1 := h.vectorBytes(node)
+		return distancer.DistanceBetweenNodeAndVector(vecB, v1)
+	}
 	// TODO: introduce single search/transaction context instead of spawning new
 	// ones
 	vecA, err := h.vectorForID(context.Background(), node)

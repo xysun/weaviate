@@ -91,6 +91,7 @@ func (h *hnsw) UpdateUserConfig(updated schema.VectorIndexConfig) error {
 	atomic.StoreInt64(&h.efMax, int64(parsed.DynamicEFMax))
 	atomic.StoreInt64(&h.efFactor, int64(parsed.DynamicEFFactor))
 	atomic.StoreInt64(&h.flatSearchCutoff, int64(parsed.FlatSearchCutoff))
+	h.compressed = parsed.Compressed
 
 	h.cache.updateMaxSize(int64(parsed.VectorCacheMaxObjects))
 

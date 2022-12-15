@@ -19,6 +19,47 @@ const (
 	UseKMeansEncoder         = 1
 )
 
+type DistanceLookUpTable struct {
+	distances [][]float32
+	center    []float32
+}
+
+func NewDistanceLookUpTable(segments int, centroids int, center []float32) *DistanceLookUpTable {
+	distances := make([][]float32, segments)
+	for m := 0; m < segments; m++ {
+		distances[m] = make([]float32, centroids)
+	}
+
+	return &DistanceLookUpTable{
+		distances: distances,
+		center:    center,
+	}
+}
+
+func (lut *DistanceLookUpTable) LookUp(
+	encoded []byte,
+	distance func(segment int, b byte, center []float32) float32,
+	aggregate func(current float32, x float32) float32,
+) float32 {
+	d := lut.distances[0][encoded[0]]
+	if d == 0 {
+		d = distance(0, encoded[0], lut.center)
+		lut.distances[0][encoded[0]] = d
+	}
+	dist := d
+
+	for i := 1; i < len(encoded); i++ {
+		b := encoded[i]
+		d = lut.distances[i][b]
+		if d == 0 {
+			d = distance(i, b, lut.center)
+			lut.distances[i][b] = d
+		}
+		dist = aggregate(dist, d)
+	}
+	return dist
+}
+
 type ProductQuantizer struct {
 	ks               int
 	m                int
@@ -28,8 +69,6 @@ type ProductQuantizer struct {
 	dimensions       int
 	dataSize         int
 	kms              []NoopEncoder
-	center           []float32
-	distances        [][]float32
 	encoderType      Encoder
 }
 
@@ -50,6 +89,17 @@ type NoopEncoder interface {
 }
 
 const PQDataFileName = "pq.gob"
+
+type PQConfig struct {
+	Size             int
+	Segments         int
+	Centroids        int
+	Distance         DistanceProvider
+	VectorForIDThunk VectorForID
+	Dimensions       int
+	DataSize         int
+	EncoderType      Encoder
+}
 
 func NewProductQuantizer(segments int, centroids int, distance DistanceProvider, vectorForIDThunk VectorForID, dimensions int, dataSize int, encoderType Encoder) *ProductQuantizer {
 	if dataSize == 0 {
@@ -199,37 +249,38 @@ func (pq *ProductQuantizer) Encode(vec []float32) []byte {
 }
 
 func (pq *ProductQuantizer) Decode(code []byte) []float32 {
-	vec := make([]float32, 0, len(pq.center))
+	vec := make([]float32, 0, len(code))
 	for i, b := range code {
 		vec = append(vec, pq.kms[i].Centroid(b)...)
 	}
 	return vec
 }
 
-func (pq *ProductQuantizer) CenterAt(vec []float32) {
-	pq.center = vec
-	pq.distances = make([][]float32, pq.m)
-	for m := 0; m < pq.m; m++ {
-		pq.distances[m] = make([]float32, pq.ks)
-	}
+func (pq *ProductQuantizer) CenterAt(vec []float32) *DistanceLookUpTable {
+	return NewDistanceLookUpTable(pq.m, pq.ks, vec)
 }
 
-func (pq *ProductQuantizer) Distance(encoded []byte) float32 {
-	dist := float32(0.0)
-	d := pq.distances[0][encoded[0]]
-	if d == 0 {
-		d = pq.distance.Distance(pq.extractSegment(0, pq.center), pq.kms[0].Centroid(encoded[0]))
-		pq.distances[0][encoded[0]] = d
-	}
-	dist = d
-	for i := 1; i < len(encoded); i++ {
-		b := encoded[i]
-		d = pq.distances[i][b]
-		if d == 0 {
-			d = pq.distance.Distance(pq.extractSegment(i, pq.center), pq.kms[i].Centroid(b))
-			pq.distances[i][b] = d
-		}
-		dist = pq.distance.Aggregate(dist, d)
+func (pq *ProductQuantizer) DistanceBetweenNodes(x, y []byte) float32 {
+	dist := pq.distance.Distance(pq.kms[0].Centroid(x[0]), pq.kms[0].Centroid(y[0]))
+	for i := 1; i < len(x); i++ {
+		dist = pq.distance.Aggregate(dist, pq.distance.Distance(pq.kms[i].Centroid(x[i]), pq.kms[i].Centroid(y[i])))
 	}
 	return dist
+}
+
+func (pq *ProductQuantizer) DistanceBetweenNodeAndVector(x []float32, encoded []byte) float32 {
+	dist := pq.distance.Distance(pq.extractSegment(0, x), pq.kms[0].Centroid(encoded[0]))
+	for i := 1; i < len(encoded); i++ {
+		b := encoded[i]
+		dist = pq.distance.Aggregate(dist, pq.distance.Distance(pq.extractSegment(i, x), pq.kms[i].Centroid(b)))
+	}
+	return dist
+}
+
+func (pq *ProductQuantizer) distanceForSegment(segment int, b byte, center []float32) float32 {
+	return pq.distance.Distance(pq.extractSegment(segment, center), pq.kms[segment].Centroid(b))
+}
+
+func (pq *ProductQuantizer) Distance(encoded []byte, lut *DistanceLookUpTable) float32 {
+	return lut.LookUp(encoded, pq.distanceForSegment, pq.distance.Aggregate)
 }

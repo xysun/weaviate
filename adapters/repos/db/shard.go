@@ -133,11 +133,12 @@ func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
 				vamanaUserConfig.Alpha,
 				s.vectorByIndexID,
 				vamanaUserConfig.VectorsSize,
-				ssdhelpers.L2,
+				ssdhelpers.NewL2DistanceProvider(),
 				vamanaUserConfig.Path,
 				vamanaUserConfig.Dimensions,
 				vamanaUserConfig.Segments,
-				vamanaUserConfig.Centroids)
+				vamanaUserConfig.Centroids,
+				0)
 		} else {
 			s.vectorIndex = diskAnn.BuildVamana(
 				vamanaUserConfig.R,
@@ -146,11 +147,12 @@ func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
 				vamanaUserConfig.Alpha,
 				s.vectorByIndexID,
 				vamanaUserConfig.VectorsSize,
-				ssdhelpers.L2,
+				ssdhelpers.NewL2DistanceProvider(),
 				vamanaUserConfig.Path,
 				vamanaUserConfig.Dimensions,
 				vamanaUserConfig.Segments,
-				vamanaUserConfig.Centroids)
+				vamanaUserConfig.Centroids,
+				0)
 		}
 	} else {
 

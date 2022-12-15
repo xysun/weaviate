@@ -16,6 +16,7 @@ import (
 
 	"github.com/semi-technologies/weaviate/adapters/repos/db/helpers"
 	"github.com/semi-technologies/weaviate/adapters/repos/db/vector/hnsw/priorityqueue"
+	ssdhelpers "github.com/semi-technologies/weaviate/adapters/repos/db/vector/ssdHelpers"
 )
 
 func (h *hnsw) selectNeighborsHeuristic(input *priorityqueue.Queue,
@@ -27,7 +28,6 @@ func (h *hnsw) selectNeighborsHeuristic(input *priorityqueue.Queue,
 
 	// TODO, if this solution stays we might need something with fewer allocs
 	ids := make([]uint64, input.Len())
-	var vecs [][]float32
 
 	closestFirst := h.pools.pqHeuristic.GetMin(input.Len())
 	i := uint64(0)
@@ -37,37 +37,72 @@ func (h *hnsw) selectNeighborsHeuristic(input *priorityqueue.Queue,
 		ids[i] = elem.ID
 		i++
 	}
+	var returnList []priorityqueue.ItemWithIndex
 
-	vecs, err := h.multiVectorForID(context.TODO(), ids)
-	if err != nil {
-		return err
-	}
-
-	returnList := h.pools.pqItemSlice.Get().([]priorityqueue.ItemWithIndex)
-
-	for closestFirst.Len() > 0 && len(returnList) < max {
-		curr := closestFirst.Pop()
-		if denyList != nil && denyList.Contains(curr.ID) {
-			continue
+	if h.compressed {
+		vecs := make([][]byte, 0, len(ids))
+		for _, id := range ids {
+			vecs = append(vecs, h.vectorBytes(id))
 		}
-		distToQuery := curr.Dist
 
-		currVec := vecs[curr.Index]
-		good := true
-		for _, item := range returnList {
-			peerDist, _, _ := h.distancerProvider.SingleDist(currVec,
-				vecs[item.Index])
+		returnList = h.pools.pqItemSlice.Get().([]priorityqueue.ItemWithIndex)
 
-			if peerDist < distToQuery {
-				good = false
-				break
+		for closestFirst.Len() > 0 && len(returnList) < max {
+			curr := closestFirst.Pop()
+			if denyList != nil && denyList.Contains(curr.ID) {
+				continue
 			}
+			distToQuery := curr.Dist
+
+			currVec := vecs[curr.Index]
+			good := true
+			for _, item := range returnList {
+				peerDist, _, _ := (h.distancerProvider).(ssdhelpers.PQDistanceProvider).DistanceBetweenNodes(currVec, vecs[item.Index])
+
+				if peerDist < distToQuery {
+					good = false
+					break
+				}
+			}
+
+			if good {
+				returnList = append(returnList, curr)
+			}
+
+		}
+	} else {
+
+		vecs, err := h.multiVectorForID(context.TODO(), ids)
+		if err != nil {
+			return err
 		}
 
-		if good {
-			returnList = append(returnList, curr)
-		}
+		returnList = h.pools.pqItemSlice.Get().([]priorityqueue.ItemWithIndex)
 
+		for closestFirst.Len() > 0 && len(returnList) < max {
+			curr := closestFirst.Pop()
+			if denyList != nil && denyList.Contains(curr.ID) {
+				continue
+			}
+			distToQuery := curr.Dist
+
+			currVec := vecs[curr.Index]
+			good := true
+			for _, item := range returnList {
+				peerDist, _, _ := h.distancerProvider.SingleDist(currVec,
+					vecs[item.Index])
+
+				if peerDist < distToQuery {
+					good = false
+					break
+				}
+			}
+
+			if good {
+				returnList = append(returnList, curr)
+			}
+
+		}
 	}
 
 	h.pools.pqHeuristic.Put(closestFirst)

@@ -32,6 +32,7 @@ type Config struct {
 	ID                    string
 	MakeCommitLoggerThunk MakeCommitLogger
 	VectorForIDThunk      VectorForID
+	VectorBytes           func(id uint64) []byte
 	Logger                logrus.FieldLogger
 	DistanceProvider      distancer.Provider
 	PrometheusMetrics     *monitoring.PrometheusMetrics
@@ -87,6 +88,7 @@ const (
 	DefaultSkip                   = false
 	DefaultFlatSearchCutoff       = 40000
 	DefaultDistanceMetric         = DistanceCosine
+	DefaultCompressed             = false
 )
 
 // UserConfig bundles all values settable by a user in the per-class settings
@@ -102,6 +104,7 @@ type UserConfig struct {
 	VectorCacheMaxObjects  int    `json:"vectorCacheMaxObjects"`
 	FlatSearchCutoff       int    `json:"flatSearchCutoff"`
 	Distance               string `json:"distance"`
+	Compressed             bool   `json:"compressed"`
 }
 
 // IndexType returns the type of the underlying vector index, thus making sure
@@ -123,6 +126,7 @@ func (c *UserConfig) SetDefaults() {
 	c.Skip = DefaultSkip
 	c.FlatSearchCutoff = DefaultFlatSearchCutoff
 	c.Distance = DefaultDistanceMetric
+	c.Compressed = DefaultCompressed
 }
 
 // ParseUserConfig from an unknown input value, as this is not further
@@ -202,6 +206,12 @@ func ParseUserConfig(input interface{}) (schema.VectorIndexConfig, error) {
 
 	if err := optionalStringFromMap(asMap, "distance", func(v string) {
 		uc.Distance = v
+	}); err != nil {
+		return uc, err
+	}
+
+	if err := optionalBoolFromMap(asMap, "compressed", func(v bool) {
+		uc.Compressed = v
 	}); err != nil {
 		return uc, err
 	}

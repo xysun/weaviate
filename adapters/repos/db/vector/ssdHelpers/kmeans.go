@@ -43,7 +43,7 @@ func NewKMeans(k int, distance DistanceFunction, vectorForIdThunk VectorForID, d
 	kMeans := &KMeans{
 		K:                  k,
 		DeltaThreshold:     0.01,
-		IterationThreshold: 20,
+		IterationThreshold: 10,
 		Distance:           distance,
 		VectorForIDThunk:   vectorForIdThunk,
 		dimensions:         dimensions,

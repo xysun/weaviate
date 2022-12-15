@@ -16,6 +16,7 @@ type SortedSet struct {
 	last            int
 	encondedVectors [][]byte
 	pq              *ProductQuantizer
+	lut             *DistanceLookUpTable
 }
 
 type VectorWithNeighbors struct {
@@ -72,7 +73,7 @@ func (s *SortedSet) ReCenter(center []float32, onDisk bool) {
 		s.items[i].pqDistance = math.MaxFloat32
 	}
 	if s.pq != nil {
-		s.pq.CenterAt(center)
+		s.lut = s.pq.CenterAt(center)
 	}
 }
 
@@ -83,7 +84,7 @@ func distanceForVector(s *SortedSet, x uint64) float32 {
 
 func distanceForPQVector(s *SortedSet, x uint64) float32 {
 	vec := s.encondedVectors[x]
-	return s.pq.Distance(vec)
+	return s.pq.Distance(vec, s.lut)
 }
 
 func (s *SortedSet) add(x uint64, distancer func(s *SortedSet, x uint64) float32) bool {
