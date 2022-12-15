@@ -22,7 +22,22 @@ type fakeFactory struct {
 	Client        *fakeClient
 }
 
-func newFakeFactory(localNode string, nShars, nNodes, rf int) *fakeFactory {
+func newShardingState(nShard, nNodes, rf int) fakeShardingState {
+	if rf > nNodes {
+		return nil
+	}
+	m := make(fakeShardingState)
+	for i := 0; i < nShard; i++ {
+		replicas := make([]string, rf)
+		for j := 0; j < rf; j++ {
+			replicas[j] = "N" + strconv.Itoa(j+1)
+		}
+		m["S"+strconv.Itoa(i+1)] = replicas
+	}
+	return m
+}
+
+func newFakeFactory(nShars, nNodes, rf int) *fakeFactory {
 	nodeHostMap := make(map[string]string)
 	nodes := make([]string, nNodes)
 	for i := 0; i < nNodes; i++ {
@@ -30,18 +45,18 @@ func newFakeFactory(localNode string, nShars, nNodes, rf int) *fakeFactory {
 		nodeHostMap["N"+ni] = nodeHostMap["H"+ni]
 		nodes[i] = "N" + ni
 	}
+
 	return &fakeFactory{
-		LocalNode:     localNode,
+		LocalNode:     nodes[0],
 		Nodes:         nodes,
-		ShardingState: newFakeShardingState(),
+		ShardingState: newShardingState(nShars, nNodes, rf),
 		NodeHostMap:   nodeHostMap,
 		Source:        &fakeSource{},
 		Client:        &fakeClient{},
 	}
 }
 
-func (f fakeFactory) newFakeScaler() *ScaleOutManager {
-	f.ShardingState = newFakeShardingState()
+func (f fakeFactory) Scaler() *ScaleOutManager {
 	nodeResolver := newFakeNodeResolver(f.LocalNode, f.NodeHostMap)
 	scaler := NewScaleOutManager(
 		nodeResolver,
@@ -55,11 +70,10 @@ func (f fakeFactory) newFakeScaler() *ScaleOutManager {
 
 type fakeShardingState map[string][]string
 
-func newFakeShardingState() fakeShardingState {
-	return make(map[string][]string)
-}
-
 func (f fakeShardingState) ShardingState(class string) *sharding.State {
+	if len(f) == 0 {
+		return nil
+	}
 	state := sharding.State{}
 	state.Physical = make(map[string]sharding.Physical)
 	for shard, nodes := range f {
