@@ -193,7 +193,8 @@ func (som *ScaleOutManager) LocalScaleOut(ctx context.Context,
 	// - Copy over all files from the backup
 	// - Reinit the shard to recognize the copied files
 	// - Release the single-shard backup
-	
+	ssBefore.SetLocalName(som.clusterState.LocalName())
+	ssAfter.SetLocalName(som.clusterState.LocalName())
 	for shardName := range ssBefore.Physical {
 		if !ssBefore.IsShardLocal(shardName) {
 			continue
