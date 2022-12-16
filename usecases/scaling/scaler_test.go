@@ -2,8 +2,12 @@ package scaling
 
 import (
 	"context"
+	"os"
+	"path"
+	"strconv"
 	"testing"
 
+	"github.com/semi-technologies/weaviate/entities/backup"
 	"github.com/semi-technologies/weaviate/usecases/sharding"
 	"github.com/stretchr/testify/assert"
 )
@@ -11,24 +15,60 @@ import (
 func TestScalerScale(t *testing.T) {
 	ctx := context.Background()
 	t.Run("NoShardingState", func(t *testing.T) {
-		scaler := newFakeFactory(0, 1, 0).Scaler()
+		scaler := newFakeFactory(0, 1, 0).Scaler("")
 		old := sharding.Config{Replicas: 1}
 		_, err := scaler.Scale(ctx, "C", old, old)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "no sharding state")
 	})
 	t.Run("SameReplicationFactor", func(t *testing.T) {
-		scaler := newFakeFactory(1, 2, 2).Scaler()
+		scaler := newFakeFactory(1, 2, 2).Scaler("")
 		old := sharding.Config{Replicas: 2}
 		_, err := scaler.Scale(ctx, "C", old, old)
 		assert.Nil(t, err)
 	})
 	t.Run("ScaleInNotSupported", func(t *testing.T) {
-		scaler := newFakeFactory(1, 2, 2).Scaler()
+		scaler := newFakeFactory(1, 2, 2).Scaler("")
 		old := sharding.Config{Replicas: 2}
 		new := sharding.Config{Replicas: 1}
 		_, err := scaler.Scale(ctx, "C", old, new)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "not supported")
 	})
+}
+
+func TestScalerScaleOut(t *testing.T) {
+	var (
+		dataDir = t.TempDir()
+		ctx     = context.Background()
+		cls     = "C"
+		old     = sharding.Config{Replicas: 1}
+		new     = sharding.Config{Replicas: 2}
+		bak     = backup.ClassDescriptor{
+			Name: "C",
+			Shards: []backup.ShardDescriptor{
+				{
+					Name: "S1", Files: []string{"f1"},
+					PropLengthTrackerPath: "f4",
+					ShardVersionPath:      "f4",
+					DocIDCounterPath:      "f4",
+				},
+			},
+		}
+	)
+	for i := 1; i < 5; i++ {
+		file, err := os.Create(path.Join(dataDir, "f"+strconv.Itoa(i)))
+		assert.Nil(t, err)
+		file.Close()
+	}
+	f := newFakeFactory(1, 2, 1)
+	f.Source.On("SingleShardBackup", ctx, anyVal, cls, "S1").Return(bak, nil)
+	f.Client.On("CreateShard", ctx, "H2", cls, "S1").Return(nil)
+	f.Client.On("PutFile", ctx, "H2", cls, "S1", "f1", anyVal).Return(nil)
+	f.Client.On("PutFile", ctx, "H2", cls, "S1", "f4", anyVal).Return(nil)
+	f.Client.On("ReInitShard", ctx, "H2", cls, "S1").Return(nil)
+	f.Source.On("ReleaseBackup", ctx, anyVal, "C").Return(nil)
+	scaler := f.Scaler(dataDir)
+	_, err := scaler.Scale(ctx, "C", old, new)
+	assert.Nil(t, err)
 }
