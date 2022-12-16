@@ -2,6 +2,7 @@ package scaling
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sort"
 	"strconv"
@@ -11,7 +12,14 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-const dataPath = "index_home"
+const (
+	localNode = "N1"
+)
+
+var (
+	anyVal = mock.Anything
+	errAny = errors.New("any error")
+)
 
 type fakeFactory struct {
 	LocalNode     string
@@ -42,12 +50,12 @@ func newFakeFactory(nShars, nNodes, rf int) *fakeFactory {
 	nodes := make([]string, nNodes)
 	for i := 0; i < nNodes; i++ {
 		ni := strconv.Itoa(i + 1)
-		nodeHostMap["N"+ni] = nodeHostMap["H"+ni]
+		nodeHostMap["N"+ni] = "H" + ni
 		nodes[i] = "N" + ni
 	}
 
 	return &fakeFactory{
-		LocalNode:     nodes[0],
+		LocalNode:     localNode,
 		Nodes:         nodes,
 		ShardingState: newShardingState(nShars, nNodes, rf),
 		NodeHostMap:   nodeHostMap,
@@ -56,7 +64,7 @@ func newFakeFactory(nShars, nNodes, rf int) *fakeFactory {
 	}
 }
 
-func (f fakeFactory) Scaler() *ScaleOutManager {
+func (f fakeFactory) Scaler(dataPath string) *ScaleOutManager {
 	nodeResolver := newFakeNodeResolver(f.LocalNode, f.NodeHostMap)
 	scaler := NewScaleOutManager(
 		nodeResolver,
@@ -79,6 +87,7 @@ func (f fakeShardingState) ShardingState(class string) *sharding.State {
 	for shard, nodes := range f {
 		state.Physical[shard] = sharding.Physical{BelongsToNodes: nodes}
 	}
+	state.SetLocalName(localNode)
 	return &state
 }
 
