@@ -204,9 +204,7 @@ func (c *replicationClient) do(timeout time.Duration, req *http.Request, body []
 		defer res.Body.Close()
 
 		if code := res.StatusCode; code != http.StatusOK {
-			shouldRetry := code == http.StatusInternalServerError ||
-				code == http.StatusTooManyRequests || code == http.StatusServiceUnavailable
-			return shouldRetry, fmt.Errorf("status code: %v", code)
+			return shouldRetry(code), fmt.Errorf("status code: %v", code)
 		}
 		if err := json.NewDecoder(res.Body).Decode(resp); err != nil {
 			return false, fmt.Errorf("decode response: %w", err)
@@ -220,4 +218,10 @@ func (c *replicationClient) do(timeout time.Duration, req *http.Request, body []
 // It implements truncated exponential back-off with introduced jitter.
 func backOff(d time.Duration) time.Duration {
 	return time.Duration(float64(d.Nanoseconds()*2) * (0.5 + rand.Float64()))
+}
+
+func shouldRetry(code int) bool {
+	return code == http.StatusInternalServerError ||
+		code == http.StatusTooManyRequests ||
+		code == http.StatusServiceUnavailable
 }

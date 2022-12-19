@@ -204,40 +204,42 @@ func (c *RemoteIndex) GetObject(ctx context.Context, hostName, indexName,
 		return nil, errors.Wrap(err, "open http request")
 	}
 
-	res, err := c.client.Do(req)
-	if err != nil {
-		return nil, errors.Wrap(err, "send http request")
-	}
+	var obj *storobj.Object
+	try := func(ctx context.Context) (bool, error) {
+		res, err := c.client.Do(req)
+		if err != nil {
+			return ctx.Err() == nil, fmt.Errorf("connect: %w", err)
+		}
 
-	defer res.Body.Close()
-	if res.StatusCode == http.StatusNotFound {
-		// this is a legitimate case - the requested ID doesn't exist, don't try
-		// to unmarshal anything
-		return nil, nil
-	}
+		defer res.Body.Close()
+		if res.StatusCode == http.StatusNotFound {
+			// this is a legitimate case - the requested ID doesn't exist, don't try
+			// to unmarshal anything
+			return false, nil
+		}
+		if code := res.StatusCode; code != http.StatusOK {
+			body, _ := io.ReadAll(res.Body)
+			return shouldRetry(code), fmt.Errorf("status code: %v body: (%s)", code, body)
 
-	if res.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(res.Body)
-		return nil, errors.Errorf("unexpected status code %d (%s)", res.StatusCode,
-			body)
-	}
+		}
 
-	ct, ok := clusterapi.IndicesPayloads.SingleObject.CheckContentTypeHeader(res)
-	if !ok {
-		return nil, errors.Errorf("unknown content type %s", ct)
-	}
+		ct, ok := clusterapi.IndicesPayloads.SingleObject.CheckContentTypeHeader(res)
+		if !ok {
+			return false, fmt.Errorf("unknown content type %s", ct)
+		}
 
-	objBytes, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "read body")
-	}
+		objBytes, err := io.ReadAll(res.Body)
+		if err != nil {
+			return false, fmt.Errorf("read body: %w", err)
+		}
 
-	obj, err := clusterapi.IndicesPayloads.SingleObject.Unmarshal(objBytes)
-	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal body")
+		obj, err = clusterapi.IndicesPayloads.SingleObject.Unmarshal(objBytes)
+		if err != nil {
+			return false, fmt.Errorf("unmarshal body: %w", err)
+		}
+		return false, nil
 	}
-
-	return obj, nil
+	return obj, c.retry(ctx, 7, try)
 }
 
 func (c *RemoteIndex) Exists(ctx context.Context, hostName, indexName,
@@ -629,8 +631,7 @@ func (c *RemoteIndex) GetShardStatus(ctx context.Context,
 
 		if code := res.StatusCode; code != http.StatusOK {
 			body, _ := io.ReadAll(res.Body)
-			shouldRetry := (code == http.StatusInternalServerError || code == http.StatusTooManyRequests)
-			return shouldRetry, fmt.Errorf("status code: %v body: (%s)", code, body)
+			return shouldRetry(code), fmt.Errorf("status code: %v body: (%s)", code, body)
 		}
 		resBytes, err := io.ReadAll(res.Body)
 		if err != nil {
@@ -678,8 +679,7 @@ func (c *RemoteIndex) UpdateShardStatus(ctx context.Context, hostName, indexName
 
 		if code := res.StatusCode; code != http.StatusOK {
 			body, _ := io.ReadAll(res.Body)
-			shouldRetry := (code == http.StatusInternalServerError || code == http.StatusTooManyRequests)
-			return shouldRetry, fmt.Errorf("status code: %v body: (%s)", code, body)
+			return shouldRetry(code), fmt.Errorf("status code: %v body: (%s)", code, body)
 		}
 
 		return false, nil
@@ -710,7 +710,7 @@ func (c *RemoteIndex) PutFile(ctx context.Context, hostName, indexName,
 		defer res.Body.Close()
 
 		if code := res.StatusCode; code != http.StatusNoContent {
-			shouldRetry := (code == http.StatusInternalServerError || code == http.StatusTooManyRequests)
+			shouldRetry := shouldRetry(code)
 			if shouldRetry {
 				_, err := payload.Seek(0, 0)
 				shouldRetry = (err == nil)
@@ -744,9 +744,8 @@ func (c *RemoteIndex) CreateShard(ctx context.Context,
 		defer res.Body.Close()
 
 		if code := res.StatusCode; code != http.StatusCreated {
-			shouldRetry := (code == http.StatusInternalServerError || code == http.StatusTooManyRequests)
 			body, _ := io.ReadAll(res.Body)
-			return shouldRetry, fmt.Errorf("status code: %v body: (%s)", code, body)
+			return shouldRetry(code), fmt.Errorf("status code: %v body: (%s)", code, body)
 		}
 		return false, nil
 	}
@@ -774,9 +773,8 @@ func (c *RemoteIndex) ReInitShard(ctx context.Context,
 		defer res.Body.Close()
 
 		if code := res.StatusCode; code != http.StatusNoContent {
-			shouldRetry := (code == http.StatusInternalServerError || code == http.StatusTooManyRequests)
 			body, _ := io.ReadAll(res.Body)
-			return shouldRetry, fmt.Errorf("status code: %v body: (%s)", code, body)
+			return shouldRetry(code), fmt.Errorf("status code: %v body: (%s)", code, body)
 
 		}
 		return false, nil
@@ -811,8 +809,7 @@ func (c *RemoteIndex) IncreaseReplicationFactor(ctx context.Context,
 
 		if code := res.StatusCode; code != http.StatusNoContent {
 			body, _ := io.ReadAll(res.Body)
-			shouldRetry := (code == http.StatusInternalServerError || code == http.StatusTooManyRequests)
-			return shouldRetry, fmt.Errorf("status code: %v body: (%s)", code, body)
+			return shouldRetry(code), fmt.Errorf("status code: %v body: (%s)", code, body)
 		}
 		return false, nil
 	}
