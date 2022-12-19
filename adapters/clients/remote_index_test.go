@@ -52,7 +52,7 @@ func TestRemoteIndexGetObject(t *testing.T) {
 	defer ts.Close()
 	client := newRemoteIndex(ts.Client())
 	t.Run("ConnectionError", func(t *testing.T) {
-		_, err := client.GetObject(ctx, "", "C1", "S1", uuid, search.SelectProperties{}, additional.Properties{})
+		_, err := client.FindObject(ctx, "", "C1", "S1", uuid, search.SelectProperties{}, additional.Properties{})
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "connect")
 	})
@@ -79,21 +79,21 @@ func TestRemoteIndexGetObject(t *testing.T) {
 		n++
 	}
 	t.Run("NotFound", func(t *testing.T) {
-		obj, err := client.GetObject(ctx, fs.host, "C1", "S1", uuid, search.SelectProperties{}, additional.Properties{})
+		obj, err := client.FindObject(ctx, fs.host, "C1", "S1", uuid, search.SelectProperties{}, additional.Properties{})
 		assert.Nil(t, err)
 		assert.Nil(t, obj)
 	})
 	t.Run("ContentType", func(t *testing.T) {
-		_, err := client.GetObject(ctx, fs.host, "C1", "S1", uuid, search.SelectProperties{}, additional.Properties{})
+		_, err := client.FindObject(ctx, fs.host, "C1", "S1", uuid, search.SelectProperties{}, additional.Properties{})
 		assert.NotNil(t, err)
 	})
 
 	t.Run("body", func(t *testing.T) {
-		_, err := client.GetObject(ctx, fs.host, "C1", "S1", uuid, search.SelectProperties{}, additional.Properties{})
+		_, err := client.FindObject(ctx, fs.host, "C1", "S1", uuid, search.SelectProperties{}, additional.Properties{})
 		assert.NotNil(t, err)
 	})
 	t.Run("Success", func(t *testing.T) {
-		obj, err := client.GetObject(ctx, fs.host, "C1", "S1", uuid, search.SelectProperties{}, additional.Properties{})
+		obj, err := client.FindObject(ctx, fs.host, "C1", "S1", uuid, search.SelectProperties{}, additional.Properties{})
 		assert.Nil(t, err)
 		assert.NotNil(t, obj)
 		assert.Equal(t, uuid, obj.ID())
