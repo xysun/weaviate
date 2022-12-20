@@ -84,7 +84,7 @@ type job struct {
 }
 
 func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
-	shardName string, index *Index,
+	shardName string, index *Index, class *models.Class,
 ) (*Shard, error) {
 	before := time.Now()
 
@@ -203,7 +203,7 @@ func NewShard(ctx context.Context, promMetrics *monitoring.PrometheusMetrics,
 	}
 	s.propLengths = propLengths
 
-	if err := s.initProperties(); err != nil {
+	if err := s.initProperties(class); err != nil {
 		return nil, errors.Wrapf(err, "init shard %q: init per property indices", s.ID())
 	}
 
@@ -378,6 +378,14 @@ func (s *Shard) addTimestampProperties(ctx context.Context) error {
 func (s *Shard) addPropertyLength(ctx context.Context, prop *models.Property) error {
 	if s.isReadOnly() {
 		return storagestate.ErrStatusReadOnly
+	}
+	dt := schema.DataType(prop.DataType[0])
+	// some datatypes are not added to the inverted index, so we can skip them here
+	switch dt {
+	case schema.DataTypeGeoCoordinates, schema.DataTypePhoneNumber, schema.DataTypeBlob, schema.DataTypeInt,
+		schema.DataTypeNumber, schema.DataTypeBoolean, schema.DataTypeDate:
+		return nil
+	default:
 	}
 
 	err := s.store.CreateOrLoadBucket(ctx,
