@@ -87,8 +87,8 @@ func (som *ScaleOutManager) Scale(ctx context.Context, className string,
 	if ssBefore == nil {
 		return nil, errors.Errorf("no sharding state for class %q", className)
 	}
-	if updated.Replicas > old.Replicas {
-		return som.scaleOut(ctx, className, ssBefore, updated)
+	if newReplFactor > prevReplFactor {
+		return som.scaleOut(ctx, className, ssBefore, updated, newReplFactor)
 	}
 
 	if newReplFactor < prevReplFactor {
@@ -114,7 +114,7 @@ func (som *ScaleOutManager) Scale(ctx context.Context, className string,
 // Follow the in-line comments to see how this implementation achieves scalign
 // out
 func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBefore *sharding.State,
-	updated sharding.Config,
+	updated sharding.Config, replFactor int64,
 ) (*sharding.State, error) {
 	// Create a deep copy of the old sharding state, so we can start building the
 	// updated state. Because this is a deep copy we don't risk leaking our
