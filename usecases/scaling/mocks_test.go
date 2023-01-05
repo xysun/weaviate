@@ -2,13 +2,14 @@ package scaling
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sort"
 	"strconv"
 
 	"github.com/semi-technologies/weaviate/entities/backup"
 	"github.com/semi-technologies/weaviate/usecases/sharding"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -16,10 +17,7 @@ const (
 	localNode = "N1"
 )
 
-var (
-	anyVal = mock.Anything
-	errAny = errors.New("any error")
-)
+var anyVal = mock.Anything // errAny = errors.New("any error")
 
 type fakeFactory struct {
 	LocalNode     string
@@ -28,6 +26,7 @@ type fakeFactory struct {
 	NodeHostMap   map[string]string
 	Source        *fakeSource
 	Client        *fakeClient
+	logger        logrus.FieldLogger
 }
 
 func newShardingState(nShard, nNodes, rf int) fakeShardingState {
@@ -53,7 +52,7 @@ func newFakeFactory(nShars, nNodes, rf int) *fakeFactory {
 		nodeHostMap["N"+ni] = "H" + ni
 		nodes[i] = "N" + ni
 	}
-
+	logger, _ := test.NewNullLogger()
 	return &fakeFactory{
 		LocalNode:     localNode,
 		Nodes:         nodes,
@@ -61,6 +60,7 @@ func newFakeFactory(nShars, nNodes, rf int) *fakeFactory {
 		NodeHostMap:   nodeHostMap,
 		Source:        &fakeSource{},
 		Client:        &fakeClient{},
+		logger:        logger,
 	}
 }
 
@@ -70,7 +70,7 @@ func (f fakeFactory) Scaler(dataPath string) *ScaleOutManager {
 		nodeResolver,
 		f.Source,
 		f.Client,
-		nil,
+		f.logger,
 		dataPath)
 
 	scaler.SetSchemaManager(f.ShardingState)
@@ -126,12 +126,6 @@ type fakeSource struct {
 func (s *fakeSource) ReleaseBackup(ctx context.Context, id, class string) error {
 	args := s.Called(ctx, id, class)
 	return args.Error(0)
-}
-
-func (s *fakeSource) SingleShardBackup(ctx context.Context, id, class, shard string,
-) (backup.ClassDescriptor, error) {
-	args := s.Called(ctx, id, class, shard)
-	return args.Get(0).(backup.ClassDescriptor), args.Error(1)
 }
 
 func (s *fakeSource) ShardsBackup(

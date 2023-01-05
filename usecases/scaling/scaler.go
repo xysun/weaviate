@@ -52,14 +52,10 @@ type clusterState interface {
 }
 
 type BackerUpper interface {
-	SingleShardBackup(
-		ctx context.Context, bakID, className, shardName string,
-	) (backup.ClassDescriptor, error)
-
-	ShardsBackup(
-		ctx context.Context, bakID, class string, shards []string,
-	) (_ backup.ClassDescriptor, err error)
-	ReleaseBackup(ctx context.Context, bakID, className string) error
+	// ShardsBackup returns class backup descriptor for a list of shards
+	ShardsBackup(_ context.Context, id, class string, shards []string) (backup.ClassDescriptor, error)
+	// ReleaseBackup releases the backup with the specified id
+	ReleaseBackup(ctx context.Context, id, className string) error
 }
 
 func NewScaleOutManager(clusterState clusterState, backerUpper BackerUpper,
@@ -165,7 +161,7 @@ func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBe
 			return nil
 		})
 	}
-	g.Go(func() error { // TODO: get all shards backups otherwise the second goroutine will be just waiting
+	g.Go(func() error {
 		if err := som.localScaleOut(ctx, className, localShards, ssBefore, &ssAfter); err != nil {
 			return fmt.Errorf("increase local replication factor: %w", err)
 		}
@@ -218,7 +214,7 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 	if len(shards) < 1 {
 		return nil
 	}
-	// Create backup of the single shard
+	// Create backup of the sin
 	bakID := fmt.Sprintf("_internal_scaleout_%s", uuid.New().String()) // todo better name
 	bak, err := som.backerUpper.ShardsBackup(ctx, bakID, className, shards)
 	if err != nil {
@@ -240,63 +236,52 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 		previousNodes := ssBefore.Physical[shardName].BelongsToNodes
 		// This relies on the convention that new nodes are always appended at the end
 		additions := newNodes[len(previousNodes):]
-
-		// Iterate over the new target nodes and copy files
-		for _, targetNode := range additions {
-			// bakShard := bak.Shards[0]
-			// if bakShard.Name != shardName {
-			// 	// this sanity check is only needed because of the Shards[0] above. If this
-			// 	// supports multi-shard, we need a better logic anyway
-			// 	return fmt.Errorf("shard name mismatch in backup: %q vs %q", bakShard.Name,
-			// 		shardName)
-			// }
-
-			// Create an empty shard on the remote node. This is a requirement to
-			// copy files in the next step. If the empty shard didn't exist, we'd
-			// have no copy target which could receive the files.
-			//
-			if err := som.CreateShard(ctx, targetNode, className, shardName); err != nil {
-				return fmt.Errorf("create new shard on remote node: %w", err)
-			}
-
-			// Transfer each file that's part of the backup.
-			for _, file := range desc.Files {
-				err := som.PutFile(ctx, file, targetNode, className, shardName)
-				if err != nil {
-					return fmt.Errorf("copy files to remote node: %w", err)
-				}
-			}
-
-			// Transfer shard metadata files
-			err := som.PutFile(ctx, desc.ShardVersionPath, targetNode, className, shardName)
-			if err != nil {
-				return fmt.Errorf("copy shard version to remote node: %w", err)
-			}
-
-			err = som.PutFile(ctx, desc.DocIDCounterPath, targetNode, className, shardName)
-			if err != nil {
-				return fmt.Errorf("copy index counter to remote node: %w", err)
-			}
-
-			err = som.PutFile(ctx, desc.PropLengthTrackerPath, targetNode, className, shardName)
-			if err != nil {
-				return fmt.Errorf("copy prop length tracker to remote node: %w", err)
-			}
-
-			// Now that all files are on the remote node's new shard, the shard needs
-			// to be reinitialized. Otherwise, it would not recognize the files when
-			// serving traffic later.
-			if err := som.ReInitShard(ctx, targetNode, className, shardName); err != nil {
-				return fmt.Errorf("create new shard on remote node: %w", err)
-			}
-
-			// Clean up after ourselves and prevent blocking future backups.
-			if err := som.backerUpper.ReleaseBackup(ctx, bakID, className); err != nil {
-				return fmt.Errorf("release shard backup: %w", err)
-			}
+		if err := som.syncShard(ctx, className, desc, additions); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+func (som *ScaleOutManager) syncShard(ctx context.Context, className string, desc backup.ShardDescriptor, nodes []string) error {
+	// Iterate over the new target nodes and copy files
+	for _, targetNode := range nodes {
+		if err := som.CreateShard(ctx, targetNode, className, desc.Name); err != nil {
+			return fmt.Errorf("create new shard on remote node: %w", err)
+		}
+
+		// Transfer each file that's part of the backup.
+		for _, file := range desc.Files {
+			err := som.PutFile(ctx, file, targetNode, className, desc.Name)
+			if err != nil {
+				return fmt.Errorf("copy files to remote node: %w", err)
+			}
+		}
+
+		// Transfer shard metadata files
+		err := som.PutFile(ctx, desc.ShardVersionPath, targetNode, className, desc.Name)
+		if err != nil {
+			return fmt.Errorf("copy shard version to remote node: %w", err)
+		}
+
+		err = som.PutFile(ctx, desc.DocIDCounterPath, targetNode, className, desc.Name)
+		if err != nil {
+			return fmt.Errorf("copy index counter to remote node: %w", err)
+		}
+
+		err = som.PutFile(ctx, desc.PropLengthTrackerPath, targetNode, className, desc.Name)
+		if err != nil {
+			return fmt.Errorf("copy prop length tracker to remote node: %w", err)
+		}
+
+		// Now that all files are on the remote node's new shard, the shard needs
+		// to be reinitialized. Otherwise, it would not recognize the files when
+		// serving traffic later.
+		if err := som.ReInitShard(ctx, targetNode, className, desc.Name); err != nil {
+			return fmt.Errorf("create new shard on remote node: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -349,8 +334,15 @@ func (som *ScaleOutManager) ReInitShard(ctx context.Context,
 type nodeClient interface {
 	PutFile(ctx context.Context, hostName, indexName,
 		shardName, fileName string, payload io.ReadSeekCloser) error
+
+	// CreateShard creates an empty shard on the remote node.
+	// This is required in order to sync files to a specific shard on the remote node.
 	CreateShard(ctx context.Context,
 		hostName, indexName, shardName string) error
+
+	// ReInitShard re-initialized new shard after all files has been synced to the remote node
+	// Otherwise, it would not recognize the files when
+	// serving traffic later.
 	ReInitShard(ctx context.Context,
 		hostName, indexName, shardName string) error
 	IncreaseReplicationFactor(ctx context.Context, hostName, indexName string,
