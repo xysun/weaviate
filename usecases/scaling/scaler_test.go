@@ -16,22 +16,21 @@ func TestScalerScale(t *testing.T) {
 	ctx := context.Background()
 	t.Run("NoShardingState", func(t *testing.T) {
 		scaler := newFakeFactory(0, 1, 0).Scaler("")
-		old := sharding.Config{Replicas: 1}
-		_, err := scaler.Scale(ctx, "C", old, old)
+		old := sharding.Config{}
+		_, err := scaler.Scale(ctx, "C", old, 1, 2)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "no sharding state")
 	})
 	t.Run("SameReplicationFactor", func(t *testing.T) {
 		scaler := newFakeFactory(1, 2, 2).Scaler("")
-		old := sharding.Config{Replicas: 2}
-		_, err := scaler.Scale(ctx, "C", old, old)
+		old := sharding.Config{}
+		_, err := scaler.Scale(ctx, "C", old, 2, 2)
 		assert.Nil(t, err)
 	})
 	t.Run("ScaleInNotSupported", func(t *testing.T) {
 		scaler := newFakeFactory(1, 2, 2).Scaler("")
-		old := sharding.Config{Replicas: 2}
-		new := sharding.Config{Replicas: 1}
-		_, err := scaler.Scale(ctx, "C", old, new)
+		old := sharding.Config{}
+		_, err := scaler.Scale(ctx, "C", old, 2, 1)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "not supported")
 	})
@@ -42,8 +41,7 @@ func TestScalerScaleOut(t *testing.T) {
 		dataDir = t.TempDir()
 		ctx     = context.Background()
 		cls     = "C"
-		old     = sharding.Config{Replicas: 1}
-		new     = sharding.Config{Replicas: 2}
+		old     = sharding.Config{}
 		bak     = backup.ClassDescriptor{
 			Name: "C",
 			Shards: []backup.ShardDescriptor{
@@ -69,6 +67,6 @@ func TestScalerScaleOut(t *testing.T) {
 	f.Client.On("ReInitShard", ctx, "H2", cls, "S1").Return(nil)
 	f.Source.On("ReleaseBackup", ctx, anyVal, "C").Return(nil)
 	scaler := f.Scaler(dataDir)
-	_, err := scaler.Scale(ctx, "C", old, new)
+	_, err := scaler.Scale(ctx, "C", old, 1, 2)
 	assert.Nil(t, err)
 }

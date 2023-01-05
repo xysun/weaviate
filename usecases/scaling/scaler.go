@@ -22,6 +22,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/entities/backup"
 	"github.com/semi-technologies/weaviate/usecases/sharding"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -38,6 +39,8 @@ type ScaleOutManager struct {
 	nodes nodeClient
 
 	persistenceRoot string
+
+	logger logrus.FieldLogger
 }
 
 type clusterState interface {
@@ -56,7 +59,7 @@ type BackerUpper interface {
 }
 
 func NewScaleOutManager(clusterState clusterState, backerUpper BackerUpper,
-	nodeClient nodeClient, persistenceRoot string,
+	nodeClient nodeClient, logger logrus.FieldLogger, persistenceRoot string,
 ) *ScaleOutManager {
 	return &ScaleOutManager{
 		clusterState:    clusterState,
@@ -98,7 +101,7 @@ func (som *ScaleOutManager) Scale(ctx context.Context, className string,
 	return nil, nil
 }
 
-// scaleOut is a relatively primitive implelemation that takes a shard and
+// scaleOut is a relatively primitive implementation that takes a shard and
 // copies it onto another node. Then it returns the new and updated sharding
 // state where the node-association is updated to point to all nodes where the
 // shard can be found.
@@ -106,7 +109,7 @@ func (som *ScaleOutManager) Scale(ctx context.Context, className string,
 // This implementation is meant as a temporary one and should probably be
 // replaced with something more sophisticated. The main issues are:
 //
-//   - Everything is synchrounous. This blocks the users request until all data
+//   - Everything is synchronous. This blocks the users request until all data
 //     is copied which is not great.
 //   - Everything is sequential. A lot of the things could probably happen in
 //     parallel
@@ -160,7 +163,7 @@ func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBe
 	}
 	for _, shard := range localShards {
 		shard := shard
-		g.Go(func() error {
+		g.Go(func() error { // TODO: get all shards backups otherwise the second goroutine will be just waiting
 			if err := som.localScaleOut(ctx, className, shard, ssBefore, &ssAfter); err != nil {
 				return fmt.Errorf("increase local replication factor: %w", err)
 			}
@@ -211,11 +214,22 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 	className, shardName string, ssBefore, ssAfter *sharding.State,
 ) error {
 	// Create backup of the single shard
-	bakID := fmt.Sprintf("_internal_scaleout_%s", uuid.New().String())
+	bakID := fmt.Sprintf("_internal_scaleout_%s", uuid.New().String()) // todo better name
 	bak, err := som.backerUpper.SingleShardBackup(ctx, bakID, className, shardName)
 	if err != nil {
 		return errors.Wrap(err, "create snapshot")
 	}
+
+	defer func() {
+		// TODO this must be done on class level 
+		// We need to use db.BackupClass(class, []string{"Shard1", "Shard2", ...})
+		// Otherwise the second go-routing will be blocked
+		// backups need to be released anyway
+		err := som.backerUpper.ReleaseBackup(context.Background(), bakID, className)
+		if err != nil {
+			som.logger.WithField("scaler", "releaseBackup").WithField("class", className).Error(err)
+		}
+	}()
 
 	// Figure out which nodes are new by diffing the before and after state
 	// TODO: This manual diffing is ugly, refactor!
@@ -237,6 +251,7 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 		// Create an empty shard on the remote node. This is a requirement to
 		// copy files in the next step. If the empty shard didn't exist, we'd
 		// have no copy target which could receive the files.
+		//
 		if err := som.CreateShard(ctx, targetNode, className, shardName); err != nil {
 			return fmt.Errorf("create new shard on remote node: %w", err)
 		}

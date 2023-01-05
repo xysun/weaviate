@@ -70,6 +70,7 @@ func (f fakeFactory) Scaler(dataPath string) *ScaleOutManager {
 		nodeResolver,
 		f.Source,
 		f.Client,
+		nil,
 		dataPath)
 
 	scaler.SetSchemaManager(f.ShardingState)
