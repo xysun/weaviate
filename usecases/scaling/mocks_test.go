@@ -134,6 +134,13 @@ func (s *fakeSource) SingleShardBackup(ctx context.Context, id, class, shard str
 	return args.Get(0).(backup.ClassDescriptor), args.Error(1)
 }
 
+func (s *fakeSource) ShardsBackup(
+	ctx context.Context, id, class string, shards []string,
+) (_ backup.ClassDescriptor, err error) {
+	args := s.Called(ctx, id, class, shards)
+	return args.Get(0).(backup.ClassDescriptor), args.Error(1)
+}
+
 type fakeClient struct {
 	mock.Mock
 }

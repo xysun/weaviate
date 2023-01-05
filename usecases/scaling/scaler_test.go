@@ -60,7 +60,7 @@ func TestScalerScaleOut(t *testing.T) {
 		file.Close()
 	}
 	f := newFakeFactory(1, 2, 1)
-	f.Source.On("SingleShardBackup", ctx, anyVal, cls, "S1").Return(bak, nil)
+	f.Source.On("ShardsBackup", ctx, anyVal, cls, []string{"S1"}).Return(bak, nil)
 	f.Client.On("CreateShard", ctx, "H2", cls, "S1").Return(nil)
 	f.Client.On("PutFile", ctx, "H2", cls, "S1", "f1", anyVal).Return(nil)
 	f.Client.On("PutFile", ctx, "H2", cls, "S1", "f4", anyVal).Return(nil)

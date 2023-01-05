@@ -55,6 +55,10 @@ type BackerUpper interface {
 	SingleShardBackup(
 		ctx context.Context, bakID, className, shardName string,
 	) (backup.ClassDescriptor, error)
+
+	ShardsBackup(
+		ctx context.Context, bakID, class string, shards []string,
+	) (_ backup.ClassDescriptor, err error)
 	ReleaseBackup(ctx context.Context, bakID, className string) error
 }
 
@@ -161,15 +165,12 @@ func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBe
 			return nil
 		})
 	}
-	for _, shard := range localShards {
-		shard := shard
-		g.Go(func() error { // TODO: get all shards backups otherwise the second goroutine will be just waiting
-			if err := som.localScaleOut(ctx, className, shard, ssBefore, &ssAfter); err != nil {
-				return fmt.Errorf("increase local replication factor: %w", err)
-			}
-			return nil
-		})
-	}
+	g.Go(func() error { // TODO: get all shards backups otherwise the second goroutine will be just waiting
+		if err := som.localScaleOut(ctx, className, localShards, ssBefore, &ssAfter); err != nil {
+			return fmt.Errorf("increase local replication factor: %w", err)
+		}
+		return nil
+	})
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
@@ -198,98 +199,101 @@ func (som *ScaleOutManager) LocalScaleOut(ctx context.Context,
 	// - Release the single-shard backup
 	ssBefore.SetLocalName(som.clusterState.LocalName())
 	ssAfter.SetLocalName(som.clusterState.LocalName())
+	localShards := make([]string, 0, len(ssBefore.Physical))
 	for shardName := range ssBefore.Physical {
-		if !ssBefore.IsShardLocal(shardName) {
-			continue
+		if ssBefore.IsShardLocal(shardName) {
+			localShards = append(localShards, shardName)
 		}
-		if err := som.localScaleOut(ctx, className, shardName, ssBefore, ssAfter); err != nil {
-			return err
-		}
+	}
+	if err := som.localScaleOut(ctx, className, localShards, ssBefore, ssAfter); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func (som *ScaleOutManager) localScaleOut(ctx context.Context,
-	className, shardName string, ssBefore, ssAfter *sharding.State,
+	className string, shards []string, ssBefore, ssAfter *sharding.State,
 ) error {
+	if len(shards) < 1 {
+		return nil
+	}
 	// Create backup of the single shard
 	bakID := fmt.Sprintf("_internal_scaleout_%s", uuid.New().String()) // todo better name
-	bak, err := som.backerUpper.SingleShardBackup(ctx, bakID, className, shardName)
+	bak, err := som.backerUpper.ShardsBackup(ctx, bakID, className, shards)
 	if err != nil {
 		return errors.Wrap(err, "create snapshot")
 	}
 
 	defer func() {
-		// TODO this must be done on class level 
-		// We need to use db.BackupClass(class, []string{"Shard1", "Shard2", ...})
-		// Otherwise the second go-routing will be blocked
-		// backups need to be released anyway
 		err := som.backerUpper.ReleaseBackup(context.Background(), bakID, className)
 		if err != nil {
 			som.logger.WithField("scaler", "releaseBackup").WithField("class", className).Error(err)
 		}
 	}()
 
-	// Figure out which nodes are new by diffing the before and after state
-	// TODO: This manual diffing is ugly, refactor!
-	newNodes := ssAfter.Physical[shardName].BelongsToNodes
-	previousNodes := ssBefore.Physical[shardName].BelongsToNodes
-	// This relies on the convention that new nodes are always appended at the end
-	additions := newNodes[len(previousNodes):]
+	for _, desc := range bak.Shards {
+		shardName := desc.Name
+		// Figure out which nodes are new by diffing the before and after state
+		// TODO: This manual diffing is ugly, refactor!
+		newNodes := ssAfter.Physical[shardName].BelongsToNodes
+		previousNodes := ssBefore.Physical[shardName].BelongsToNodes
+		// This relies on the convention that new nodes are always appended at the end
+		additions := newNodes[len(previousNodes):]
 
-	// Iterate over the new target nodes and copy files
-	for _, targetNode := range additions {
-		bakShard := bak.Shards[0]
-		if bakShard.Name != shardName {
-			// this sanity check is only needed because of the Shards[0] above. If this
-			// supports multi-shard, we need a better logic anyway
-			return fmt.Errorf("shard name mismatch in backup: %q vs %q", bakShard.Name,
-				shardName)
-		}
+		// Iterate over the new target nodes and copy files
+		for _, targetNode := range additions {
+			// bakShard := bak.Shards[0]
+			// if bakShard.Name != shardName {
+			// 	// this sanity check is only needed because of the Shards[0] above. If this
+			// 	// supports multi-shard, we need a better logic anyway
+			// 	return fmt.Errorf("shard name mismatch in backup: %q vs %q", bakShard.Name,
+			// 		shardName)
+			// }
 
-		// Create an empty shard on the remote node. This is a requirement to
-		// copy files in the next step. If the empty shard didn't exist, we'd
-		// have no copy target which could receive the files.
-		//
-		if err := som.CreateShard(ctx, targetNode, className, shardName); err != nil {
-			return fmt.Errorf("create new shard on remote node: %w", err)
-		}
-
-		// Transfer each file that's part of the backup.
-		for _, file := range bakShard.Files {
-			err := som.PutFile(ctx, file, targetNode, className, shardName)
-			if err != nil {
-				return fmt.Errorf("copy files to remote node: %w", err)
+			// Create an empty shard on the remote node. This is a requirement to
+			// copy files in the next step. If the empty shard didn't exist, we'd
+			// have no copy target which could receive the files.
+			//
+			if err := som.CreateShard(ctx, targetNode, className, shardName); err != nil {
+				return fmt.Errorf("create new shard on remote node: %w", err)
 			}
-		}
 
-		// Transfer shard metadata files
-		err := som.PutFile(ctx, bakShard.ShardVersionPath, targetNode, className, shardName)
-		if err != nil {
-			return fmt.Errorf("copy shard version to remote node: %w", err)
-		}
+			// Transfer each file that's part of the backup.
+			for _, file := range desc.Files {
+				err := som.PutFile(ctx, file, targetNode, className, shardName)
+				if err != nil {
+					return fmt.Errorf("copy files to remote node: %w", err)
+				}
+			}
 
-		err = som.PutFile(ctx, bakShard.DocIDCounterPath, targetNode, className, shardName)
-		if err != nil {
-			return fmt.Errorf("copy index counter to remote node: %w", err)
-		}
+			// Transfer shard metadata files
+			err := som.PutFile(ctx, desc.ShardVersionPath, targetNode, className, shardName)
+			if err != nil {
+				return fmt.Errorf("copy shard version to remote node: %w", err)
+			}
 
-		err = som.PutFile(ctx, bakShard.PropLengthTrackerPath, targetNode, className, shardName)
-		if err != nil {
-			return fmt.Errorf("copy prop length tracker to remote node: %w", err)
-		}
+			err = som.PutFile(ctx, desc.DocIDCounterPath, targetNode, className, shardName)
+			if err != nil {
+				return fmt.Errorf("copy index counter to remote node: %w", err)
+			}
 
-		// Now that all files are on the remote node's new shard, the shard needs
-		// to be reinitialized. Otherwise, it would not recognize the files when
-		// serving traffic later.
-		if err := som.ReInitShard(ctx, targetNode, className, shardName); err != nil {
-			return fmt.Errorf("create new shard on remote node: %w", err)
-		}
+			err = som.PutFile(ctx, desc.PropLengthTrackerPath, targetNode, className, shardName)
+			if err != nil {
+				return fmt.Errorf("copy prop length tracker to remote node: %w", err)
+			}
 
-		// Clean up after ourselves and prevent blocking future backups.
-		if err := som.backerUpper.ReleaseBackup(ctx, bakID, className); err != nil {
-			return fmt.Errorf("release shard backup: %w", err)
+			// Now that all files are on the remote node's new shard, the shard needs
+			// to be reinitialized. Otherwise, it would not recognize the files when
+			// serving traffic later.
+			if err := som.ReInitShard(ctx, targetNode, className, shardName); err != nil {
+				return fmt.Errorf("create new shard on remote node: %w", err)
+			}
+
+			// Clean up after ourselves and prevent blocking future backups.
+			if err := som.backerUpper.ReleaseBackup(ctx, bakID, className); err != nil {
+				return fmt.Errorf("release shard backup: %w", err)
+			}
 		}
 	}
 
