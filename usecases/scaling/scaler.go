@@ -149,7 +149,7 @@ func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBe
 	}
 	// However, so far we have only updated config, now we also need to actually
 	// copy files.
-	var g errgroup.Group
+	g, ctx := errgroup.WithContext(ctx)
 	for shard, host := range remoteShards {
 		shard, host := shard, host
 		g.Go(func() error {
@@ -161,6 +161,7 @@ func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBe
 			return nil
 		})
 	}
+
 	g.Go(func() error {
 		if err := som.localScaleOut(ctx, className, localShards, ssBefore, &ssAfter); err != nil {
 			return fmt.Errorf("increase local replication factor: %w", err)
@@ -204,7 +205,6 @@ func (som *ScaleOutManager) LocalScaleOut(ctx context.Context,
 	if err := som.localScaleOut(ctx, className, localShards, ssBefore, ssAfter); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -227,7 +227,7 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 			som.logger.WithField("scaler", "releaseBackup").WithField("class", className).Error(err)
 		}
 	}()
-
+	var g errgroup.Group
 	for _, desc := range bak.Shards {
 		shardName := desc.Name
 		// Figure out which nodes are new by diffing the before and after state
@@ -236,12 +236,13 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 		previousNodes := ssBefore.Physical[shardName].BelongsToNodes
 		// This relies on the convention that new nodes are always appended at the end
 		additions := newNodes[len(previousNodes):]
-		if err := som.syncShard(ctx, className, desc, additions); err != nil {
-			return err
-		}
-	}
+		desc := desc
+		g.Go(func() error {
+			return som.syncShard(ctx, className, desc, additions)
+		})
 
-	return nil
+	}
+	return g.Wait()
 }
 
 func (som *ScaleOutManager) syncShard(ctx context.Context, className string, desc backup.ShardDescriptor, nodes []string) error {
