@@ -17,7 +17,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/semi-technologies/weaviate/entities/backup"
-	"github.com/semi-technologies/weaviate/entities/errorcompounder"
 	"github.com/semi-technologies/weaviate/entities/schema"
 	"golang.org/x/sync/errgroup"
 )
@@ -78,38 +77,6 @@ func (db *DB) BackupDescriptors(ctx context.Context, bakid string, classes []str
 	return ds
 }
 
-func (db *DB) SingleShardBackup(
-	ctx context.Context, bakID, class, shardName string,
-) (_ backup.ClassDescriptor, err error) {
-	cd := backup.ClassDescriptor{Name: class}
-	idx := db.GetIndex(schema.ClassName(class))
-	if idx == nil {
-		return cd, fmt.Errorf("no index for class %q", class)
-	}
-
-	if err := idx.initBackup(bakID); err != nil {
-		return cd, fmt.Errorf("init backup state for class %q: %w", class, err)
-	}
-
-	shard, ok := idx.Shards[shardName]
-	if !ok {
-		return cd, fmt.Errorf("no shard %q for class %q", shardName, class)
-	}
-
-	if err := shard.beginBackup(ctx); err != nil {
-		return cd, fmt.Errorf("class %q: shard %q: begin backup: %w", class, shardName, err)
-	}
-
-	sd := backup.ShardDescriptor{Name: shardName}
-	if err := shard.listBackupFiles(ctx, &sd); err != nil {
-		return cd, fmt.Errorf("class %q: shard %q: list backup files: %w", class, shardName, err)
-	}
-
-	cd.Shards = append(cd.Shards, sd)
-
-	return cd, nil
-}
-
 func (db *DB) ShardsBackup(
 	ctx context.Context, bakID, class string, shards []string,
 ) (_ backup.ClassDescriptor, err error) {
@@ -124,7 +91,7 @@ func (db *DB) ShardsBackup(
 	}
 	defer func() {
 		if err != nil {
-			idx.ReleaseBackup(ctx, bakID)
+			go idx.ReleaseBackup(ctx, bakID)
 		}
 	}()
 	sm := make(map[string]*Shard, len(shards))
@@ -197,13 +164,13 @@ func (db *DB) ListClasses(ctx context.Context) []string {
 }
 
 // descriptor record everything needed to restore a class
-func (i *Index) descriptor(ctx context.Context, backupid string, desc *backup.ClassDescriptor) (err error) {
-	if err := i.initBackup(backupid); err != nil {
+func (i *Index) descriptor(ctx context.Context, backupID string, desc *backup.ClassDescriptor) (err error) {
+	if err := i.initBackup(backupID); err != nil {
 		return err
 	}
 	defer func() {
 		if err != nil {
-			i.resetBackupOnFailedCreate(ctx, err)
+			go i.ReleaseBackup(ctx, backupID)
 		}
 	}()
 	for _, s := range i.Shards {
@@ -255,15 +222,6 @@ func (i *Index) initBackup(id string) error {
 	}
 
 	return nil
-}
-
-func (i *Index) resetBackupOnFailedCreate(ctx context.Context, err error) error {
-	defer i.resetBackupState()
-
-	ec := errorcompounder.ErrorCompounder{}
-	ec.Add(err)
-	ec.Add(i.resumeMaintenanceCycles(ctx))
-	return ec.ToError()
 }
 
 func (i *Index) resetBackupState() {

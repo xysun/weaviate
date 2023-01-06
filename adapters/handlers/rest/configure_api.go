@@ -209,7 +209,7 @@ func configureAPI(api *operations.WeaviateAPI) http.Handler {
 	appState.ClassificationRepo = classifierRepo
 
 	scaleoutManager := scaling.NewScaleOutManager(appState.Cluster, vectorRepo,
-		remoteIndexClient, appState.ServerConfig.Config.Persistence.DataPath)
+		remoteIndexClient, appState.Logger, appState.ServerConfig.Config.Persistence.DataPath)
 	appState.ScaleOutManager = scaleoutManager
 
 	// TODO: configure http transport for efficient intra-cluster comm
