@@ -77,7 +77,8 @@ func (som *ScaleOutManager) SetSchemaManager(sm SchemaManager) {
 	som.schemaManager = sm
 }
 
-// Scale returns the updated sharding state if successful. The caller must then
+// Scale scales in/out
+// it returns the updated sharding state if successful. The caller must then
 // make sure to broadcast that state to all nodes as part of the "update"
 // transaction.
 func (som *ScaleOutManager) Scale(ctx context.Context, className string,
@@ -181,19 +182,19 @@ func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBe
 	return &ssAfter, nil
 }
 
+// LocalScaleOut iterates over every shard that this class has. This is the
+// meat&bones of this implementation. For each shard, we're roughly doing the
+// following:
+//   - Create shards backup, so the shards are safe to copy
+//   - Figure out the copy targets (i.e. each node that is part of the after
+//     state, but wasn't part of the before state yet)
+//   - Create an empty shard on the target node
+//   - Copy over all files from the backup
+//   - ReInit the shard to recognize the copied files
+//   - Release the single-shard backup
 func (som *ScaleOutManager) LocalScaleOut(ctx context.Context,
 	className string, ssBefore, ssAfter *sharding.State,
 ) error {
-	// Next, we will iterate over every shard that this class has. This is the
-	// meat&bones of this implemenation. For each shard, we're roughly doing the
-	// following:
-	// - Create a single shard backup, so the shard is safe to copy
-	// - Figure out the copy targets (i.e. each node that is part of the after
-	//   state, but wasn't part of the before state yet)
-	// - Create an empty shard on the target node
-	// - Copy over all files from the backup
-	// - Reinit the shard to recognize the copied files
-	// - Release the single-shard backup
 	ssBefore.SetLocalName(som.clusterState.LocalName())
 	ssAfter.SetLocalName(som.clusterState.LocalName())
 	localShards := make([]string, 0, len(ssBefore.Physical))
@@ -218,7 +219,7 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 	bakID := fmt.Sprintf("_internal_scaleout_%s", uuid.New().String()) // todo better name
 	bak, err := som.backerUpper.ShardsBackup(ctx, bakID, className, shards)
 	if err != nil {
-		return errors.Wrap(err, "create snapshot")
+		return fmt.Errorf("create snapshot: %w", err)
 	}
 
 	defer func() {
@@ -230,12 +231,7 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 	var g errgroup.Group
 	for _, desc := range bak.Shards {
 		shardName := desc.Name
-		// Figure out which nodes are new by diffing the before and after state
-		// TODO: This manual diffing is ugly, refactor!
-		newNodes := ssAfter.Physical[shardName].BelongsToNodes
-		previousNodes := ssBefore.Physical[shardName].BelongsToNodes
-		// This relies on the convention that new nodes are always appended at the end
-		additions := newNodes[len(previousNodes):]
+		additions := difference(ssAfter.Physical[shardName].BelongsToNodes, ssBefore.Physical[shardName].BelongsToNodes)
 		desc := desc
 		g.Go(func() error {
 			return som.syncShard(ctx, className, desc, additions)
@@ -348,4 +344,19 @@ type nodeClient interface {
 		hostName, indexName, shardName string) error
 	IncreaseReplicationFactor(ctx context.Context, hostName, indexName string,
 		ssBefore, ssAfter *sharding.State) error
+}
+
+// difference returns elements in xs which doesn't exists in ys
+func difference(xs, ys []string) []string {
+	m := make(map[string]struct{}, len(ys))
+	for _, y := range ys {
+		m[y] = struct{}{}
+	}
+	rs := make([]string, 0, len(ys))
+	for _, x := range xs {
+		if _, ok := m[x]; !ok {
+			rs = append(rs, x)
+		}
+	}
+	return rs
 }
