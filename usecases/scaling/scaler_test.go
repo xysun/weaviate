@@ -15,20 +15,22 @@ import (
 func TestScalerScale(t *testing.T) {
 	ctx := context.Background()
 	t.Run("NoShardingState", func(t *testing.T) {
-		scaler := newFakeFactory(0, 1, 0).Scaler("")
+		f := newFakeFactory()
+		f.ShardingState.M = nil
+		scaler := f.Scaler("")
 		old := sharding.Config{}
 		_, err := scaler.Scale(ctx, "C", old, 1, 2)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "no sharding state")
 	})
 	t.Run("SameReplicationFactor", func(t *testing.T) {
-		scaler := newFakeFactory(1, 2, 2).Scaler("")
+		scaler := newFakeFactory().Scaler("")
 		old := sharding.Config{}
 		_, err := scaler.Scale(ctx, "C", old, 2, 2)
 		assert.Nil(t, err)
 	})
 	t.Run("ScaleInNotSupported", func(t *testing.T) {
-		scaler := newFakeFactory(1, 2, 2).Scaler("")
+		scaler := newFakeFactory().Scaler("")
 		old := sharding.Config{}
 		_, err := scaler.Scale(ctx, "C", old, 2, 1)
 		assert.NotNil(t, err)
@@ -59,15 +61,27 @@ func TestScalerScaleOut(t *testing.T) {
 		assert.Nil(t, err)
 		file.Close()
 	}
-	f := newFakeFactory(1, 2, 1)
+	f := newFakeFactory()
 	f.Source.On("ShardsBackup", anyVal, anyVal, cls, []string{"S1"}).Return(bak, nil)
+	// sync update to remote node N2
 	f.Client.On("CreateShard", anyVal, "H2", cls, "S1").Return(nil)
 	f.Client.On("PutFile", anyVal, "H2", cls, "S1", "f1", anyVal).Return(nil)
 	f.Client.On("PutFile", anyVal, "H2", cls, "S1", "f4", anyVal).Return(nil)
 	f.Client.On("ReInitShard", anyVal, "H2", cls, "S1").Return(nil)
+
+	// sync update to remote node N3
+	f.Client.On("CreateShard", anyVal, "H3", cls, "S1").Return(nil)
+	f.Client.On("PutFile", anyVal, "H3", cls, "S1", "f1", anyVal).Return(nil)
+	f.Client.On("PutFile", anyVal, "H3", cls, "S1", "f4", anyVal).Return(nil)
+	f.Client.On("ReInitShard", anyVal, "H3", cls, "S1").Return(nil)
+
+	// shard doesn't exist locally
+	f.Client.On("IncreaseReplicationFactor", anyVal, "H3", cls, anyVal, anyVal).Return(nil)
+	f.Client.On("IncreaseReplicationFactor", anyVal, "H4", cls, anyVal, anyVal).Return(nil)
+
 	f.Source.On("ReleaseBackup", anyVal, anyVal, "C").Return(nil)
 	scaler := f.Scaler(dataDir)
-	_, err := scaler.Scale(ctx, "C", old, 1, 2)
+	_, err := scaler.Scale(ctx, "C", old, 1, 3)
 	assert.Nil(t, err)
 }
 

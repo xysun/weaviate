@@ -38,9 +38,9 @@ type ScaleOutManager struct {
 
 	nodes nodeClient
 
-	persistenceRoot string
-
 	logger logrus.FieldLogger
+
+	persistenceRoot string
 }
 
 type clusterState interface {
@@ -48,7 +48,7 @@ type clusterState interface {
 	// local one
 	AllNames() []string
 	LocalName() string
-	NodeHostname(nodename string) (string, bool)
+	NodeHostname(name string) (string, bool)
 }
 
 type BackerUpper interface {

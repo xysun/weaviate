@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"sort"
-	"strconv"
 
 	"github.com/semi-technologies/weaviate/entities/backup"
 	"github.com/semi-technologies/weaviate/usecases/sharding"
@@ -29,42 +28,28 @@ type fakeFactory struct {
 	logger        logrus.FieldLogger
 }
 
-func newShardingState(nShard, nNodes, rf int) fakeShardingState {
-	if rf > nNodes {
-		return nil
-	}
-	m := make(fakeShardingState)
-	for i := 0; i < nShard; i++ {
-		replicas := make([]string, rf)
-		for j := 0; j < rf; j++ {
-			replicas[j] = "N" + strconv.Itoa(j+1)
-		}
-		m["S"+strconv.Itoa(i+1)] = replicas
-	}
-	return m
-}
-
-func newFakeFactory(nShars, nNodes, rf int) *fakeFactory {
-	nodeHostMap := make(map[string]string)
-	nodes := make([]string, nNodes)
-	for i := 0; i < nNodes; i++ {
-		ni := strconv.Itoa(i + 1)
-		nodeHostMap["N"+ni] = "H" + ni
-		nodes[i] = "N" + ni
-	}
+func newFakeFactory() *fakeFactory {
+	nodeHostMap := map[string]string{"N1": "H1", "N2": "H2", "N3": "H3", "N4": "H4"}
+	nodes := []string{"N1", "N2", "N3", "N4"}
 	logger, _ := test.NewNullLogger()
 	return &fakeFactory{
-		LocalNode:     localNode,
-		Nodes:         nodes,
-		ShardingState: newShardingState(nShars, nNodes, rf),
-		NodeHostMap:   nodeHostMap,
-		Source:        &fakeSource{},
-		Client:        &fakeClient{},
-		logger:        logger,
+		LocalNode: localNode,
+		Nodes:     nodes,
+		ShardingState: fakeShardingState{
+			LocalNode: localNode,
+			M: map[string][]string{
+				"S1": {"N1"},
+				"S3": {"N3", "N4"},
+			},
+		},
+		NodeHostMap: nodeHostMap,
+		Source:      &fakeSource{},
+		Client:      &fakeClient{},
+		logger:      logger,
 	}
 }
 
-func (f fakeFactory) Scaler(dataPath string) *ScaleOutManager {
+func (f *fakeFactory) Scaler(dataPath string) *ScaleOutManager {
 	nodeResolver := newFakeNodeResolver(f.LocalNode, f.NodeHostMap)
 	scaler := NewScaleOutManager(
 		nodeResolver,
@@ -72,25 +57,39 @@ func (f fakeFactory) Scaler(dataPath string) *ScaleOutManager {
 		f.Client,
 		f.logger,
 		dataPath)
-
-	scaler.SetSchemaManager(f.ShardingState)
+	scaler.SetSchemaManager(&f.ShardingState)
 	return scaler
 }
 
-type fakeShardingState map[string][]string
+type fakeShardingState struct {
+	LocalNode string
+	M         map[string][]string
+}
 
-func (f fakeShardingState) ShardingState(class string) *sharding.State {
-	if len(f) == 0 {
+func (f *fakeShardingState) ShardingState(class string) *sharding.State {
+	if len(f.M) == 0 {
 		return nil
 	}
 	state := sharding.State{}
 	state.Physical = make(map[string]sharding.Physical)
-	for shard, nodes := range f {
+	for shard, nodes := range f.M {
 		state.Physical[shard] = sharding.Physical{BelongsToNodes: nodes}
 	}
-	state.SetLocalName(localNode)
+	state.SetLocalName(f.LocalNode)
 	return &state
 }
+
+// func newShardingState(nShard, rf int, localNode string) fakeShardingState {
+// 	m := make(map[string][]string)
+// 	for i := 0; i < nShard; i++ {
+// 		replicas := make([]string, rf)
+// 		for j := 0; j < rf; j++ {
+// 			replicas[j] = "N" + strconv.Itoa(j+1)
+// 		}
+// 		m["S"+strconv.Itoa(i+1)] = replicas
+// 	}
+// 	return fakeShardingState{M: m, LocalNode: localNode}
+// }
 
 // node resolver
 type fakeNodeResolver struct {
