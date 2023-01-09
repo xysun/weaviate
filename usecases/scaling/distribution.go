@@ -6,16 +6,17 @@ import (
 	"github.com/semi-technologies/weaviate/usecases/sharding"
 )
 
-// shardDist shard distribution over nodes
 type (
-	shardDist     map[string][]string
-	nodeShardDist map[string]shardDist
+	// ShardDist shard distribution over nodes
+	ShardDist map[string][]string
+	// nodeShardDist map a node its shard distribution
+	nodeShardDist map[string]ShardDist
 )
 
-// dist returns local shard distribution
-func dist(before, after *sharding.State) (shardDist, nodeShardDist) {
-	localDist := make(shardDist, len(before.Physical))
-	nodeDist := make(map[string]shardDist)
+// distributions returns shard distribution for local node as well as remote nodes
+func distributions(before, after *sharding.State) (ShardDist, nodeShardDist) {
+	localDist := make(ShardDist, len(before.Physical))
+	nodeDist := make(map[string]ShardDist)
 	for name := range before.Physical {
 		newNodes := difference(after.Physical[name].BelongsToNodes, before.Physical[name].BelongsToNodes)
 		if before.IsShardLocal(name) {
@@ -53,4 +54,13 @@ func hosts(nodes []string, resolver clusterState) ([]string, error) {
 		hs[i] = host
 	}
 	return hs, nil
+}
+
+// shards return names of all shards
+func (m ShardDist) shards() []string {
+	ns := make([]string, 0, len(m))
+	for node := range m {
+		ns = append(ns, node)
+	}
+	return ns
 }

@@ -162,8 +162,8 @@ func (f *fakeClient) ReInitShard(ctx context.Context, host, class, shard string,
 }
 
 func (f *fakeClient) IncreaseReplicationFactor(ctx context.Context,
-	host, class string, ssBefore, ssAfter *sharding.State,
+	host, class string, dist ShardDist,
 ) error {
-	args := f.Called(ctx, host, class, ssBefore, ssAfter)
+	args := f.Called(ctx, host, class, dist)
 	return args.Error(0)
 }

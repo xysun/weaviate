@@ -46,7 +46,7 @@ type ScaleOutManager struct {
 	persistenceRoot string
 }
 
-type clusterState interface { 
+type clusterState interface { // TODO cluster
 	// AllNames() returns all the node names (not the hostnames!) including the
 	// local one
 	AllNames() []string
@@ -137,38 +137,30 @@ func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBe
 		shard.AdjustReplicas(int(replFactor), som.clusterState)
 		ssAfter.Physical[name] = shard
 	}
-	// resolve hosts beforehand
-	localShards := make([]string, 0, len(ssBefore.Physical))
-	remoteShards := make(map[string]string)
-	for name := range ssBefore.Physical {
-		if ssBefore.IsShardLocal(name) {
-			localShards = append(localShards, name)
-		} else {
-			belongsTo := ssBefore.Physical[name].BelongsToNode()
-			host, ok := som.clusterState.NodeHostname(belongsTo)
-			if !ok {
-				return nil, fmt.Errorf("%w, %q", ErrUnresolvedName, belongsTo)
-			}
-			remoteShards[name] = host
-		}
-	}
+	lDist, nodeDist := distributions(ssBefore, &ssAfter)
 	// However, so far we have only updated config, now we also need to actually
 	// copy files.
 	g, ctx := errgroup.WithContext(ctx)
-	for shard, host := range remoteShards {
-		shard, host := shard, host
+	// resolve hosts beforehand
+	nodes := nodeDist.nodes()
+	hosts, err := hosts(nodes, som.clusterState)
+	if err != nil {
+		return nil, err
+	}
+	for i, node := range nodes {
+		dist := nodeDist[node]
+		i := i
 		g.Go(func() error {
-			err := som.nodes.IncreaseReplicationFactor(ctx, host, className, ssBefore, &ssAfter)
+			err := som.nodes.IncreaseReplicationFactor(ctx, hosts[i], className, dist)
 			if err != nil {
-				belongsTo := ssBefore.Physical[shard].BelongsToNode()
-				return fmt.Errorf("increase replication factor for class %q on node %q: %w", className, belongsTo, err)
+				return fmt.Errorf("increase replication factor for class %q on node %q: %w", className, nodes[i], err)
 			}
 			return nil
 		})
 	}
 
 	g.Go(func() error {
-		if err := som.localScaleOut(ctx, className, localShards, ssBefore, &ssAfter); err != nil {
+		if err := som.localScaleOut(ctx, className, lDist); err != nil {
 			return fmt.Errorf("increase local replication factor: %w", err)
 		}
 		return nil
@@ -197,31 +189,32 @@ func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBe
 //   - ReInit the shard to recognize the copied files
 //   - Release the single-shard backup
 func (som *ScaleOutManager) LocalScaleOut(ctx context.Context,
-	className string, ssBefore, ssAfter *sharding.State,
+	className string, dist ShardDist,
 ) error {
-	ssBefore.SetLocalName(som.clusterState.LocalName())
-	ssAfter.SetLocalName(som.clusterState.LocalName())
-	localShards := make([]string, 0, len(ssBefore.Physical))
-	for shardName := range ssBefore.Physical {
-		if ssBefore.IsShardLocal(shardName) {
-			localShards = append(localShards, shardName)
-		}
-	}
-	if err := som.localScaleOut(ctx, className, localShards, ssBefore, ssAfter); err != nil {
+	// ssBefore.SetLocalName(som.clusterState.LocalName())
+	// ssAfter.SetLocalName(som.clusterState.LocalName())
+	// localShards := make([]string, 0, len(ssBefore.Physical))
+	// for shardName := range ssBefore.Physical {
+	// 	if ssBefore.IsShardLocal(shardName) {
+	// 		localShards = append(localShards, shardName)
+	// 	}
+	// }
+	// TODO: check if shard exist locally
+	if err := som.localScaleOut(ctx, className, dist); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (som *ScaleOutManager) localScaleOut(ctx context.Context,
-	className string, shards []string, ssBefore, ssAfter *sharding.State,
+	className string, dist ShardDist,
 ) error {
-	if len(shards) < 1 {
+	if len(dist) < 1 {
 		return nil
 	}
 	// Create backup of the sin
 	bakID := fmt.Sprintf("_internal_scaleout_%s", uuid.New().String()) // todo better name
-	bak, err := som.backerUpper.ShardsBackup(ctx, bakID, className, shards)
+	bak, err := som.backerUpper.ShardsBackup(ctx, bakID, className, dist.shards())
 	if err != nil {
 		return fmt.Errorf("create snapshot: %w", err)
 	}
@@ -235,7 +228,7 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 	var g errgroup.Group
 	for _, desc := range bak.Shards {
 		shardName := desc.Name
-		additions := difference(ssAfter.Physical[shardName].BelongsToNodes, ssBefore.Physical[shardName].BelongsToNodes)
+		additions := dist[shardName]
 		desc := desc
 		g.Go(func() error {
 			return som.syncShard(ctx, className, desc, additions)
@@ -244,6 +237,9 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 	}
 	return g.Wait()
 }
+
+// TODO move this into shard.go
+// create new struct rsync
 
 func (som *ScaleOutManager) syncShard(ctx context.Context, className string, desc backup.ShardDescriptor, nodes []string) error {
 	// Iterate over the new target nodes and copy files
@@ -346,8 +342,7 @@ type nodeClient interface {
 	// serving traffic later.
 	ReInitShard(ctx context.Context,
 		hostName, indexName, shardName string) error
-	IncreaseReplicationFactor(ctx context.Context, hostName, indexName string,
-		ssBefore, ssAfter *sharding.State) error
+	IncreaseReplicationFactor(ctx context.Context, host, class string, dist ShardDist) error
 }
 
 // difference returns elements in xs which doesn't exists in ys
