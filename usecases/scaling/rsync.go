@@ -30,13 +30,13 @@ type nodeClient interface {
 
 // rsync synchronizes shards with remote nodes
 type rsync struct {
-	nodes           nodeClient
+	client          nodeClient
 	clusterState    clusterState
 	persistenceRoot string
 }
 
 func newRSync(nodes nodeClient, cluster clusterState, rootPath string) *rsync {
-	return &rsync{nodes: nodes, clusterState: cluster, persistenceRoot: rootPath}
+	return &rsync{client: nodes, clusterState: cluster, persistenceRoot: rootPath}
 }
 
 func (r rsync) Push(ctx context.Context, shardsBackups []backup.ShardDescriptor, dist ShardDist, className string) error {
@@ -46,40 +46,44 @@ func (r rsync) Push(ctx context.Context, shardsBackups []backup.ShardDescriptor,
 		additions := dist[shardName]
 		desc := desc
 		g.Go(func() error {
-			return r.syncShard(ctx, className, desc, additions)
+			return r.PushShard(ctx, className, desc, additions)
 		})
 
 	}
 	return g.Wait()
 }
 
-func (r *rsync) syncShard(ctx context.Context, className string, desc backup.ShardDescriptor, nodes []string) error {
+func (r *rsync) PushShard(ctx context.Context, className string, desc backup.ShardDescriptor, nodes []string) error {
 	// Iterate over the new target nodes and copy files
 	for _, targetNode := range nodes {
-		if err := r.CreateShard(ctx, targetNode, className, desc.Name); err != nil {
+		host, ok := r.clusterState.NodeHostname(targetNode)
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrUnresolvedName, targetNode)
+		}
+		if err := r.client.CreateShard(ctx, host, className, desc.Name); err != nil {
 			return fmt.Errorf("create new shard on remote node: %w", err)
 		}
 
 		// Transfer each file that's part of the backup.
 		for _, file := range desc.Files {
-			err := r.PutFile(ctx, file, targetNode, className, desc.Name)
+			err := r.PutFile(ctx, file, host, className, desc.Name)
 			if err != nil {
 				return fmt.Errorf("copy files to remote node: %w", err)
 			}
 		}
 
 		// Transfer shard metadata files
-		err := r.PutFile(ctx, desc.ShardVersionPath, targetNode, className, desc.Name)
+		err := r.PutFile(ctx, desc.ShardVersionPath, host, className, desc.Name)
 		if err != nil {
 			return fmt.Errorf("copy shard version to remote node: %w", err)
 		}
 
-		err = r.PutFile(ctx, desc.DocIDCounterPath, targetNode, className, desc.Name)
+		err = r.PutFile(ctx, desc.DocIDCounterPath, host, className, desc.Name)
 		if err != nil {
 			return fmt.Errorf("copy index counter to remote node: %w", err)
 		}
 
-		err = r.PutFile(ctx, desc.PropLengthTrackerPath, targetNode, className, desc.Name)
+		err = r.PutFile(ctx, desc.PropLengthTrackerPath, host, className, desc.Name)
 		if err != nil {
 			return fmt.Errorf("copy prop length tracker to remote node: %w", err)
 		}
@@ -87,7 +91,7 @@ func (r *rsync) syncShard(ctx context.Context, className string, desc backup.Sha
 		// Now that all files are on the remote node's new shard, the shard needs
 		// to be reinitialized. Otherwise, it would not recognize the files when
 		// serving traffic later.
-		if err := r.ReInitShard(ctx, targetNode, className, desc.Name); err != nil {
+		if err := r.client.ReInitShard(ctx, host, className, desc.Name); err != nil {
 			return fmt.Errorf("create new shard on remote node: %w", err)
 		}
 	}
@@ -95,41 +99,13 @@ func (r *rsync) syncShard(ctx context.Context, className string, desc backup.Sha
 }
 
 func (r *rsync) PutFile(ctx context.Context, sourceFileName string,
-	targetNode, className, shardName string,
+	hostname, className, shardName string,
 ) error {
 	absPath := filepath.Join(r.persistenceRoot, sourceFileName)
-
-	hostname, ok := r.clusterState.NodeHostname(targetNode)
-	if !ok {
-		return fmt.Errorf("resolve hostname for node %q", targetNode)
-	}
-
 	f, err := os.Open(absPath)
 	if err != nil {
 		return fmt.Errorf("open file %q for reading: %w", absPath, err)
 	}
 
-	return r.nodes.PutFile(ctx, hostname, className, shardName, sourceFileName, f)
-}
-
-func (r *rsync) CreateShard(ctx context.Context,
-	targetNode, className, shardName string,
-) error {
-	hostname, ok := r.clusterState.NodeHostname(targetNode)
-	if !ok {
-		return fmt.Errorf("resolve hostname for node %q", targetNode)
-	}
-
-	return r.nodes.CreateShard(ctx, hostname, className, shardName)
-}
-
-func (r *rsync) ReInitShard(ctx context.Context,
-	targetNode, className, shardName string,
-) error {
-	hostname, ok := r.clusterState.NodeHostname(targetNode)
-	if !ok {
-		return fmt.Errorf("resolve hostname for node %q", targetNode)
-	}
-
-	return r.nodes.ReInitShard(ctx, hostname, className, shardName)
+	return r.client.PutFile(ctx, hostname, className, shardName, sourceFileName, f)
 }
