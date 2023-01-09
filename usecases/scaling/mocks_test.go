@@ -2,6 +2,7 @@ package scaling
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sort"
 
@@ -16,7 +17,10 @@ const (
 	localNode = "N1"
 )
 
-var anyVal = mock.Anything // errAny = errors.New("any error")
+var (
+	anyVal = mock.Anything
+	errAny = errors.New("any error")
+)
 
 type fakeFactory struct {
 	LocalNode     string
