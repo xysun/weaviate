@@ -61,6 +61,13 @@ func TestScalerScaleOut(t *testing.T) {
 		assert.Nil(t, err)
 		file.Close()
 	}
+	t.Run("UnresolvedName", func(t *testing.T) {
+		f := newFakeFactory()
+		delete(f.NodeHostMap, "N3")
+		scaler := f.Scaler(dataDir)
+		_, err := scaler.Scale(ctx, "C", old, 1, 3)
+		assert.ErrorIs(t, err, ErrUnresolvedName)
+	})
 	t.Run("GetLocalShards", func(t *testing.T) {
 		f := newFakeFactory()
 		f.Source.On("ShardsBackup", anyVal, anyVal, cls, []string{"S1"}).Return(bak, errAny)
@@ -120,6 +127,31 @@ func TestScalerScaleOut(t *testing.T) {
 		f.Client.On("IncreaseReplicationFactor", anyVal, "H4", cls, anyVal, anyVal).Return(nil)
 
 		f.Source.On("ReleaseBackup", anyVal, anyVal, "C").Return(nil)
+		scaler := f.Scaler(dataDir)
+		_, err := scaler.Scale(ctx, "C", old, 1, 3)
+		assert.Nil(t, err)
+	})
+
+	t.Run("ReleaseBackupAsync", func(t *testing.T) {
+		f := newFakeFactory()
+		f.Source.On("ShardsBackup", anyVal, anyVal, cls, []string{"S1"}).Return(bak, nil)
+		// sync update to remote node N2
+		f.Client.On("CreateShard", anyVal, "H2", cls, "S1").Return(nil)
+		f.Client.On("PutFile", anyVal, "H2", cls, "S1", "f1", anyVal).Return(nil)
+		f.Client.On("PutFile", anyVal, "H2", cls, "S1", "f4", anyVal).Return(nil)
+		f.Client.On("ReInitShard", anyVal, "H2", cls, "S1").Return(nil)
+
+		// sync update to remote node N3
+		f.Client.On("CreateShard", anyVal, "H3", cls, "S1").Return(nil)
+		f.Client.On("PutFile", anyVal, "H3", cls, "S1", "f1", anyVal).Return(nil)
+		f.Client.On("PutFile", anyVal, "H3", cls, "S1", "f4", anyVal).Return(nil)
+		f.Client.On("ReInitShard", anyVal, "H3", cls, "S1").Return(nil)
+
+		// shard doesn't exist locally
+		f.Client.On("IncreaseReplicationFactor", anyVal, "H3", cls, anyVal, anyVal).Return(nil)
+		f.Client.On("IncreaseReplicationFactor", anyVal, "H4", cls, anyVal, anyVal).Return(nil)
+
+		f.Source.On("ReleaseBackup", anyVal, anyVal, "C").Return(errAny)
 		scaler := f.Scaler(dataDir)
 		_, err := scaler.Scale(ctx, "C", old, 1, 3)
 		assert.Nil(t, err)

@@ -26,6 +26,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// ErrUnresolvedName cannot resolve the host address of a node
+var ErrUnresolvedName = errors.New("cannot resolve node name")
+
 type ScaleOutManager struct {
 	// the scaleOutManager needs to read and updated the sharding state of a
 	// class. It can access it through the schemaManager
@@ -43,7 +46,7 @@ type ScaleOutManager struct {
 	persistenceRoot string
 }
 
-type clusterState interface {
+type clusterState interface { 
 	// AllNames() returns all the node names (not the hostnames!) including the
 	// local one
 	AllNames() []string
@@ -65,6 +68,7 @@ func NewScaleOutManager(clusterState clusterState, backerUpper BackerUpper,
 		clusterState:    clusterState,
 		backerUpper:     backerUpper,
 		nodes:           nodeClient,
+		logger:          logger,
 		persistenceRoot: persistenceRoot,
 	}
 }
@@ -143,7 +147,7 @@ func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBe
 			belongsTo := ssBefore.Physical[name].BelongsToNode()
 			host, ok := som.clusterState.NodeHostname(belongsTo)
 			if !ok {
-				return nil, fmt.Errorf("cannot resolve hostname for node %q", belongsTo)
+				return nil, fmt.Errorf("%w, %q", ErrUnresolvedName, belongsTo)
 			}
 			remoteShards[name] = host
 		}
