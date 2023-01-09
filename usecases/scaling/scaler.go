@@ -14,9 +14,6 @@ package scaling
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -213,7 +210,7 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 		return nil
 	}
 	// Create backup of the sin
-	bakID := fmt.Sprintf("_internal_scaleout_%s", uuid.New().String()) // todo better name
+	bakID := fmt.Sprintf("_internal_scaler_%s", uuid.New().String()) // todo better name
 	bak, err := som.backerUpper.ShardsBackup(ctx, bakID, className, dist.shards())
 	if err != nil {
 		return fmt.Errorf("create snapshot: %w", err)
@@ -225,124 +222,14 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 			som.logger.WithField("scaler", "releaseBackup").WithField("class", className).Error(err)
 		}
 	}()
-	var g errgroup.Group
-	for _, desc := range bak.Shards {
-		shardName := desc.Name
-		additions := dist[shardName]
-		desc := desc
-		g.Go(func() error {
-			return som.syncShard(ctx, className, desc, additions)
-		})
-
-	}
-	return g.Wait()
-}
-
-// TODO move this into shard.go
-// create new struct rsync
-
-func (som *ScaleOutManager) syncShard(ctx context.Context, className string, desc backup.ShardDescriptor, nodes []string) error {
-	// Iterate over the new target nodes and copy files
-	for _, targetNode := range nodes {
-		if err := som.CreateShard(ctx, targetNode, className, desc.Name); err != nil {
-			return fmt.Errorf("create new shard on remote node: %w", err)
-		}
-
-		// Transfer each file that's part of the backup.
-		for _, file := range desc.Files {
-			err := som.PutFile(ctx, file, targetNode, className, desc.Name)
-			if err != nil {
-				return fmt.Errorf("copy files to remote node: %w", err)
-			}
-		}
-
-		// Transfer shard metadata files
-		err := som.PutFile(ctx, desc.ShardVersionPath, targetNode, className, desc.Name)
-		if err != nil {
-			return fmt.Errorf("copy shard version to remote node: %w", err)
-		}
-
-		err = som.PutFile(ctx, desc.DocIDCounterPath, targetNode, className, desc.Name)
-		if err != nil {
-			return fmt.Errorf("copy index counter to remote node: %w", err)
-		}
-
-		err = som.PutFile(ctx, desc.PropLengthTrackerPath, targetNode, className, desc.Name)
-		if err != nil {
-			return fmt.Errorf("copy prop length tracker to remote node: %w", err)
-		}
-
-		// Now that all files are on the remote node's new shard, the shard needs
-		// to be reinitialized. Otherwise, it would not recognize the files when
-		// serving traffic later.
-		if err := som.ReInitShard(ctx, targetNode, className, desc.Name); err != nil {
-			return fmt.Errorf("create new shard on remote node: %w", err)
-		}
-	}
-	return nil
+	rsync := newRSync(som.nodes, som.clusterState, som.persistenceRoot)
+	return rsync.Push(ctx, bak.Shards, dist, className)
 }
 
 func (som *ScaleOutManager) scaleIn(ctx context.Context, className string,
 	updated sharding.Config,
 ) (*sharding.State, error) {
 	return nil, errors.Errorf("scaling in (reducing replica count) not supported yet")
-}
-
-func (som *ScaleOutManager) PutFile(ctx context.Context, sourceFileName string,
-	targetNode, className, shardName string,
-) error {
-	absPath := filepath.Join(som.persistenceRoot, sourceFileName)
-
-	hostname, ok := som.clusterState.NodeHostname(targetNode)
-	if !ok {
-		return fmt.Errorf("resolve hostname for node %q", targetNode)
-	}
-
-	f, err := os.Open(absPath)
-	if err != nil {
-		return fmt.Errorf("open file %q for reading: %w", absPath, err)
-	}
-
-	return som.nodes.PutFile(ctx, hostname, className, shardName, sourceFileName, f)
-}
-
-func (som *ScaleOutManager) CreateShard(ctx context.Context,
-	targetNode, className, shardName string,
-) error {
-	hostname, ok := som.clusterState.NodeHostname(targetNode)
-	if !ok {
-		return fmt.Errorf("resolve hostname for node %q", targetNode)
-	}
-
-	return som.nodes.CreateShard(ctx, hostname, className, shardName)
-}
-
-func (som *ScaleOutManager) ReInitShard(ctx context.Context,
-	targetNode, className, shardName string,
-) error {
-	hostname, ok := som.clusterState.NodeHostname(targetNode)
-	if !ok {
-		return fmt.Errorf("resolve hostname for node %q", targetNode)
-	}
-
-	return som.nodes.ReInitShard(ctx, hostname, className, shardName)
-}
-
-type nodeClient interface {
-	PutFile(ctx context.Context, hostName, indexName,
-		shardName, fileName string, payload io.ReadSeekCloser) error
-
-	// CreateShard creates an empty shard on the remote node.
-	// This is required in order to sync files to a specific shard on the remote node.
-	CreateShard(ctx context.Context,
-		hostName, indexName, shardName string) error
-
-	// ReInitShard re-initialized new shard after all files has been synced to the remote node
-	// Otherwise, it would not recognize the files when
-	// serving traffic later.
-	ReInitShard(ctx context.Context,
-		hostName, indexName, shardName string) error
-	IncreaseReplicationFactor(ctx context.Context, host, class string, dist ShardDist) error
 }
 
 // difference returns elements in xs which doesn't exists in ys
