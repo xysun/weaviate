@@ -23,7 +23,7 @@ import (
 	"github.com/semi-technologies/weaviate/entities/storobj"
 	"github.com/semi-technologies/weaviate/usecases/objects"
 	"github.com/semi-technologies/weaviate/usecases/replica"
-	"github.com/semi-technologies/weaviate/usecases/sharding"
+	"github.com/semi-technologies/weaviate/usecases/scaling"
 )
 
 type replicator interface {
@@ -47,7 +47,7 @@ type replicator interface {
 
 type scaler interface {
 	LocalScaleOut(ctx context.Context, className string,
-		ssBefore, ssAfter *sharding.State) error
+		dist scaling.ShardDist) error
 }
 
 type replicatedIndices struct {
@@ -197,13 +197,13 @@ func (i *replicatedIndices) increaseReplicationFactor() http.Handler {
 			return
 		}
 
-		ssBefore, ssAfter, err := IndicesPayloads.IncreaseReplicationFactor.Unmarshal(bodyBytes)
+		dist, err := IndicesPayloads.IncreaseReplicationFactor.Unmarshal(bodyBytes)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		if err := i.scaler.LocalScaleOut(r.Context(), index, ssBefore, ssAfter); err != nil {
+		if err := i.scaler.LocalScaleOut(r.Context(), index, dist); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
