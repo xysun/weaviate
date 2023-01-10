@@ -23,6 +23,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// TODOs: Performance
+//
+// 1. Improve performance of syncing a shard to multiple nodes (see rsync.Push).
+// We could concurrently sync same files to different nodes  while avoiding overlapping
+//
+// 2. To fail fast, we might consider creating all shards at once and re-initialize them in the final step
+//
+// 3. implement scaler.scaleIn
+
 // ErrUnresolvedName cannot resolve the host address of a node
 var ErrUnresolvedName = errors.New("cannot resolve node name")
 
@@ -104,7 +113,7 @@ func (s *Scaler) Scale(ctx context.Context, className string,
 	return nil, nil
 }
 
-// scaleOut replicate class shards on new nodes:
+// scaleOut replicate class shards on new replicas (nodes):
 //
 // * It calculates new sharding state
 // * It pushes locally existing shards to new replicas
