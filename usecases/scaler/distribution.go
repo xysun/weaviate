@@ -75,3 +75,18 @@ func (m ShardDist) shards() []string {
 	}
 	return ns
 }
+
+// difference returns elements in xs which doesn't exists in ys
+func difference(xs, ys []string) []string {
+	m := make(map[string]struct{}, len(ys))
+	for _, y := range ys {
+		m[y] = struct{}{}
+	}
+	rs := make([]string, 0, len(ys))
+	for _, x := range xs {
+		if _, ok := m[x]; !ok {
+			rs = append(rs, x)
+		}
+	}
+	return rs
+}

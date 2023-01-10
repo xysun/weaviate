@@ -74,30 +74,30 @@ type SchemaManager interface {
 	ShardingState(class string) *sharding.State
 }
 
-func (som *Scaler) SetSchemaManager(sm SchemaManager) {
-	som.schemaManager = sm
+func (s *Scaler) SetSchemaManager(sm SchemaManager) {
+	s.schemaManager = sm
 }
 
 // Scale scales in/out
 // it returns the updated sharding state if successful. The caller must then
 // make sure to broadcast that state to all nodes as part of the "update"
 // transaction.
-func (som *Scaler) Scale(ctx context.Context, className string,
+func (s *Scaler) Scale(ctx context.Context, className string,
 	updated sharding.Config, prevReplFactor, newReplFactor int64,
 ) (*sharding.State, error) {
 	// First identify what the sharding state was before this change. This is
 	// mainly to be able to compare the diff later, so we know where we need to
 	// make changes
-	ssBefore := som.schemaManager.ShardingState(className)
+	ssBefore := s.schemaManager.ShardingState(className)
 	if ssBefore == nil {
 		return nil, errors.Errorf("no sharding state for class %q", className)
 	}
 	if newReplFactor > prevReplFactor {
-		return som.scaleOut(ctx, className, ssBefore, updated, newReplFactor)
+		return s.scaleOut(ctx, className, ssBefore, updated, newReplFactor)
 	}
 
 	if newReplFactor < prevReplFactor {
-		return som.scaleIn(ctx, className, updated)
+		return s.scaleIn(ctx, className, updated)
 	}
 
 	return nil, nil
@@ -116,9 +116,9 @@ func (som *Scaler) Scale(ctx context.Context, className string,
 //   - Everything is sequential. A lot of the things could probably happen in
 //     parallel
 //
-// Follow the in-line comments to see how this implementation achieves scalign
+// Follow the in-line comments to see how this implementation achieves scaling
 // out
-func (som *Scaler) scaleOut(ctx context.Context, className string, ssBefore *sharding.State,
+func (s *Scaler) scaleOut(ctx context.Context, className string, ssBefore *sharding.State,
 	updated sharding.Config, replFactor int64,
 ) (*sharding.State, error) {
 	// Create a deep copy of the old sharding state, so we can start building the
@@ -131,7 +131,7 @@ func (som *Scaler) scaleOut(ctx context.Context, className string, ssBefore *sha
 	// Identify all shards of the class and adjust the replicas. After this is
 	// done, the affected shards now belong to more nodes than they did before.
 	for name, shard := range ssAfter.Physical {
-		shard.AdjustReplicas(int(replFactor), som.clusterState)
+		shard.AdjustReplicas(int(replFactor), s.clusterState)
 		ssAfter.Physical[name] = shard
 	}
 	lDist, nodeDist := distributions(ssBefore, &ssAfter)
@@ -140,7 +140,7 @@ func (som *Scaler) scaleOut(ctx context.Context, className string, ssBefore *sha
 	g, ctx := errgroup.WithContext(ctx)
 	// resolve hosts beforehand
 	nodes := nodeDist.nodes()
-	hosts, err := hosts(nodes, som.clusterState)
+	hosts, err := hosts(nodes, s.clusterState)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (som *Scaler) scaleOut(ctx context.Context, className string, ssBefore *sha
 		dist := nodeDist[node]
 		i := i
 		g.Go(func() error {
-			err := som.nodes.IncreaseReplicationFactor(ctx, hosts[i], className, dist)
+			err := s.nodes.IncreaseReplicationFactor(ctx, hosts[i], className, dist)
 			if err != nil {
 				return fmt.Errorf("increase replication factor for class %q on node %q: %w", className, nodes[i], err)
 			}
@@ -157,7 +157,7 @@ func (som *Scaler) scaleOut(ctx context.Context, className string, ssBefore *sha
 	}
 
 	g.Go(func() error {
-		if err := som.localScaleOut(ctx, className, lDist); err != nil {
+		if err := s.LocalScaleOut(ctx, className, lDist); err != nil {
 			return fmt.Errorf("increase local replication factor: %w", err)
 		}
 		return nil
@@ -185,25 +185,7 @@ func (som *Scaler) scaleOut(ctx context.Context, className string, ssBefore *sha
 //   - Copy over all files from the backup
 //   - ReInit the shard to recognize the copied files
 //   - Release the single-shard backup
-func (som *Scaler) LocalScaleOut(ctx context.Context,
-	className string, dist ShardDist,
-) error {
-	// ssBefore.SetLocalName(som.clusterState.LocalName())
-	// ssAfter.SetLocalName(som.clusterState.LocalName())
-	// localShards := make([]string, 0, len(ssBefore.Physical))
-	// for shardName := range ssBefore.Physical {
-	// 	if ssBefore.IsShardLocal(shardName) {
-	// 		localShards = append(localShards, shardName)
-	// 	}
-	// }
-	// TODO: check if shard exist locally
-	if err := som.localScaleOut(ctx, className, dist); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (som *Scaler) localScaleOut(ctx context.Context,
+func (s *Scaler) LocalScaleOut(ctx context.Context,
 	className string, dist ShardDist,
 ) error {
 	if len(dist) < 1 {
@@ -211,38 +193,23 @@ func (som *Scaler) localScaleOut(ctx context.Context,
 	}
 	// Create backup of the sin
 	bakID := fmt.Sprintf("_internal_scaler_%s", uuid.New().String()) // todo better name
-	bak, err := som.backerUpper.ShardsBackup(ctx, bakID, className, dist.shards())
+	bak, err := s.backerUpper.ShardsBackup(ctx, bakID, className, dist.shards())
 	if err != nil {
 		return fmt.Errorf("create snapshot: %w", err)
 	}
 
 	defer func() {
-		err := som.backerUpper.ReleaseBackup(context.Background(), bakID, className)
+		err := s.backerUpper.ReleaseBackup(context.Background(), bakID, className)
 		if err != nil {
-			som.logger.WithField("scaler", "releaseBackup").WithField("class", className).Error(err)
+			s.logger.WithField("scaler", "releaseBackup").WithField("class", className).Error(err)
 		}
 	}()
-	rsync := newRSync(som.nodes, som.clusterState, som.persistenceRoot)
+	rsync := newRSync(s.nodes, s.clusterState, s.persistenceRoot)
 	return rsync.Push(ctx, bak.Shards, dist, className)
 }
 
-func (som *Scaler) scaleIn(ctx context.Context, className string,
+func (s *Scaler) scaleIn(ctx context.Context, className string,
 	updated sharding.Config,
 ) (*sharding.State, error) {
 	return nil, errors.Errorf("scaling in (reducing replica count) not supported yet")
-}
-
-// difference returns elements in xs which doesn't exists in ys
-func difference(xs, ys []string) []string {
-	m := make(map[string]struct{}, len(ys))
-	for _, y := range ys {
-		m[y] = struct{}{}
-	}
-	rs := make([]string, 0, len(ys))
-	for _, x := range xs {
-		if _, ok := m[x]; !ok {
-			rs = append(rs, x)
-		}
-	}
-	return rs
 }
