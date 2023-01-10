@@ -22,6 +22,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// client the client interface is used to communicate with remote nodes
 type client interface {
 	PutFile(ctx context.Context, hostName, indexName,
 		shardName, fileName string, payload io.ReadSeekCloser) error
@@ -50,6 +51,7 @@ func newRSync(c client, cl cluster, rootPath string) *rsync {
 	return &rsync{client: c, cluster: cl, persistenceRoot: rootPath}
 }
 
+// Push pushes local shards of a class to remote nodes
 func (r rsync) Push(ctx context.Context, shardsBackups []backup.ShardDescriptor, dist ShardDist, className string) error {
 	var g errgroup.Group
 	for _, desc := range shardsBackups {
@@ -64,6 +66,7 @@ func (r rsync) Push(ctx context.Context, shardsBackups []backup.ShardDescriptor,
 	return g.Wait()
 }
 
+// PushShard replicates a shard on a set of nodes
 func (r *rsync) PushShard(ctx context.Context, className string, desc backup.ShardDescriptor, nodes []string) error {
 	// Iterate over the new target nodes and copy files
 	for _, targetNode := range nodes {

@@ -87,7 +87,7 @@ type vectorRepo interface {
 	objects.BatchVectorRepo
 	traverser.VectorSearcher
 	classification.VectorRepo
-	scaler.BackerUpper
+	scaler.BackUpper
 	SetSchemaGetter(schemaUC.SchemaGetter)
 	WaitForStartup(ctx context.Context) error
 	Shutdown(ctx context.Context) error

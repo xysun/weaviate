@@ -26,23 +26,40 @@ import (
 // ErrUnresolvedName cannot resolve the host address of a node
 var ErrUnresolvedName = errors.New("cannot resolve node name")
 
+// Scaler scales out/in class replicas.
+//
+// It scales out a class by replicating its shards on new replicas
 type Scaler struct {
-	// the scaleOutManager needs to read and updated the sharding state of a
-	// class. It can access it through the schemaManager
-	schemaManager SchemaManager
-
-	cluster cluster
-
-	backerUpper BackerUpper
-
-	nodes client
-
-	logger logrus.FieldLogger
-
+	schema          SchemaManager
+	cluster         cluster
+	source          BackUpper // data source
+	client          client    // client for remote nodes
+	logger          logrus.FieldLogger
 	persistenceRoot string
 }
 
-// clusterState is used by the scaler query cluster
+// New returns a new instance of Scaler
+func New(cl cluster, source BackUpper,
+	c client, logger logrus.FieldLogger, persistenceRoot string,
+) *Scaler {
+	return &Scaler{
+		cluster:         cl,
+		source:          source,
+		client:          c,
+		logger:          logger,
+		persistenceRoot: persistenceRoot,
+	}
+}
+
+// BackUpper is used to back up shards of a specific class
+type BackUpper interface {
+	// ShardsBackup returns class backup descriptor for a list of shards
+	ShardsBackup(_ context.Context, id, class string, shards []string) (backup.ClassDescriptor, error)
+	// ReleaseBackup releases the backup specified by its id
+	ReleaseBackup(ctx context.Context, id, className string) error
+}
+
+// cluster is used by the scaler to query cluster
 type cluster interface {
 	// AllNames returns list of existing node in the cluster
 	AllNames() []string
@@ -52,34 +69,16 @@ type cluster interface {
 	NodeHostname(name string) (string, bool)
 }
 
-type BackerUpper interface {
-	// ShardsBackup returns class backup descriptor for a list of shards
-	ShardsBackup(_ context.Context, id, class string, shards []string) (backup.ClassDescriptor, error)
-	// ReleaseBackup releases the backup with the specified id
-	ReleaseBackup(ctx context.Context, id, className string) error
-}
-
-func New(cl cluster, source BackerUpper,
-	c client, logger logrus.FieldLogger, persistenceRoot string,
-) *Scaler {
-	return &Scaler{
-		cluster:         cl,
-		backerUpper:     source,
-		nodes:           c,
-		logger:          logger,
-		persistenceRoot: persistenceRoot,
-	}
-}
-
+// SchemaManager is used by the scaler to get and update sharding states
 type SchemaManager interface {
 	ShardingState(class string) *sharding.State
 }
 
 func (s *Scaler) SetSchemaManager(sm SchemaManager) {
-	s.schemaManager = sm
+	s.schema = sm
 }
 
-// Scale scales in/out
+// Scale increase/decrease class replicas
 // it returns the updated sharding state if successful. The caller must then
 // make sure to broadcast that state to all nodes as part of the "update"
 // transaction.
@@ -89,7 +88,7 @@ func (s *Scaler) Scale(ctx context.Context, className string,
 	// First identify what the sharding state was before this change. This is
 	// mainly to be able to compare the diff later, so we know where we need to
 	// make changes
-	ssBefore := s.schemaManager.ShardingState(className)
+	ssBefore := s.schema.ShardingState(className)
 	if ssBefore == nil {
 		return nil, errors.Errorf("no sharding state for class %q", className)
 	}
@@ -104,21 +103,11 @@ func (s *Scaler) Scale(ctx context.Context, className string,
 	return nil, nil
 }
 
-// scaleOut is a relatively primitive implementation that takes a shard and
-// copies it onto another node. Then it returns the new and updated sharding
-// state where the node-association is updated to point to all nodes where the
-// shard can be found.
+// scaleOut replicate class shards on new nodes:
 //
-// This implementation is meant as a temporary one and should probably be
-// replaced with something more sophisticated. The main issues are:
-//
-//   - Everything is synchronous. This blocks the users request until all data
-//     is copied which is not great.
-//   - Everything is sequential. A lot of the things could probably happen in
-//     parallel
-//
-// Follow the in-line comments to see how this implementation achieves scaling
-// out
+// * It calculates new sharding state
+// * It pushes locally existing shards to new replicas
+// * It delegates replication of remote shards to owner nodes
 func (s *Scaler) scaleOut(ctx context.Context, className string, ssBefore *sharding.State,
 	updated sharding.Config, replFactor int64,
 ) (*sharding.State, error) {
@@ -136,8 +125,6 @@ func (s *Scaler) scaleOut(ctx context.Context, className string, ssBefore *shard
 		ssAfter.Physical[name] = shard
 	}
 	lDist, nodeDist := distributions(ssBefore, &ssAfter)
-	// However, so far we have only updated config, now we also need to actually
-	// copy files.
 	g, ctx := errgroup.WithContext(ctx)
 	// resolve hosts beforehand
 	nodes := nodeDist.nodes()
@@ -149,7 +136,7 @@ func (s *Scaler) scaleOut(ctx context.Context, className string, ssBefore *shard
 		dist := nodeDist[node]
 		i := i
 		g.Go(func() error {
-			err := s.nodes.IncreaseReplicationFactor(ctx, hosts[i], className, dist)
+			err := s.client.IncreaseReplicationFactor(ctx, hosts[i], className, dist)
 			if err != nil {
 				return fmt.Errorf("increase replication factor for class %q on node %q: %w", className, nodes[i], err)
 			}
@@ -176,9 +163,10 @@ func (s *Scaler) scaleOut(ctx context.Context, className string, ssBefore *shard
 	return &ssAfter, nil
 }
 
-// LocalScaleOut iterates over every shard that this class has. This is the
-// meat&bones of this implementation. For each shard, we're roughly doing the
-// following:
+// LocalScaleOut syncs local shards with new replicas.
+//
+// This is the meat&bones of this implementation.
+// For each shard, we're roughly doing the following:
 //   - Create shards backup, so the shards are safe to copy
 //   - Figure out the copy targets (i.e. each node that is part of the after
 //     state, but wasn't part of the before state yet)
@@ -194,18 +182,18 @@ func (s *Scaler) LocalScaleOut(ctx context.Context,
 	}
 	// Create backup of the sin
 	bakID := fmt.Sprintf("_internal_scaler_%s", uuid.New().String()) // todo better name
-	bak, err := s.backerUpper.ShardsBackup(ctx, bakID, className, dist.shards())
+	bak, err := s.source.ShardsBackup(ctx, bakID, className, dist.shards())
 	if err != nil {
 		return fmt.Errorf("create snapshot: %w", err)
 	}
 
 	defer func() {
-		err := s.backerUpper.ReleaseBackup(context.Background(), bakID, className)
+		err := s.source.ReleaseBackup(context.Background(), bakID, className)
 		if err != nil {
 			s.logger.WithField("scaler", "releaseBackup").WithField("class", className).Error(err)
 		}
 	}()
-	rsync := newRSync(s.nodes, s.cluster, s.persistenceRoot)
+	rsync := newRSync(s.client, s.cluster, s.persistenceRoot)
 	return rsync.Push(ctx, bak.Shards, dist, className)
 }
 
