@@ -31,7 +31,7 @@ import (
 	"github.com/semi-technologies/weaviate/entities/searchparams"
 	"github.com/semi-technologies/weaviate/entities/storobj"
 	"github.com/semi-technologies/weaviate/usecases/objects"
-	"github.com/semi-technologies/weaviate/usecases/scaling"
+	"github.com/semi-technologies/weaviate/usecases/scaler"
 )
 
 type RemoteIndex retryClient
@@ -782,7 +782,7 @@ func (c *RemoteIndex) ReInitShard(ctx context.Context,
 }
 
 func (c *RemoteIndex) IncreaseReplicationFactor(ctx context.Context,
-	hostName, indexName string, dist scaling.ShardDist,
+	hostName, indexName string, dist scaler.ShardDist,
 ) error {
 	path := fmt.Sprintf("/replicas/indices/%s/replication-factor:increase", indexName)
 

@@ -23,7 +23,8 @@ import (
 	"github.com/semi-technologies/weaviate/entities/storobj"
 	"github.com/semi-technologies/weaviate/usecases/objects"
 	"github.com/semi-technologies/weaviate/usecases/replica"
-	"github.com/semi-technologies/weaviate/usecases/scaling"
+	"github.com/semi-technologies/weaviate/usecases/scaler"
+
 )
 
 type replicator interface {
@@ -45,14 +46,14 @@ type replicator interface {
 		shardName, requestID string) interface{}
 }
 
-type scaler interface {
+type localScaler interface {
 	LocalScaleOut(ctx context.Context, className string,
-		dist scaling.ShardDist) error
+		dist scaler.ShardDist) error
 }
 
 type replicatedIndices struct {
 	shards replicator
-	scaler scaler
+	scaler localScaler
 }
 
 var (
@@ -68,7 +69,7 @@ var (
 		`\/shards\/([A-Za-z0-9]+):(commit|abort)`)
 )
 
-func NewReplicatedIndices(shards replicator, scaler scaler) *replicatedIndices {
+func NewReplicatedIndices(shards replicator, scaler localScaler) *replicatedIndices {
 	return &replicatedIndices{
 		shards: shards,
 		scaler: scaler,

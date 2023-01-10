@@ -9,7 +9,7 @@
 //  CONTACT: hello@semi.technology
 //
 
-package scaling
+package scaler
 
 import (
 	"fmt"

@@ -23,7 +23,6 @@ import (
 	"github.com/semi-technologies/weaviate/entities/models"
 	"github.com/semi-technologies/weaviate/usecases/cluster"
 	"github.com/semi-technologies/weaviate/usecases/config"
-	"github.com/semi-technologies/weaviate/usecases/scaling"
 	schemauc "github.com/semi-technologies/weaviate/usecases/schema"
 	"github.com/semi-technologies/weaviate/usecases/sharding"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -182,5 +181,5 @@ func (f *fakeScaleOutManager) Scale(ctx context.Context,
 	return nil, nil
 }
 
-func (f *fakeScaleOutManager) SetSchemaManager(sm scaling.SchemaManager) {
+func (f *fakeScaleOutManager) SetSchemaManager(sm scaler.SchemaManager) {
 }

@@ -27,7 +27,7 @@ import (
 	"github.com/semi-technologies/weaviate/entities/searchparams"
 	"github.com/semi-technologies/weaviate/entities/storobj"
 	"github.com/semi-technologies/weaviate/usecases/objects"
-	"github.com/semi-technologies/weaviate/usecases/scaling"
+	"github.com/semi-technologies/weaviate/usecases/scaler"
 )
 
 var IndicesPayloads = indicesPayloads{}
@@ -56,18 +56,18 @@ type indicesPayloads struct {
 
 type increaseReplicationFactorPayload struct{}
 
-func (p increaseReplicationFactorPayload) Marshall(dist scaling.ShardDist) ([]byte, error) {
+func (p increaseReplicationFactorPayload) Marshall(dist scaler.ShardDist) ([]byte, error) {
 	type payload struct {
-		scaling.ShardDist `json:"shard_distribution"`
+		scaler.ShardDist `json:"shard_distribution"`
 	}
 
 	pay := payload{dist}
 	return json.Marshal(pay)
 }
 
-func (p increaseReplicationFactorPayload) Unmarshal(in []byte) (scaling.ShardDist, error) {
+func (p increaseReplicationFactorPayload) Unmarshal(in []byte) (scaler.ShardDist, error) {
 	type payload struct {
-		scaling.ShardDist `json:"shard_distribution"`
+		scaler.ShardDist `json:"shard_distribution"`
 	}
 
 	pay := payload{}
