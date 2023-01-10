@@ -719,7 +719,7 @@ func (c *RemoteIndex) PutFile(ctx context.Context, hostName, indexName,
 		return false, nil
 	}
 
-	return c.retry(ctx, 9, try)
+	return c.retry(ctx, 12, try)
 }
 
 func (c *RemoteIndex) CreateShard(ctx context.Context,
@@ -811,7 +811,7 @@ func (c *RemoteIndex) IncreaseReplicationFactor(ctx context.Context,
 		}
 		return false, nil
 	}
-	return c.retry(ctx, 9, try)
+	return c.retry(ctx, 34, try)
 }
 
 // FindObject extends GetObject with retries
