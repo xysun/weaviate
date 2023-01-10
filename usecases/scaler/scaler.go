@@ -78,8 +78,9 @@ func (s *Scaler) SetSchemaManager(sm SchemaManager) {
 	s.schema = sm
 }
 
-// Scale increase/decrease class replicas
-// it returns the updated sharding state if successful. The caller must then
+// Scale increase/decrease class replicas.
+//
+// It returns the updated sharding state if successful. The caller must then
 // make sure to broadcast that state to all nodes as part of the "update"
 // transaction.
 func (s *Scaler) Scale(ctx context.Context, className string,
