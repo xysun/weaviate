@@ -42,12 +42,12 @@ type client interface {
 // rsync synchronizes shards with remote nodes
 type rsync struct {
 	client          client
-	clusterState    clusterState
+	cluster         cluster
 	persistenceRoot string
 }
 
-func newRSync(nodes client, cluster clusterState, rootPath string) *rsync {
-	return &rsync{client: nodes, clusterState: cluster, persistenceRoot: rootPath}
+func newRSync(c client, cl cluster, rootPath string) *rsync {
+	return &rsync{client: c, cluster: cl, persistenceRoot: rootPath}
 }
 
 func (r rsync) Push(ctx context.Context, shardsBackups []backup.ShardDescriptor, dist ShardDist, className string) error {
@@ -67,7 +67,7 @@ func (r rsync) Push(ctx context.Context, shardsBackups []backup.ShardDescriptor,
 func (r *rsync) PushShard(ctx context.Context, className string, desc backup.ShardDescriptor, nodes []string) error {
 	// Iterate over the new target nodes and copy files
 	for _, targetNode := range nodes {
-		host, ok := r.clusterState.NodeHostname(targetNode)
+		host, ok := r.cluster.NodeHostname(targetNode)
 		if !ok {
 			return fmt.Errorf("%w: %q", ErrUnresolvedName, targetNode)
 		}

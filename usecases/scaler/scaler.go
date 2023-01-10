@@ -31,8 +31,7 @@ type Scaler struct {
 	// class. It can access it through the schemaManager
 	schemaManager SchemaManager
 
-	// get information about which nodes are in the cluster
-	clusterState clusterState
+	cluster cluster
 
 	backerUpper BackerUpper
 
@@ -43,11 +42,13 @@ type Scaler struct {
 	persistenceRoot string
 }
 
-type clusterState interface { // TODO cluster
-	// AllNames() returns all the node names (not the hostnames!) including the
-	// local one
+// clusterState is used by the scaler query cluster
+type cluster interface {
+	// AllNames returns list of existing node in the cluster
 	AllNames() []string
+	// LocalName returns name of this node
 	LocalName() string
+	// NodeHostname return hosts address for a specific node name
 	NodeHostname(name string) (string, bool)
 }
 
@@ -58,13 +59,13 @@ type BackerUpper interface {
 	ReleaseBackup(ctx context.Context, id, className string) error
 }
 
-func New(clusterState clusterState, backerUpper BackerUpper,
-	nodeClient client, logger logrus.FieldLogger, persistenceRoot string,
+func New(cl cluster, source BackerUpper,
+	c client, logger logrus.FieldLogger, persistenceRoot string,
 ) *Scaler {
 	return &Scaler{
-		clusterState:    clusterState,
-		backerUpper:     backerUpper,
-		nodes:           nodeClient,
+		cluster:         cl,
+		backerUpper:     source,
+		nodes:           c,
 		logger:          logger,
 		persistenceRoot: persistenceRoot,
 	}
@@ -131,7 +132,7 @@ func (s *Scaler) scaleOut(ctx context.Context, className string, ssBefore *shard
 	// Identify all shards of the class and adjust the replicas. After this is
 	// done, the affected shards now belong to more nodes than they did before.
 	for name, shard := range ssAfter.Physical {
-		shard.AdjustReplicas(int(replFactor), s.clusterState)
+		shard.AdjustReplicas(int(replFactor), s.cluster)
 		ssAfter.Physical[name] = shard
 	}
 	lDist, nodeDist := distributions(ssBefore, &ssAfter)
@@ -140,7 +141,7 @@ func (s *Scaler) scaleOut(ctx context.Context, className string, ssBefore *shard
 	g, ctx := errgroup.WithContext(ctx)
 	// resolve hosts beforehand
 	nodes := nodeDist.nodes()
-	hosts, err := hosts(nodes, s.clusterState)
+	hosts, err := hosts(nodes, s.cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +205,7 @@ func (s *Scaler) LocalScaleOut(ctx context.Context,
 			s.logger.WithField("scaler", "releaseBackup").WithField("class", className).Error(err)
 		}
 	}()
-	rsync := newRSync(s.nodes, s.clusterState, s.persistenceRoot)
+	rsync := newRSync(s.nodes, s.cluster, s.persistenceRoot)
 	return rsync.Push(ctx, bak.Shards, dist, className)
 }
 
