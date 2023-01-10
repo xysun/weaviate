@@ -44,7 +44,7 @@ type State struct {
 	GraphQL               graphql.GraphQL
 	Modules               *modules.Provider
 	SchemaManager         *schema.Manager
-	ScaleOutManager       *scaling.ScaleOutManager
+	Scaler                *scaling.Scaler
 	Cluster               *cluster.State
 	RemoteIndexIncoming   *sharding.RemoteIndexIncoming
 	RemoteNodeIncoming    *sharding.RemoteNodeIncoming

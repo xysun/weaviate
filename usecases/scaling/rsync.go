@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type nodeClient interface {
+type client interface {
 	PutFile(ctx context.Context, hostName, indexName,
 		shardName, fileName string, payload io.ReadSeekCloser) error
 
@@ -30,12 +30,12 @@ type nodeClient interface {
 
 // rsync synchronizes shards with remote nodes
 type rsync struct {
-	client          nodeClient
+	client          client
 	clusterState    clusterState
 	persistenceRoot string
 }
 
-func newRSync(nodes nodeClient, cluster clusterState, rootPath string) *rsync {
+func newRSync(nodes client, cluster clusterState, rootPath string) *rsync {
 	return &rsync{client: nodes, clusterState: cluster, persistenceRoot: rootPath}
 }
 

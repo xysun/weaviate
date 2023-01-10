@@ -53,9 +53,9 @@ func newFakeFactory() *fakeFactory {
 	}
 }
 
-func (f *fakeFactory) Scaler(dataPath string) *ScaleOutManager {
+func (f *fakeFactory) Scaler(dataPath string) *Scaler {
 	nodeResolver := newFakeNodeResolver(f.LocalNode, f.NodeHostMap)
-	scaler := NewScaleOutManager(
+	scaler := New(
 		nodeResolver,
 		f.Source,
 		f.Client,

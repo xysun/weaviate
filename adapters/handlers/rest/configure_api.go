@@ -208,16 +208,16 @@ func configureAPI(api *operations.WeaviateAPI) http.Handler {
 		appState.Cluster, localClassifierRepo, appState.Logger)
 	appState.ClassificationRepo = classifierRepo
 
-	scaleoutManager := scaling.NewScaleOutManager(appState.Cluster, vectorRepo,
+	scaler := scaling.New(appState.Cluster, vectorRepo,
 		remoteIndexClient, appState.Logger, appState.ServerConfig.Config.Persistence.DataPath)
-	appState.ScaleOutManager = scaleoutManager
+	appState.Scaler = scaler
 
 	// TODO: configure http transport for efficient intra-cluster comm
 	schemaTxClient := clients.NewClusterSchema(clusterHttpClient)
 	schemaManager, err := schemaUC.NewManager(migrator, schemaRepo,
 		appState.Logger, appState.Authorizer, appState.ServerConfig.Config,
 		enthnsw.ParseUserConfig, appState.Modules, inverted.ValidateConfig,
-		appState.Modules, appState.Cluster, schemaTxClient, scaleoutManager,
+		appState.Modules, appState.Cluster, schemaTxClient, scaler,
 	)
 	if err != nil {
 		appState.Logger.

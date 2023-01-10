@@ -26,7 +26,7 @@ import (
 // ErrUnresolvedName cannot resolve the host address of a node
 var ErrUnresolvedName = errors.New("cannot resolve node name")
 
-type ScaleOutManager struct {
+type Scaler struct {
 	// the scaleOutManager needs to read and updated the sharding state of a
 	// class. It can access it through the schemaManager
 	schemaManager SchemaManager
@@ -36,7 +36,7 @@ type ScaleOutManager struct {
 
 	backerUpper BackerUpper
 
-	nodes nodeClient
+	nodes client
 
 	logger logrus.FieldLogger
 
@@ -58,10 +58,10 @@ type BackerUpper interface {
 	ReleaseBackup(ctx context.Context, id, className string) error
 }
 
-func NewScaleOutManager(clusterState clusterState, backerUpper BackerUpper,
-	nodeClient nodeClient, logger logrus.FieldLogger, persistenceRoot string,
-) *ScaleOutManager {
-	return &ScaleOutManager{
+func New(clusterState clusterState, backerUpper BackerUpper,
+	nodeClient client, logger logrus.FieldLogger, persistenceRoot string,
+) *Scaler {
+	return &Scaler{
 		clusterState:    clusterState,
 		backerUpper:     backerUpper,
 		nodes:           nodeClient,
@@ -74,7 +74,7 @@ type SchemaManager interface {
 	ShardingState(class string) *sharding.State
 }
 
-func (som *ScaleOutManager) SetSchemaManager(sm SchemaManager) {
+func (som *Scaler) SetSchemaManager(sm SchemaManager) {
 	som.schemaManager = sm
 }
 
@@ -82,7 +82,7 @@ func (som *ScaleOutManager) SetSchemaManager(sm SchemaManager) {
 // it returns the updated sharding state if successful. The caller must then
 // make sure to broadcast that state to all nodes as part of the "update"
 // transaction.
-func (som *ScaleOutManager) Scale(ctx context.Context, className string,
+func (som *Scaler) Scale(ctx context.Context, className string,
 	updated sharding.Config, prevReplFactor, newReplFactor int64,
 ) (*sharding.State, error) {
 	// First identify what the sharding state was before this change. This is
@@ -118,7 +118,7 @@ func (som *ScaleOutManager) Scale(ctx context.Context, className string,
 //
 // Follow the in-line comments to see how this implementation achieves scalign
 // out
-func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBefore *sharding.State,
+func (som *Scaler) scaleOut(ctx context.Context, className string, ssBefore *sharding.State,
 	updated sharding.Config, replFactor int64,
 ) (*sharding.State, error) {
 	// Create a deep copy of the old sharding state, so we can start building the
@@ -185,7 +185,7 @@ func (som *ScaleOutManager) scaleOut(ctx context.Context, className string, ssBe
 //   - Copy over all files from the backup
 //   - ReInit the shard to recognize the copied files
 //   - Release the single-shard backup
-func (som *ScaleOutManager) LocalScaleOut(ctx context.Context,
+func (som *Scaler) LocalScaleOut(ctx context.Context,
 	className string, dist ShardDist,
 ) error {
 	// ssBefore.SetLocalName(som.clusterState.LocalName())
@@ -203,7 +203,7 @@ func (som *ScaleOutManager) LocalScaleOut(ctx context.Context,
 	return nil
 }
 
-func (som *ScaleOutManager) localScaleOut(ctx context.Context,
+func (som *Scaler) localScaleOut(ctx context.Context,
 	className string, dist ShardDist,
 ) error {
 	if len(dist) < 1 {
@@ -226,7 +226,7 @@ func (som *ScaleOutManager) localScaleOut(ctx context.Context,
 	return rsync.Push(ctx, bak.Shards, dist, className)
 }
 
-func (som *ScaleOutManager) scaleIn(ctx context.Context, className string,
+func (som *Scaler) scaleIn(ctx context.Context, className string,
 	updated sharding.Config,
 ) (*sharding.State, error) {
 	return nil, errors.Errorf("scaling in (reducing replica count) not supported yet")
