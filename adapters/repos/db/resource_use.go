@@ -42,6 +42,13 @@ func (d diskUse) String() string {
 		float64(d.avail)/float64(GB))
 }
 
+func (d *DB) addResourceMetrics(mon *memwatch.Monitor, use diskUse) {
+	d.promMetrics.DiskUsageAvailable.Set(float64(use.avail))
+	d.promMetrics.DiskUsageFree.Set(float64(use.free))
+	d.promMetrics.DiskUsageTotal.Set(float64(use.total))
+	d.promMetrics.MemoryUsagePercent.Set(mon.Ratio())
+}
+
 func (d *DB) scanResourceUsage() {
 	memMonitor := memwatch.NewMonitor(
 		runtime.MemProfile, debug.SetMemoryLimit, runtime.MemProfileRate)
@@ -54,19 +61,18 @@ func (d *DB) scanResourceUsage() {
 			case <-d.shutdown:
 				return
 			case <-t.C:
+				du := d.getDiskUse(d.config.RootPath)
 				d.indexLock.RLock()
 				for _, i := range d.indices {
 					for _, s := range i.Shards {
 						if !s.isReadOnly() {
-							diskPath := i.Config.RootPath
-							du := d.getDiskUse(diskPath)
-
 							s.resourceUseWarn(memMonitor, du)
 							s.resourceUseReadonly(memMonitor, du)
 						}
 					}
 				}
 				d.indexLock.RUnlock()
+				d.addResourceMetrics(memMonitor, du)
 			}
 		}
 	}()

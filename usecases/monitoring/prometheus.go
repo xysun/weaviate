@@ -53,6 +53,12 @@ type PrometheusMetrics struct {
 	BackupStoreDataTransferred         *prometheus.CounterVec
 	VectorDimensionsSum                *prometheus.GaugeVec
 
+	DiskUsageFree      prometheus.Gauge
+	DiskUsageAvailable prometheus.Gauge
+	DiskUsageTotal     prometheus.Gauge
+
+	MemoryUsagePercent prometheus.Gauge
+
 	StartupProgress  *prometheus.GaugeVec
 	StartupDurations *prometheus.SummaryVec
 	StartupDiskIO    *prometheus.SummaryVec
@@ -179,6 +185,24 @@ func newPrometheusMetrics() *PrometheusMetrics {
 			Name: "vector_dimensions_sum",
 			Help: "Total dimensions in a shard",
 		}, []string{"class_name", "shard_name"}),
+
+		DiskUsageFree: promauto.NewGauge(prometheus.GaugeOpts{
+			Name: "disk_usage_free_bytes",
+			Help: "Free bytes on disk",
+		}),
+		DiskUsageAvailable: promauto.NewGauge(prometheus.GaugeOpts{
+			Name: "disk_usage_available_bytes",
+			Help: "Available bytes on disk",
+		}),
+		DiskUsageTotal: promauto.NewGauge(prometheus.GaugeOpts{
+			Name: "disk_usage_total_bytes",
+			Help: "Total bytes on disk",
+		}),
+
+		MemoryUsagePercent: promauto.NewGauge(prometheus.GaugeOpts{
+			Name: "memory_usage_percent",
+			Help: "Memory used as percentage of total memory",
+		}),
 
 		StartupProgress: promauto.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "startup_progress",
