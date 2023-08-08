@@ -28,6 +28,19 @@ type backupHandlers struct {
 	metricRequestsTotal restApiRequestsTotal
 }
 
+func parseCompressionLevel(l *string) ubak.CompressionLevel {
+	if l == nil {
+		return ubak.DefaultCompression
+	}
+	if *l == "BestCompression" {
+		return ubak.BestCompression
+	}
+	if *l == "BestSpeed" {
+		return ubak.BestSpeed
+	}
+	return ubak.DefaultCompression
+}
+
 func (s *backupHandlers) createBackup(params backups.BackupsCreateParams,
 	principal *models.Principal,
 ) middleware.Responder {
@@ -36,6 +49,11 @@ func (s *backupHandlers) createBackup(params backups.BackupsCreateParams,
 		Backend: params.Backend,
 		Include: params.Body.Include,
 		Exclude: params.Body.Exclude,
+	}
+	if cfg := params.Body.Config; cfg != nil {
+		req.CompressionLevel = parseCompressionLevel(cfg.CompressionLevel)
+		req.ChunkSize = int(cfg.ChunkSize)
+		req.CPUPercentage = int(cfg.CPUPercentage)
 	}
 	meta, err := s.manager.Backup(params.HTTPRequest.Context(), principal, &req)
 	if err != nil {
@@ -99,6 +117,9 @@ func (s *backupHandlers) restoreBackup(params backups.BackupsRestoreParams,
 		Backend: params.Backend,
 		Include: params.Body.Include,
 		Exclude: params.Body.Exclude,
+	}
+	if cfg := params.Body.Config; cfg != nil {
+		req.CPUPercentage = int(cfg.CPUPercentage)
 	}
 	meta, err := s.manager.Restore(params.HTTPRequest.Context(), principal, &req)
 	if err != nil {

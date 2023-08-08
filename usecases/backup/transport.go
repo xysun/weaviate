@@ -43,14 +43,15 @@ type Request struct {
 	// Duration
 	Duration time.Duration
 
+	// compression
+	CompressionLevel CompressionLevel
+
 	// ChunkSize represents the desired size for chunks
 	// However, during compression, the chunk size might
 	// slightly deviate from this value, being either slightly below or above the specified siz
 	ChunkSize int
 
 	CPUPercentage int
-
-	CompressionLevel int
 }
 
 type CanCommitResponse struct {

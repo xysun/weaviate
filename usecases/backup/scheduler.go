@@ -91,10 +91,13 @@ func (s *Scheduler) Backup(ctx context.Context, pr *models.Principal, req *Backu
 		return nil, backup.NewErrUnprocessable(fmt.Errorf("init uploader: %w", err))
 	}
 	breq := Request{
-		Method:  OpCreate,
-		ID:      req.ID,
-		Backend: req.Backend,
-		Classes: classes,
+		Method:           OpCreate,
+		ID:               req.ID,
+		Backend:          req.Backend,
+		Classes:          classes,
+		CompressionLevel: req.CompressionLevel,
+		CPUPercentage:    req.CPUPercentage,
+		ChunkSize:        req.ChunkSize,
 	}
 	if err := s.backupper.Backup(ctx, store, &breq); err != nil {
 		return nil, backup.NewErrUnprocessable(err)
@@ -140,7 +143,14 @@ func (s *Scheduler) Restore(ctx context.Context, pr *models.Principal,
 		Path:    store.HomeDir(),
 		Classes: meta.Classes(),
 	}
-	err = s.restorer.Restore(ctx, store, req.Backend, meta)
+
+	rReq := Request{
+		Method:        OpRestore,
+		ID:            req.ID,
+		Backend:       req.Backend,
+		CPUPercentage: req.CPUPercentage,
+	}
+	err = s.restorer.Restore(ctx, store, &rReq, meta)
 	if err != nil {
 		status = string(backup.Failed)
 		data.Error = err.Error()

@@ -317,7 +317,8 @@ func TestCoordinatedRestore(t *testing.T) {
 
 		coordinator := *fc.coordinator()
 		store := coordStore{objStore{fc.backend, backupID}}
-		err := coordinator.Restore(ctx, store, backendName, genReq())
+
+		err := coordinator.Restore(ctx, store, &Request{Backend: backendName}, genReq())
 		assert.Nil(t, err)
 	})
 
@@ -332,7 +333,7 @@ func TestCoordinatedRestore(t *testing.T) {
 
 		coordinator := *fc.coordinator()
 		store := coordStore{objStore{fc.backend, backupID}}
-		err := coordinator.Restore(ctx, store, backendName, genReq())
+		err := coordinator.Restore(ctx, store, &Request{Backend: backendName}, genReq())
 		assert.ErrorIs(t, err, errCannotCommit)
 		assert.Contains(t, err.Error(), nodes[1])
 	})
@@ -350,7 +351,7 @@ func TestCoordinatedRestore(t *testing.T) {
 
 		coordinator := *fc.coordinator()
 		store := coordStore{objStore{fc.backend, backupID}}
-		err := coordinator.Restore(ctx, store, backendName, genReq())
+		err := coordinator.Restore(ctx, store, &Request{Backend: backendName}, genReq())
 		assert.ErrorIs(t, err, ErrAny)
 		assert.Contains(t, err.Error(), "initial")
 	})

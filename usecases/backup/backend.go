@@ -45,8 +45,8 @@ const (
 	minChunkSize = 1 << 21 // 2MB
 
 	// goPoolPercentage specifies maximal number of go routines which can be allocated
-	goPoolMaxPercentage     = 80
-	goPoolDefaultPercentage = 50
+	MaxCPUPercentage     = 80
+	DefaultCPUPercentage = 50
 )
 
 const (
@@ -537,9 +537,9 @@ func chunkKey(class string, id int32) string {
 
 func routinePoolSize(percentage int) int {
 	if percentage == 0 { // default value
-		percentage = goPoolDefaultPercentage
-	} else if percentage > goPoolMaxPercentage {
-		percentage = goPoolMaxPercentage
+		percentage = DefaultCPUPercentage
+	} else if percentage > MaxCPUPercentage {
+		percentage = MaxCPUPercentage
 	}
 	if x := (_NUMCPU * percentage) / 100; x > 0 {
 		return x

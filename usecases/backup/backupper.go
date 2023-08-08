@@ -151,7 +151,7 @@ func (b *backupper) backup(ctx context.Context,
 
 		}
 		provider := newUploader(b.sourcer, store, req.ID, b.lastOp.set, b.logger).
-			withCompression(newZipConfig(req.CompressionLevel, req.CPUPercentage, req.ChunkSize))
+			withCompression(newZipConfig(int(req.CompressionLevel), req.CPUPercentage, req.ChunkSize))
 
 		result := backup.BackupDescriptor{
 			StartedAt:     time.Now().UTC(),

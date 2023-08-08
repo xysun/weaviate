@@ -109,6 +109,17 @@ type BackupRequest struct {
 	// Exclude means include all classes but those specified in Exclude
 	// The same class cannot appear in both Include and Exclude in the same request
 	Exclude []string
+
+	// compression parameters
+	CompressionLevel CompressionLevel
+
+	// ChunkSize represents the desired size for chunks
+	// However, during compression, the chunk size might
+	// slightly deviate from this value, being either slightly below or above the specified siz
+	ChunkSize int
+
+	// CPUPercentage desired CPU core utilization (1%-80%)
+	CPUPercentage int
 }
 
 // OnCanCommit will be triggered when coordinator asks the node to participate
