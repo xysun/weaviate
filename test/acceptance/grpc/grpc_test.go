@@ -23,7 +23,7 @@ import (
 )
 
 func TestGRPC(t *testing.T) {
-	grpcHost := "localhost:50051"
+	grpcHost := "localhost:8080"
 	grpcClient, err := helper.CreateGrpcClient(grpcHost)
 	require.NoError(t, err)
 	require.NotNil(t, grpcClient)
