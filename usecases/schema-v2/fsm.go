@@ -13,14 +13,32 @@ import (
 	"github.com/weaviate/weaviate/usecases/sharding"
 )
 
-var (
-	errClassNotFound = errors.New("class not found")
-	errShardNotFound = errors.New("shard not found")
+type CMD int16
+
+const (
+	CMD_ADD_CLASS CMD = iota + 1
+	CMD_UPDATE_CLASS
+	CMD_DELETE_CLASS
+	CMD_ADD_PROPERTY
 )
+
+const (
+	CMD_ADD_TENANT CMD = iota + 16
+	CMD_UPDATE_TENANT
+	CMD_DELETE_TENANT
+)
+
+var (
+	errClassNotFound         = errors.New("class not found")
+	errShardNotFound         = errors.New("shard not found")
+	//errUnexpectedRequestType = errors.New("unexpected request type")
+)
+
+type snapshot map[string]*metaClass
 
 type fsm struct {
 	sync.RWMutex
-	Classes map[string]*metaClass `json:"classes"`
+	Classes snapshot `json:"classes"`
 }
 
 type metaClass struct {
@@ -30,25 +48,8 @@ type metaClass struct {
 
 func NewFSM(nClasses int) fsm {
 	return fsm{
-		Classes: make(map[string]*metaClass, nClasses),
+		Classes: make(snapshot, nClasses),
 	}
-}
-
-func (f *fsm) Restore(rc io.ReadCloser) error {
-	log.Println("restoring snapshot")
-
-	defer func() {
-		if err2 := rc.Close(); err2 != nil {
-			log.Printf("restore snapshot: close reader: %v\n", err2)
-		}
-	}()
-	// TODO: restore class embedded sub types (see repo.schema.store)
-	m := make(map[string]*metaClass, 32)
-	if err := json.NewDecoder(rc).Decode(&m); err != nil {
-		return fmt.Errorf("restore snapshot: decode json: %v", err)
-	}
-	f.Classes = m
-	return nil
 }
 
 // Apply log is invoked once a log entry is committed.
@@ -69,33 +70,38 @@ func (f *fsm) Apply(l *raft.Log) interface{} {
 
 	switch cmd.Operation {
 	case CMD_ADD_CLASS:
+		req := cmd.Value.(RequestAddClass)
 		return Response{
-			Error: f.addClass(models.Class{}, sharding.State{}),
+			Error: f.addClass(req.Class, req.State),
 		}
 	case CMD_UPDATE_CLASS:
+		req := cmd.Value.(RequestUpdateClass)
 		return Response{
-			Error: f.updateClass(nil, nil),
+			Error: f.updateClass(req.Class, req.State),
 		}
 	case CMD_DELETE_CLASS:
 		f.deleteClass(cmd.Class)
 		return Response{}
 
 	case CMD_ADD_PROPERTY:
+		req := cmd.Value.(RequestAddProperty)
 		return Response{
-			Error: f.addProperty(cmd.Class, nil),
+			Error: f.addProperty(cmd.Class, req.Property),
 		}
 	case CMD_ADD_TENANT:
+		req := cmd.Value.(map[string]sharding.Physical)
 		return Response{
-			Error: f.addTenants(cmd.Class, nil),
+			Error: f.addTenants(cmd.Class, req),
 		}
 	case CMD_UPDATE_TENANT:
-		_, err := f.updateTenants(cmd.Class, nil)
+		_, err := f.updateTenants(cmd.Class, cmd.Value.([]TenantUpdate))
 		return Response{
 			Error: err,
 		}
 	case CMD_DELETE_TENANT:
+		names := cmd.Value.([]string)
 		return Response{
-			Error: f.deleteTenants(cmd.Class, nil),
+			Error: f.deleteTenants(cmd.Class, names),
 		}
 	default:
 		log.Println("unknown command ", cmd)
@@ -104,27 +110,18 @@ func (f *fsm) Apply(l *raft.Log) interface{} {
 }
 
 func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
-	return f, nil
+	log.Println("persisting snapshot")
+	f.RLock()
+	defer f.RUnlock()
+	return f.Classes, nil
 }
 
-// Persist should dump all necessary state to the WriteCloser 'sink',
-// and call sink.Close() when finished or call sink.Cancel() on error.
-func (f *fsm) Persist(sink raft.SnapshotSink) (err error) {
-	log.Println("persisting snapshot")
+func (f *fsm) Restore(rc io.ReadCloser) error {
+	log.Println("restoring snapshot")
 	f.Lock()
 	defer f.Unlock()
-	defer sink.Close()
-
-	err = json.NewEncoder(sink).Encode(f.Classes)
-
-	// should we cal cancel if err != nil
-	log.Println("persisting snapshot done", err)
-	return err
-}
-
-// Release is invoked when we are finished with the snapshot.
-func (*fsm) Release() {
-	log.Println("snapshot has been successfully created")
+	f.Classes.Restore(rc)
+	return nil
 }
 
 func (f *fsm) addClass(cls models.Class, ss sharding.State) error {
@@ -162,7 +159,7 @@ func (f *fsm) deleteClass(name string) {
 	delete(f.Classes, name)
 }
 
-func (f *fsm) addProperty(class string, p *models.Property) error {
+func (f *fsm) addProperty(class string, p models.Property) error {
 	f.Lock()
 	defer f.Unlock()
 
@@ -175,7 +172,7 @@ func (f *fsm) addProperty(class string, p *models.Property) error {
 	src := info.Class.Properties
 	dest := make([]*models.Property, len(src)+1)
 	copy(dest, src)
-	dest[len(src)] = p
+	dest[len(src)] = &p
 	info.Class.Properties = dest
 	return nil
 }
@@ -253,20 +250,5 @@ type Response struct {
 	Error error
 	Data  interface{}
 }
-
-type CMD int16
-
-const (
-	CMD_ADD_CLASS CMD = iota + 1
-	CMD_UPDATE_CLASS
-	CMD_DELETE_CLASS
-	CMD_ADD_PROPERTY
-)
-
-const (
-	CMD_ADD_TENANT CMD = iota + 16
-	CMD_UPDATE_TENANT
-	CMD_DELETE_TENANT
-)
 
 var _ raft.FSM = &fsm{}
