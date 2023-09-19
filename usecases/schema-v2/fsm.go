@@ -1,10 +1,14 @@
 package schemav2
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"sync"
 
+	"github.com/hashicorp/raft"
 	"github.com/weaviate/weaviate/entities/models"
 	"github.com/weaviate/weaviate/usecases/sharding"
 )
@@ -30,10 +34,108 @@ func NewFSM(nClasses int) fsm {
 	}
 }
 
-func (f *fsm) addClass(cls models.Class, ss sharding.State) {
+func (f *fsm) Restore(rc io.ReadCloser) error {
+	log.Println("restoring snapshot")
+
+	defer func() {
+		if err2 := rc.Close(); err2 != nil {
+			log.Printf("restore snapshot: close reader: %v\n", err2)
+		}
+	}()
+	// TODO: restore class embedded sub types (see repo.schema.store)
+	m := make(map[string]*metaClass, 32)
+	if err := json.NewDecoder(rc).Decode(&m); err != nil {
+		return fmt.Errorf("restore snapshot: decode json: %v", err)
+	}
+	f.Classes = m
+	return nil
+}
+
+// Apply log is invoked once a log entry is committed.
+// It returns a value which will be made available in the
+// ApplyFuture returned by Raft.Apply method if that
+// method was called on the same Raft node as the FSM.
+func (f *fsm) Apply(l *raft.Log) interface{} {
+	if l.Type != raft.LogCommand {
+		log.Println("%v is not a log command", l.Type)
+		return nil
+	}
+	cmd := Request{}
+	if err := json.Unmarshal(l.Data, &cmd); err != nil {
+		log.Printf("apply: unmarshal command %v\n", err)
+		return nil
+	}
+	log.Printf("apply: op=%v key=%v value=%v", cmd.Operation, cmd.Class, cmd.Value)
+
+	switch cmd.Operation {
+	case CMD_ADD_CLASS:
+		return Response{
+			Error: f.addClass(models.Class{}, sharding.State{}),
+		}
+	case CMD_UPDATE_CLASS:
+		return Response{
+			Error: f.updateClass(nil, nil),
+		}
+	case CMD_DELETE_CLASS:
+		f.deleteClass(cmd.Class)
+		return Response{}
+
+	case CMD_ADD_PROPERTY:
+		return Response{
+			Error: f.addProperty(cmd.Class, nil),
+		}
+	case CMD_ADD_TENANT:
+		return Response{
+			Error: f.addTenants(cmd.Class, nil),
+		}
+	case CMD_UPDATE_TENANT:
+		_, err := f.updateTenants(cmd.Class, nil)
+		return Response{
+			Error: err,
+		}
+	case CMD_DELETE_TENANT:
+		return Response{
+			Error: f.deleteTenants(cmd.Class, nil),
+		}
+	default:
+		log.Println("unknown command ", cmd)
+	}
+	return nil
+}
+
+func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
+	return f, nil
+}
+
+// Persist should dump all necessary state to the WriteCloser 'sink',
+// and call sink.Close() when finished or call sink.Cancel() on error.
+func (f *fsm) Persist(sink raft.SnapshotSink) (err error) {
+	log.Println("persisting snapshot")
 	f.Lock()
 	defer f.Unlock()
+	defer sink.Close()
+
+	err = json.NewEncoder(sink).Encode(f.Classes)
+
+	// should we cal cancel if err != nil
+	log.Println("persisting snapshot done", err)
+	return err
+}
+
+// Release is invoked when we are finished with the snapshot.
+func (*fsm) Release() {
+	log.Println("snapshot has been successfully created")
+}
+
+func (f *fsm) addClass(cls models.Class, ss sharding.State) error {
+	f.Lock()
+	defer f.Unlock()
+	info := f.Classes[cls.Class]
+	if info == nil {
+		return errClassNotFound
+	}
 	f.Classes[cls.Class] = &metaClass{cls, ss}
+	return nil
 }
 
 func (f *fsm) updateClass(u *models.Class, ss *sharding.State) error {
@@ -140,3 +242,31 @@ type TenantUpdate struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
 }
+
+type Request struct {
+	Operation CMD
+	Class     string
+	Value     interface{}
+}
+
+type Response struct {
+	Error error
+	Data  interface{}
+}
+
+type CMD int16
+
+const (
+	CMD_ADD_CLASS CMD = iota + 1
+	CMD_UPDATE_CLASS
+	CMD_DELETE_CLASS
+	CMD_ADD_PROPERTY
+)
+
+const (
+	CMD_ADD_TENANT CMD = iota + 16
+	CMD_UPDATE_TENANT
+	CMD_DELETE_TENANT
+)
+
+var _ raft.FSM = &fsm{}
