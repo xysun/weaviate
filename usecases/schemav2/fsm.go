@@ -1,11 +1,8 @@
 package schemav2
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
 	"sync"
 
 	"github.com/hashicorp/raft"
@@ -29,16 +26,20 @@ const (
 )
 
 var (
-	errClassNotFound         = errors.New("class not found")
-	errShardNotFound         = errors.New("shard not found")
-	//errUnexpectedRequestType = errors.New("unexpected request type")
+	errClassNotFound = errors.New("class not found")
+	errShardNotFound = errors.New("shard not found")
+	// errUnexpectedRequestType = errors.New("unexpected request type")
 )
 
 type snapshot map[string]*metaClass
 
 type fsm struct {
 	sync.RWMutex
-	Classes snapshot `json:"classes"`
+	Classes  snapshot `json:"classes"`
+	raftDir  string
+	nodeID   string
+	host     string
+	raftPort string
 }
 
 type metaClass struct {
@@ -46,82 +47,14 @@ type metaClass struct {
 	Sharding sharding.State
 }
 
-func NewFSM(nClasses int) fsm {
+func NewFSM(cfg Config) fsm {
 	return fsm{
-		Classes: make(snapshot, nClasses),
+		Classes:  make(snapshot, 128),
+		raftDir:  cfg.WorkDir,
+		nodeID:   cfg.NodeID,
+		host:     cfg.Host,
+		raftPort: cfg.RaftPort,
 	}
-}
-
-// Apply log is invoked once a log entry is committed.
-// It returns a value which will be made available in the
-// ApplyFuture returned by Raft.Apply method if that
-// method was called on the same Raft node as the FSM.
-func (f *fsm) Apply(l *raft.Log) interface{} {
-	if l.Type != raft.LogCommand {
-		log.Println("%v is not a log command", l.Type)
-		return nil
-	}
-	cmd := Request{}
-	if err := json.Unmarshal(l.Data, &cmd); err != nil {
-		log.Printf("apply: unmarshal command %v\n", err)
-		return nil
-	}
-	log.Printf("apply: op=%v key=%v value=%v", cmd.Operation, cmd.Class, cmd.Value)
-
-	switch cmd.Operation {
-	case CMD_ADD_CLASS:
-		req := cmd.Value.(RequestAddClass)
-		return Response{
-			Error: f.addClass(req.Class, req.State),
-		}
-	case CMD_UPDATE_CLASS:
-		req := cmd.Value.(RequestUpdateClass)
-		return Response{
-			Error: f.updateClass(req.Class, req.State),
-		}
-	case CMD_DELETE_CLASS:
-		f.deleteClass(cmd.Class)
-		return Response{}
-
-	case CMD_ADD_PROPERTY:
-		req := cmd.Value.(RequestAddProperty)
-		return Response{
-			Error: f.addProperty(cmd.Class, req.Property),
-		}
-	case CMD_ADD_TENANT:
-		req := cmd.Value.(map[string]sharding.Physical)
-		return Response{
-			Error: f.addTenants(cmd.Class, req),
-		}
-	case CMD_UPDATE_TENANT:
-		_, err := f.updateTenants(cmd.Class, cmd.Value.([]TenantUpdate))
-		return Response{
-			Error: err,
-		}
-	case CMD_DELETE_TENANT:
-		names := cmd.Value.([]string)
-		return Response{
-			Error: f.deleteTenants(cmd.Class, names),
-		}
-	default:
-		log.Println("unknown command ", cmd)
-	}
-	return nil
-}
-
-func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
-	log.Println("persisting snapshot")
-	f.RLock()
-	defer f.RUnlock()
-	return f.Classes, nil
-}
-
-func (f *fsm) Restore(rc io.ReadCloser) error {
-	log.Println("restoring snapshot")
-	f.Lock()
-	defer f.Unlock()
-	f.Classes.Restore(rc)
-	return nil
 }
 
 func (f *fsm) addClass(cls models.Class, ss sharding.State) error {
