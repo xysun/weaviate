@@ -1,9 +1,15 @@
 package schemav2
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/hashicorp/raft"
+)
+
+var (
+	errIsNotLeader    = errors.New("is not a leader")
+	errLeaderNotFound = errors.New("leader not found")
 )
 
 type Cluster struct {
@@ -16,7 +22,7 @@ func NewCluster(raft *raft.Raft) Cluster {
 
 func (h Cluster) Join(id, addr string, voter bool) error {
 	if h.Raft.State() != raft.Leader {
-		return fmt.Errorf("node %v is not the leader %v", id, raft.Leader)
+		return errIsNotLeader
 	}
 	cfg := h.Raft.GetConfiguration()
 	if err := cfg.Error(); err != nil {
