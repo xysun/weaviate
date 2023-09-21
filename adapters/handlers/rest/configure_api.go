@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	goruntime "runtime"
 	"strings"
 	"time"
@@ -79,6 +80,7 @@ import (
 	"github.com/weaviate/weaviate/usecases/scaler"
 	schemaUC "github.com/weaviate/weaviate/usecases/schema"
 	"github.com/weaviate/weaviate/usecases/schema/migrate"
+	"github.com/weaviate/weaviate/usecases/schemav2"
 	"github.com/weaviate/weaviate/usecases/sharding"
 	"github.com/weaviate/weaviate/usecases/traverser"
 )
@@ -481,7 +483,28 @@ func startupRoutine(ctx context.Context) *state.State {
 	}
 
 	appState.Cluster = clusterState
+	//----  TODO-RAFT
+	nodeName := clusterState.LocalName()
+	nodeAddr, _ := clusterState.NodeHostname(nodeName)
+	addrs := strings.Split(nodeAddr, ":")
 
+	rconfig := schemav2.Config{
+		WorkDir:  filepath.Join(appState.ServerConfig.Config.Persistence.DataPath, "raft"),
+		NodeID:   clusterState.LocalName(),
+		Host:     "localhost", // addrs[0],
+		RaftPort: "1" + addrs[1],
+	}
+	fsm := schemav2.NewFSM(rconfig)
+	isLeader := addrs[1] == "7101"
+	candidateList := []schemav2.Candidate{
+		{ID: "node3", Address: "localhost:17105", NonVoter: false},
+		{ID: "node4", Address: "localhost:17107", NonVoter: false},
+	}
+	if err := fsm.Open(isLeader, candidateList); err != nil {
+		fmt.Printf("fsm.open %v", err.Error())
+		os.Exit(1)
+	}
+	//-------
 	appState.Logger.
 		WithField("action", "startup").
 		Debug("startup routine complete")

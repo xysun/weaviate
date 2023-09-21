@@ -41,10 +41,10 @@ type Candidate struct {
 	NonVoter bool
 }
 
-func (f *fsm) Open() error {
+func (f *fsm) Open(isLeader bool, joiners []Candidate) error {
 	fmt.Println("bootstrapping started")
 
-	if err := os.Mkdir(f.raftDir, 0o755); err != nil {
+	if err := os.MkdirAll(f.raftDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", f.raftDir, err)
 	}
 
@@ -95,9 +95,42 @@ func (f *fsm) Open() error {
 			},
 		},
 	}
+
+	fmt.Println(clusterConfig.Servers)
 	raftNode.BootstrapCluster(clusterConfig)
 
+	go func() {
+		if isLeader {
+			time.Sleep(time.Second * 30)
+			log.Println("---- Wait for leader")
+			isCurLeader := <-raftNode.LeaderCh()
+			log.Println("---- Current leader", isCurLeader)
 
+			cluster := NewCluster(raftNode)
+			for _, c := range joiners {
+				// clusterConfig.Servers = append(clusterConfig.Servers, raft.Server{
+				// 	ID:      raft.ServerID(c.ID),
+				// 	Address: raft.ServerAddress(c.Address),
+				// },
+				// )
+				log.Printf("--- Join(%v,%v,%v): %v\n", c.ID, c.Address, c.NonVoter, err)
+				if err := cluster.Join(c.ID, c.Address, !c.NonVoter); err != nil {
+					log.Printf("join(%v,%v,%v): %w", c.ID, c.Address, c.NonVoter, err)
+				}
+			}
+		}
+		var lastLeader raft.ServerAddress = "Unknown"
+		t := time.NewTicker(time.Second * 5)
+		defer t.Stop()
+		for range t.C {
+			leader := raftNode.Leader()
+			if leader != lastLeader {
+				lastLeader = leader
+				log.Printf("Current Leader: %v\n", lastLeader)
+				log.Printf("+%v", raftNode.Stats())
+			}
+		}
+	}()
 	fmt.Printf("bootstrapping done, %v\n", f)
 	return nil
 }
